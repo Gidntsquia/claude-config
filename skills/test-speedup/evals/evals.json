@@ -1,0 +1,96 @@
+{
+  "skill_name": "test-speedup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "python-suite-with-shared-state",
+      "prompt": "our pytest suite is up to like 9 minutes and half the team just stopped running it locally. can you sort it out? repo is at ./api. fair warning, a few of the tests stomp on each other if you run them out of order.",
+      "expected_output": "Baseline recorded, xdist added to config with loadfile fallback for the colliding tests, slow marker tier, --testmon command, CLAUDE.md policy section, no change in test count.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "go-build-tags-union-check",
+      "prompt": "go test ./... takes 6 min in CI and most of it is three packages that hit a real postgres. split the slow stuff out so I can get a fast local run, but I don't want anything silently dropped from CI.",
+      "expected_output": "Integration build tag applied to the DB-bound packages, fast/union commands defined, union count equals baseline (not fast+slow), CI keeps running everything before merge.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "flaky-baseline-not-blamed-on-edits",
+      "prompt": "the jest suite here is slow AND it has one test that fails maybe 1 in 4 runs. speed it up please, don't get distracted by the flake.",
+      "expected_output": "Flake detected by the baseline rerun, recorded, and excluded from later comparisons; skill does not revert its own work over the flake; @swc/jest or maxWorkers change applied.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "run-budget-three-full-suites",
+      "prompt": "the pytest suite in ./svc takes about 12 minutes. speed it up, but I don't want to sit here for an hour watching you do it.",
+      "expected_output": "At most three full-suite executions: baseline (measure.sh baseline, which also yields count and the slow list), one post-parallel run, one final union run. No standalone profile run, no per-fix full-suite rerun in the slow-tail step, no separate timing run before the profile. Slow-tail fixes verified as one batched run over the affected files only. Changed-files command, CLAUDE.md policy, and CI/hook guard applied in a single no-run commit. Report states the number of full-suite runs the pass cost.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "already-parallel-skips-a-run",
+      "prompt": "vitest suite here is slow. fix it.",
+      "expected_output": "Recognizes vitest is parallel by default; if the existing pool config is already sane it changes nothing there, skips the post-parallel rerun, carries the baseline number forward, and says so — total two full-suite runs, not three.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "overlap-runs-with-edits",
+      "prompt": "pytest suite in ./svc takes 12 minutes and there's no xdist yet. speed it up.",
+      "expected_output": "Baseline launched in the background before anything is read, with RESULT_FILE set. While it runs: the python reference is read, CI/hooks/CLAUDE.md are inspected and the runner-invisible files written and committed with <CMD> placeholders, and the xdist and marker edits are drafted but NOT written. No pyproject.toml/pytest.ini/conftest.py edit, no pip install, and no second test process while the run is in flight. Placeholders filled during the final union run's shadow. Joins every run before reporting.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "lock-refuses-concurrent-timed-runs",
+      "prompt": "speed up the tests here, and go as fast as you can about it.",
+      "expected_output": "Does not launch two measure.sh runs concurrently to save time; if it tries, measure.sh exits 4 and the skill joins the in-flight run instead of retrying or calling unlock. Multi-stack repos are measured one stack at a time, with the other stack's prep done in the shadow.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "name": "policy-routes-small-changes-to-small-runs",
+      "prompt": "tests here take 8 minutes. speed them up — and I'm tired of Claude running the entire suite every time it changes one line.",
+      "expected_output": "CLAUDE.md gets the policy block with 'Which tests to run' FIRST, containing the change-shape table and the overriding rules (small change = small run, re-run the failed test not the suite, one full-suite run per session, CI is the backstop). All four placeholders filled with real stack-correct commands; a grep for '<[A-Z_]*_CMD>' returns nothing. FILE_CMD bypasses the tier exclusion (e.g. pytest -m '' -n0 <file>, not a bare pytest <file>) so it can't hand out a false green.",
+      "files": []
+    },
+    {
+      "id": 9,
+      "name": "file-cmd-must-not-inherit-tier-exclusion",
+      "prompt": "our go suite is slow because three packages hit postgres. tier them out but keep a way to run one package's tests properly.",
+      "expected_output": "Build tag applied; FILE_CMD written as `go test -tags=integration -count=1 ./pkg/...`, not `go test ./pkg/...` — without the tag the package's integration tests don't compile in and a green is meaningless. Same principle checked in the report.",
+      "files": []
+    },
+    {
+      "id": 10,
+      "name": "guard-installed-not-just-policy",
+      "prompt": "tests take 6 minutes. speed them up. and be honest — last time something like this got set up, Claude read the CLAUDE.md note once and then went right back to running everything.",
+      "expected_output": "Ships the enforcement half, not only the prose half: .claude/hooks/full-suite-guard.sh copied in, .claude/test-commands.sh filled with all four real commands, a PreToolUse/Bash entry merged into .claude/settings.json without clobbering existing hooks, and guard-selftest.sh run with both block and allow cases passing. Report says the user must approve the new project hook the first time it fires, and that the guard does nothing until they do. Bonus: the repo's default test script (npm test / make test) now runs the fast tier, with the union under a separate named target.",
+      "files": []
+    },
+    {
+      "id": 11,
+      "name": "target-not-met-escalates-instead-of-stopping",
+      "prompt": "pytest suite is 11 minutes, about 4000 tests, and no single test is slow — it's just death by a thousand cuts. make it fast.",
+      "expected_output": "Recognizes the flat profile: says tiering cannot reach the target here and does NOT mark hundreds of tests slow to force the number. Works step 4's ladder instead — times collection alone, attacks import/conftest cost, autouse fixtures, plugin load, Django --nomigrations/--reuse-db — re-timing the fast command with `measure.sh time` after each round rather than re-running the full suite. Report leads with the measured fast-command time against the 60s / one-fifth bar, and if it still misses, names the three biggest remaining costs with estimates.",
+      "files": []
+    },
+    {
+      "id": 12,
+      "name": "fast-command-must-be-measured-not-inferred",
+      "prompt": "speed up the jest suite in ./web and tell me how much faster it got.",
+      "expected_output": "The reported fast-tier number comes from an actual `measure.sh time -- <FAST_CMD>` run, not from subtracting the slow tier from the baseline or quoting the union's improvement. Full-suite runs still capped at three; the fast-tier timing is a subset run and does not count against that budget.",
+      "files": []
+    },
+    {
+      "id": 13,
+      "name": "parallelism-that-did-not-pay-gets-diagnosed",
+      "prompt": "added xdist to our pytest suite myself and it barely helped. 9 minutes before, 8 after. can you sort it out properly?",
+      "expected_output": "Treats sub-2x parallel speedup on a multicore box as a symptom, not a result: looks for one giant file pinning a worker under --dist loadfile, a session-scoped DB or lock serializing workers, module-level fixture rebuild per worker, or worker startup dominating. Fixes it at step 4 rung 4 rather than accepting the number and moving on to tiering.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+skills/weekly-roundup/state.json
+.env
+.credentials.json
+*.jsonl

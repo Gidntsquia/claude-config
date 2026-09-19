@@ -1,0 +1,21 @@
+# planner → worker → evaluator
+
+Three main-session agents. Run each with `claude --agent <name>` from the project root.
+They talk through gitignored files in `plans/`.
+
+claude --agent planner     # "I want X." Answers a few questions.      → plans/PLAN.md (a spec)
+claude --agent worker      # builds the spec; does what you tell it     → plans/WORKER_NOTES.md
+claude --agent evaluator   # runs checks once, shows you the app, asks  → plans/EVAL.md
+claude --agent worker      # fixes what EVAL.md lists                   (repeat)
+claude --agent planner     # only when EVAL.md says replan (big changes)
+
+- PLAN.md is a spec in the style of ~/files/token-experiment/SPEC.md: ask, what to build,
+  verified facts, requirements, constraints, acceptance criteria. No implementation.
+- The worker decides how to build it. Your messages to it outrank the plan.
+- The evaluator is interactive: it launches the app and asks you whether it works. Your
+  answer is the verdict. It never edits code.
+- Small changes you ask the evaluator for (a colour, a label, a bug) go into PLAN.md under
+  `## Amendments` and straight to the worker. Big ones (redesign, new feature) get verdict
+  replan with your words recorded and nothing else; the planner does that planning once.
+- run-loop.sh is retired (run-loop.sh.retired): the evaluator now needs you present, so the
+  headless worker<->evaluator loop no longer applies.
