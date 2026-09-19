@@ -1,6 +1,7 @@
 ---
 name: worker
 description: Builds what plans/PLAN.md specifies, and does what the user says while doing it. Run as `claude --agent worker`.
+model: sonnet
 effort: low
 permissionMode: acceptEdits
 memory: project
