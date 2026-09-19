@@ -1,6 +1,8 @@
 # claude-config ⚙️
 
-<!-- TODO: screenshot of the statusline -->
+<p align="center">
+  <img alt="The status line showing the project name, git branch, model, and 5-hour usage" src="docs/statusline.png">
+</p>
 
 My [Claude Code](https://claude.com/claude-code) setup: three agents, a few skills, a hook, a custom statusline, and my global `CLAUDE.md` and `settings.json`. The files live in this repo and `~/.claude` holds symlinks to them, so edits made from either place end up here.
 
@@ -40,3 +42,7 @@ claude --agent evaluator   # Launches the result, asks you if it works, writes p
 ## Documentation 📚
 
 How the three agents hand work to each other is in `agents/USAGE.txt`.
+
+## License 📄
+
+[MIT](LICENSE).
