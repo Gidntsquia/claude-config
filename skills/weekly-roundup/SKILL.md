@@ -12,7 +12,9 @@ data-dense, no filler.
 ## 1. Determine the window and run the data script
 
 Both the project/commit window and the token-breakdown window always start at the beginning of
-the current Claude usage week — the most recent Sunday at 10pm (local time) — up to now. This
+the current Claude usage week — the most recent Sunday at 10pm (local time) — up to now. For a
+past or just-ended week (including backfills), pass `--token-window-start` and
+`--token-window-end` as the Sunday 22:00 boundaries on each side so later activity isn't counted. This
 resets every week on that boundary; do not use `last_run` from `state.json` as the window start.
 `state.json`'s `last_run` is kept only as a record of when the skill last ran, not as an input to
 the window.
@@ -33,13 +35,16 @@ python3 "$SKILL_DIR/gather_data.py" \
   --window-start <project window start, YYYY-MM-DD> \
   --window-end <today, YYYY-MM-DD> \
   --token-window-start <most recent Sunday 22:00 local, ISO datetime> \
+  --token-window-end <next Sunday 22:00 local, ISO datetime; omit for the current, unfinished week> \
   --cap-pct <p> \
   --plan-cost 100
 ```
 
 (`$SKILL_DIR` is this skill's directory.) It prints JSON: `projects` (name, path, remote_url,
 commits, screenshot path, token_rows per model, fe_total, cost_total, weekly_pct), `misc`,
-`unused_pct`, `implied_cap_fe`, `combined_cost`. This replaces step 2 and the "Token
+`unused_pct`, `implied_cap_fe`, `combined_cost`, `model_breakdown` (per model across all
+projects + Misc: model_display, raw_tokens, fe_tokens, cost, usage_pct), `model_effort_breakdown`
+(per family x effort: label, color, usage_pct), `unpriced_models`. This replaces step 2 and the "Token
 breakdown" math below — use its numbers directly rather than recomputing them.
 
 If a project's `remote_url` is empty, no GitHub link exists — name it without a link. If a
@@ -85,6 +90,19 @@ Follow the `artifact-design` skill's guidance, then build one HTML page:
      with a small caption
      underneath reading "Equivalent pay-by-token API price; actually paid $100 / mo" (hardcoded
      plan cost — update in this file if it changes).
+     Below the total cost, add a second pie chart (same CSS `conic-gradient` + swatch legend
+     style) titled "Usage by model": one slice per entry of the script's
+     `model_effort_breakdown` (all projects + Misc combined; one entry per model family x effort
+     level), sized by `usage_pct`. That is FE-token weighted, so each model counts in proportion
+     to what it actually consumed, not by message count. Slices sum to 100% of used tokens; no
+     "Unused" slice. Color each slice with the entry's `color` exactly as given: one hue per
+     family (Sonnet blue, Fable purple, Opus orange, Haiku green), darker shade =
+     higher effort (low -> max). Slices are already ordered family, then effort, so a family's
+     shades sit together. Legend: group rows by family, each row a swatch + `label`
+     (e.g. "Sonnet · low") + percentage. Versions of a family (Fable 5 / 5.1) are merged. Local Qwen
+     models are priced at $0 in the script, so they never appear in this pie, the token tables, or
+     the cost. If `unpriced_models` is non-empty, those were priced at Sonnet 5 rates as a
+     fallback; add them to the price table and mention it to Jaxon when reporting, not on the page.
   3. **Things fixed** — a short section between the projects list and the deep dives, only for
      big, non-obvious issues Jaxon ran into and resolved during the week — not routine bugs fixed
      in the normal course of coding. Think: things that broke his environment, cost him real time,
@@ -114,7 +132,7 @@ recomputing them by hand. For reference, the script's method:
 
 - **Raw tokens** = input + output + cache-read + cache-creation (5m/1h) tokens, per model,
   deduped by message id from the jsonl files under `~/.claude/projects/<slug>/`.
-- **Cost** = raw tokens priced per-model (input/output/cache-read at 0.1x input/cache-write at
+- **Cost** = raw tokens priced per-model (input/output/cache-read at 0.1x input (0.025x on Fable 5.1)/cache-write at
   1.25x or 2.0x input for 5m/1h) using the price table at the top of `gather_data.py` — keep
   that table current when Anthropic pricing changes.
 - **FE tokens** ("Fable-equivalent") = cost normalized to Fable's $10/M input rate, so usage
@@ -175,6 +193,8 @@ one: no report-type-specific notes, disclaimers, or wording anywhere in the page
 - Pie chart slices are project shares + Misc + Unused, summing to 100%, computed against the
   weekly cap % as described above — even when `p` is assumed (e.g. 100% for an already-closed
   historical week), state that assumption in the total-cost caption, not as a separate note.
+- "Usage by model" pie is present, split by effort level, colored with the script's `color`
+  values (one hue per family), slices sum to 100%, and it has no Unused slice.
 - Title includes the date range (e.g. "Weekly Roundup — Sep 6-11, 2026"), matching the eyebrow.
 - Fonts, color tokens, and section structure match section 4 exactly — no substituted fonts,
   invented color tokens, or reordered/renamed sections.
