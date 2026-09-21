@@ -19,6 +19,7 @@ import argparse
 import json
 import re
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -56,6 +57,14 @@ def family_for(model: str) -> str:
             return fam.capitalize()
     return "Local"
 
+
+# Repos that lived elsewhere in earlier weeks: project name -> old paths (relative to
+# --files-dir) whose Claude project dirs also count toward it.
+MOVED_FROM = {
+    "token-experiment": ["ai-sandbox/token-experiment"],
+    "deadlock-optimal-build-finder": ["deadlock-build-optimizer"],
+    "nisar-archaeology": ["NISAR-projects"],
+}
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 
@@ -149,10 +158,19 @@ def slug_for(path: Path) -> str:
     return "-" + str(path).strip("/").replace("/", "-")
 
 
-def scan_project_dir(dir_path: Path, window_start: datetime, eff_totals=None, window_end: datetime = None):
+def _prompt_text(msg):
+    c = msg.get("content")
+    if isinstance(c, list):
+        c = " ".join(b.get("text", "") for b in c if isinstance(b, dict) and b.get("type") == "text")
+    return c.strip() if isinstance(c, str) else ""
+
+
+def scan_project_dir(dir_path: Path, window_start: datetime, eff_totals=None, window_end: datetime = None, sessions=None):
     """Return {model: {input, output, cache_read, cache_5m, cache_1h}} for one
     Claude-project jsonl directory, deduped by message id. If eff_totals is a
-    dict, also accumulate the same counts into it keyed by (model, effort)."""
+    dict, also accumulate the same counts into it keyed by (model, effort). If
+    sessions is a dict, also fill sessions[session_id] = {start, prompt, by_model}
+    (one session per jsonl file; prompt = first real user message in the window)."""
     totals = {}
     _new = lambda: {"input": 0, "output": 0, "cache_read": 0, "cache_5m": 0, "cache_1h": 0}
 
@@ -160,12 +178,18 @@ def scan_project_dir(dir_path: Path, window_start: datetime, eff_totals=None, wi
         targets = [totals.setdefault(model, _new())]
         if eff_totals is not None:
             targets.append(eff_totals.setdefault((model, effort), _new()))
+        if sessions is not None:
+            targets.append(sessions[sid]["by_model"].setdefault(model, _new()))
         for slot in targets:
             for k, v in deltas.items():
                 slot[k] += v
 
     seen = {}  # msg_id -> output_tokens already counted, to add only deltas
     for jsonl in dir_path.rglob("*.jsonl"):
+        # Subagent transcripts (<session>/subagents/agent-*.jsonl) count toward their parent session.
+        sid = jsonl.parent.parent.name if jsonl.parent.name == "subagents" else jsonl.stem
+        if sessions is not None:
+            sessions.setdefault(sid, {"start": None, "prompt": "", "by_model": {}})
         try:
             lines = jsonl.read_text(errors="ignore").splitlines()
         except OSError:
@@ -180,9 +204,8 @@ def scan_project_dir(dir_path: Path, window_start: datetime, eff_totals=None, wi
                 continue
             msg = rec.get("message") or {}
             usage = msg.get("usage")
-            if not usage:
-                continue
             ts = rec.get("timestamp")
+            t = None
             if ts:
                 try:
                     t = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone().replace(tzinfo=None)
@@ -190,6 +213,17 @@ def scan_project_dir(dir_path: Path, window_start: datetime, eff_totals=None, wi
                     t = None
                 if t and (t < window_start or (window_end and t >= window_end)):
                     continue
+            if sessions is not None:
+                sess = sessions[sid]
+                if t and (sess["start"] is None or t.isoformat() < sess["start"]):
+                    sess["start"] = t.isoformat(timespec="minutes")
+                if (not sess["prompt"] and rec.get("type") == "user" and not rec.get("isMeta")
+                        and msg.get("role") == "user"):
+                    text = _prompt_text(msg)
+                    if text and not text.startswith("<"):
+                        sess["prompt"] = " ".join(text.split())[:200]
+            if not usage:
+                continue
             model = msg.get("model", "unknown")
             effort = rec.get("effort")
             msg_id = msg.get("id") or rec.get("uuid")
@@ -225,6 +259,7 @@ def main():
     ap.add_argument("--token-window-end", default=None, help="ISO datetime, token tally window end (exclusive); default: now")
     ap.add_argument("--cap-pct", type=float, required=True, help="percent of weekly cap consumed so far")
     ap.add_argument("--plan-cost", type=float, required=True, help="flat-rate plan cost, $/mo")
+    ap.add_argument("--features-file", default=None, help="JSON {project: {feature: [session id or prefix, ...]}}; adds per-feature usage to each project")
     ap.add_argument("--include-ai-sandbox", action="store_true")
     ap.add_argument("--include-project", action="append", default=[], help="repo dir name to list even with no commits in the window (repeatable)")
     args = ap.parse_args()
@@ -239,7 +274,10 @@ def main():
     eff_totals = {}  # (model, effort) -> token counts, all dirs
     projects = []
     matched_slugs = set()
+    moved_old = {old for olds in MOVED_FROM.values() for old in olds}
     for repo in repos:
+        if repo.name in moved_old:
+            continue  # folded into its new repo via MOVED_FROM, not a separate project
         is_git = (repo / ".git").exists()
         commits = repo_commits(repo, args.window_start, args.window_end) if is_git else []
         if is_git and not commits and repo.name not in args.include_project:
@@ -247,14 +285,15 @@ def main():
         remote = normalize_remote(git(repo, "remote", "get-url", "origin")) if is_git else ""
         screenshot = find_screenshot(repo, args.window_start)
 
-        expected_slug = slug_for(repo)
+        expected_slugs = [slug_for(repo)] + [slug_for(files_dir / old) for old in MOVED_FROM.get(repo.name, [])]
         model_totals = {}
+        proj_sessions = {}
         for d in claude_projects.iterdir():
             if not d.is_dir():
                 continue
-            if d.name == expected_slug or d.name.startswith(expected_slug + "-"):
+            if any(d.name == e or d.name.startswith(e + "-") for e in expected_slugs):
                 matched_slugs.add(d.name)
-                dir_totals = scan_project_dir(d, token_window_start, eff_totals, token_window_end)
+                dir_totals = scan_project_dir(d, token_window_start, eff_totals, token_window_end, proj_sessions)
                 for model, t in dir_totals.items():
                     slot = model_totals.setdefault(model, {"input": 0, "output": 0, "cache_read": 0, "cache_5m": 0, "cache_1h": 0})
                     for k in slot:
@@ -288,6 +327,7 @@ def main():
             "token_rows": token_rows,
             "fe_total": round(project_fe_total, 2),
             "cost_total": round(project_cost_total, 4),
+            "_sessions": proj_sessions,
         })
 
     # Misc: every other claude-project dir active in the token window, not matched above.
@@ -377,6 +417,68 @@ def main():
     misc_weekly_pct = round((misc_fe / implied_cap_fe) * 100, 2) if implied_cap_fe else 0
     unused_pct = round(100 - p, 2)
 
+    features_map = {}
+    if args.features_file:
+        features_map = json.loads(Path(args.features_file).expanduser().read_text())
+
+    def session_fe(sess):
+        by_model = {}
+        for model, t in sess["by_model"].items():
+            _c, fe = price_row(model, t["input"], t["output"], t["cache_read"], t["cache_5m"], t["cache_1h"])
+            if fe > 0:
+                by_model[model] = fe
+        return by_model
+
+    for proj in projects:
+        sessions = proj.pop("_sessions")
+        priced = {sid: session_fe(sess) for sid, sess in sessions.items()}
+        priced = {sid: m for sid, m in priced.items() if m}
+        proj["sessions"] = sorted(
+            (
+                {
+                    "id": sid,
+                    "start": sessions[sid]["start"],
+                    "prompt": sessions[sid]["prompt"],
+                    "fe_tokens": round(sum(m.values()), 2),
+                    "weekly_pct": round(sum(m.values()) / implied_cap_fe * 100, 2) if implied_cap_fe else 0,
+                }
+                for sid, m in priced.items()
+            ),
+            key=lambda r: r["start"] or "",
+        )
+        wanted = features_map.get(proj["name"])
+        if not wanted:
+            continue
+        assigned = {}  # sid -> feature
+        for feature, ids in wanted.items():
+            for ref in ids:
+                hits = [sid for sid in priced if sid.startswith(ref)]
+                if not hits:
+                    print(f"warning: {proj['name']} / {feature}: no session matches '{ref}'", file=sys.stderr)
+                for sid in hits:
+                    assigned.setdefault(sid, feature)
+        groups = {}  # feature -> {family: fe}
+        for sid, m in priced.items():
+            g = groups.setdefault(assigned.get(sid, "Other"), {})
+            for model, fe in m.items():
+                g[family_for(model)] = g.get(family_for(model), 0.0) + fe
+        feats = []
+        for feature, fams in groups.items():
+            fe_sum = sum(fams.values())
+            feats.append({
+                "name": feature,
+                "fe_tokens": round(fe_sum, 2),
+                "weekly_pct": round(fe_sum / implied_cap_fe * 100, 2) if implied_cap_fe else 0,
+                "sessions": sum(1 for sid in priced if assigned.get(sid, "Other") == feature),
+                "models": [
+                    {"family": fam, "color": FAMILY_COLORS[fam][2], "fe_tokens": round(fe, 2),
+                     "pct": round(fe / fe_sum * 100, 2)}
+                    for fam, fe in sorted(fams.items(), key=lambda kv: kv[1], reverse=True)
+                ],
+            })
+        feats.sort(key=lambda f: (f["name"] == "Other", -f["fe_tokens"]))
+        proj["features"] = feats
+
     projects.sort(key=lambda pr: pr["weekly_pct"], reverse=True)
 
     out = {
@@ -387,7 +489,7 @@ def main():
         "cap_pct": p,
         "plan_cost": args.plan_cost,
         "implied_cap_fe": round(implied_cap_fe, 2),
-        "combined_cost": round(combined_cost + misc_cost, 4),
+        "combined_cost": round(combined_cost, 4),
         "projects": projects,
         "misc": {"fe_total": round(misc_fe, 2), "cost_total": round(misc_cost, 4), "weekly_pct": misc_weekly_pct},
         "unused_pct": unused_pct,
