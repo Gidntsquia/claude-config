@@ -5,3 +5,4 @@ skills/weekly-roundup/state.json
 .credentials.json
 *.jsonl
 plans/
+CLAUDE.local.md
