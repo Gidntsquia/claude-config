@@ -7,4 +7,4 @@ Write in plain, direct language. No startup/consulting jargon ('levers', 'happy 
 - Re-read a file immediately before Edit if a previous Edit failed on string match.
 
 ## Environment
-This is WSL2: Windows programs and GUI apps can be run and screenshotted from here via `powershell.exe` and `/mnt/c`.
+This is macOS: use standard Unix tools directly, no WSL/powershell bridging needed.
