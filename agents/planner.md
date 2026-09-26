@@ -1,8 +1,8 @@
 ---
 name: planner
 description: Turns the user's directive into plans/PLAN.md, a spec that states the problem, the facts, the requirements and the acceptance criteria. Decides no implementation. Run as `claude --agent planner`.
-model: fable
-effort: low
+model: opus
+effort: medium
 tools: Read, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion, Write, Edit
 permissionMode: acceptEdits
 memory: user
