@@ -2,7 +2,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
-  "model": "sonnet",
+  "model": "opus",
   "hooks": {
     "Stop": [
       {
@@ -70,7 +70,7 @@
   "autoCompactWindow": 200000,
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
-  "theme": "dark",
+  "theme": "auto",
   "remoteControlAtStartup": true,
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true,

@@ -12,3 +12,13 @@ link() {
 for i in agents commands hooks CLAUDE.md settings.json statusline.sh; do link "$R/$i" "$C/$i"; done
 for s in "$R"/skills/*/; do s="${s%/}"; link "$s" "$C/skills/$(basename "$s")"; done
 echo "linked into $C"
+
+# iTerm2 (macOS only): read/write settings from iterm2/ in this repo, and link dynamic profiles.
+if [ "$(uname)" = "Darwin" ]; then
+  defaults write com.googlecode.iterm2 PrefsCustomFolder -string "$R/iterm2"
+  defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool true
+  D="$HOME/Library/Application Support/iTerm2/DynamicProfiles"
+  mkdir -p "$D"
+  for f in "$R"/iterm2/DynamicProfiles/*.json; do link "$f" "$D/$(basename "$f")"; done
+  echo "iTerm2 now uses $R/iterm2 (restart iTerm2)"
+fi

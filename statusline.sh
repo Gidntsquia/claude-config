@@ -308,7 +308,7 @@ fi
 # model (color depends on model family)
 read -r MODEL_BG model_next_fg MODEL_FG < <(model_color "$model")
 model_label="$(strip_default_version "$model")"
-if [ -n "$effort" ] && [ "$effort" != "null" ] && [ "$effort" != "medium" ]; then
+if [ -n "$effort" ] && [ "$effort" != "null" ]; then
   model_label="$model_label $(effort_icon "$effort")"
 fi
 out+="$(esc "${prev_fg};${MODEL_BG}")${SEP}$(rst)"

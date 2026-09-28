@@ -1,0 +1,13 @@
+{
+  "Profiles": [
+    {
+      "Name": "September Trip",
+      "Guid": "september-trip-tmux-autostart",
+      "Dynamic Profile Parent Name": "Default",
+      "Custom Command": "Yes",
+      "Command": "/bin/zsh -l -c '$HOME/.local/bin/trip-tmux'",
+      "Working Directory": "/Users/jaxon/Files/2026/september-trip",
+      "Custom Directory": "Yes"
+    }
+  ]
+}
