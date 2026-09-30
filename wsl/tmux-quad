@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# New tmux session with 4 equal panes, all starting in ~/files.
+dir="$HOME/files"
+exec tmux new-session -c "$dir" \; \
+  split-window -h -c "$dir" \; \
+  split-window -v -c "$dir" \; \
+  select-pane -t 1 \; \
+  split-window -v -c "$dir" \; \
+  select-layout tiled \; \
+  select-pane -t 1

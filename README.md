@@ -38,6 +38,7 @@ claude --agent evaluator   # Launches the result, asks you if it works, writes p
 - `hooks/full-suite-guard.sh` blocks Bash calls that run a project's whole test suite.
 - `statusline.sh` draws the status line in the gruvbox colors from my starship prompt, with a different color for each model.
 - `commands/summarize_commits.md` writes a short summary for each commit on a branch.
+- On WSL, `install.sh` makes new Windows Terminal tabs open tmux with 4 equal panes in `~/files` (`wsl/tmux-quad`). On macOS it points iTerm2 at `iterm2/` instead.
 
 ## Documentation 📚
 

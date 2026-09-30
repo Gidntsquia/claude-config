@@ -22,3 +22,13 @@ if [ "$(uname)" = "Darwin" ]; then
   for f in "$R"/iterm2/DynamicProfiles/*.json; do link "$f" "$D/$(basename "$f")"; done
   echo "iTerm2 now uses $R/iterm2 (restart iTerm2)"
 fi
+
+# WSL only: new Windows Terminal tabs for this distro open tmux with 4 panes in ~/files.
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  mkdir -p "$HOME/.local/bin"
+  link "$R/wsl/tmux-quad" "$HOME/.local/bin/tmux-quad"
+  W="$(wslpath "$(cmd.exe /C 'echo %LOCALAPPDATA%' 2>/dev/null | tr -d '\r')")"
+  for S in "$W"/Packages/Microsoft.WindowsTerminal*/LocalState/settings.json; do
+    [ -f "$S" ] && python3 "$R/wsl/wt-profile.py" "$S" "$WSL_DISTRO_NAME" "wsl.exe -d $WSL_DISTRO_NAME -- $HOME/.local/bin/tmux-quad" || true
+  done
+fi
