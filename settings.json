@@ -2,7 +2,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
-  "model": "opus",
+  "model": "claude-fable-5-1",
   "hooks": {
     "Stop": [
       {
@@ -65,6 +65,12 @@
     },
     "qwen3.5-9b-claude": {
       "effortLevel": "low"
+    },
+    "claude-sonnet-5-5": {
+      "effortLevel": "low"
+    },
+    "claude-opus-5-5": {
+      "effortLevel": "medium"
     }
   },
   "autoCompactWindow": 200000,
