@@ -1,0 +1,351 @@
+[
+ {
+  "weekStart": "2026-08-23",
+  "label": "Aug 23–30, 2026",
+  "url": "https://claude.ai/code/artifact/b1877f80-c3d5-45aa-a117-c24241ef06b2",
+  "projectCount": 2,
+  "totalCost": 296.98,
+  "slices": [
+   {
+    "color": "#c9752f",
+    "name": "Pokemon GO Video-to-CSV",
+    "pct": 36.3
+   },
+   {
+    "color": "#2fa876",
+    "name": "Pokemon Go GBL Team Generator",
+    "pct": 30.21
+   },
+   {
+    "color": "#9aa2b1",
+    "name": "Misc (other sessions)",
+    "pct": 33.49
+   }
+  ]
+ },
+ {
+  "weekStart": "2026-08-30",
+  "label": "Aug 30–Sep 6, 2026",
+  "url": "https://claude.ai/code/artifact/8cc64368-c189-4517-9e79-851e400fda6c",
+  "projectCount": 6,
+  "totalCost": 661,
+  "slices": [
+   {
+    "color": "#2a9bc4",
+    "name": "Token Usage Experiment",
+    "pct": 52.87
+   },
+   {
+    "color": "#e0526a",
+    "name": "Deadlock Optimal Build Finder",
+    "pct": 12.29
+   },
+   {
+    "color": "#7c5cff",
+    "name": "Wordbound: Crescendo",
+    "pct": 9.92
+   },
+   {
+    "color": "#2fa876",
+    "name": "Pokemon Go GBL Team Generator",
+    "pct": 8.36
+   },
+   {
+    "color": "#e0a030",
+    "name": "NISAR Archaeological Prospection",
+    "pct": 5.48
+   },
+   {
+    "color": "#c9752f",
+    "name": "Pokemon GO Video-to-CSV",
+    "pct": 0.76
+   },
+   {
+    "color": "#9aa2b1",
+    "name": "Misc (other sessions)",
+    "pct": 10.31
+   }
+  ]
+ },
+ {
+  "weekStart": "2026-09-06",
+  "label": "Sep 6–13, 2026",
+  "url": "https://claude.ai/code/artifact/4a572861-927d-4260-9bf6-a49fab244eb0",
+  "projectCount": 8,
+  "totalCost": 968.13,
+  "slices": [
+   {
+    "color": "#7c5cff",
+    "name": "Wordbound: Crescendo",
+    "pct": 36.65
+   },
+   {
+    "color": "#e0a030",
+    "name": "NISAR Archaeological Prospection",
+    "pct": 31.77
+   },
+   {
+    "color": "#2fa876",
+    "name": "Pokemon Go GBL Team Generator",
+    "pct": 17.09
+   },
+   {
+    "color": "#2bb4c9",
+    "name": "Deadlock Optimal Build Finder",
+    "pct": 2.24
+   },
+   {
+    "color": "#a13e85",
+    "name": "Yu-Gi-Oh! Deck Optimizer",
+    "pct": 2.23
+   },
+   {
+    "color": "#e0526a",
+    "name": "Deadlock Street Brawl Helper",
+    "pct": 2.15
+   },
+   {
+    "color": "#8a6fae",
+    "name": "God's Eye View",
+    "pct": 0.88
+   },
+   {
+    "color": "#4a6fa5",
+    "name": "Token Usage Experiment",
+    "pct": 0.06
+   },
+   {
+    "color": "#9aa2b1",
+    "name": "Misc (other sessions)",
+    "pct": 6.91
+   }
+  ]
+ },
+ {
+  "weekStart": "2026-09-13",
+  "label": "Sep 13–20, 2026",
+  "url": "https://claude.ai/artifact/TyQ8ijmPtu5EEe7BVfJdAL",
+  "projectCount": 13,
+  "totalCost": 686.45,
+  "slices": [
+   {
+    "color": "#d9534f",
+    "name": "Pokémon Go GBL Team Generator",
+    "pct": 22.55
+   },
+   {
+    "color": "#7c5cff",
+    "name": "Deadlock Street Brawl Helper",
+    "pct": 21.02
+   },
+   {
+    "color": "#c2185b",
+    "name": "Yu-Gi-Oh! Deck Optimizer",
+    "pct": 15.72
+   },
+   {
+    "color": "#d98e04",
+    "name": "Deadlock Optimal Build Finder",
+    "pct": 13.73
+   },
+   {
+    "color": "#2bb4c9",
+    "name": "Agent Eval Experiment",
+    "pct": 7.23
+   },
+   {
+    "color": "#a13e85",
+    "name": "NISAR Archaeological Prospection",
+    "pct": 4.17
+   },
+   {
+    "color": "#2e9e6b",
+    "name": "Archaeology Site Explorer",
+    "pct": 4.16
+   },
+   {
+    "color": "#e0526a",
+    "name": "Wordbound: Crescendo",
+    "pct": 0.89
+   },
+   {
+    "color": "#607d8b",
+    "name": "Resume Improvement",
+    "pct": 0.75
+   },
+   {
+    "color": "#4c9a2a",
+    "name": "Token Efficiency Experiment (working dir)",
+    "pct": 0.58
+   },
+   {
+    "color": "#0f8b8d",
+    "name": "Claude Config",
+    "pct": 0.52
+   },
+   {
+    "color": "#b5651d",
+    "name": "NISAR Projects (scratch)",
+    "pct": 0.01
+   },
+   {
+    "color": "#7a8a99",
+    "name": "Token Efficiency Experiment",
+    "pct": 0
+   },
+   {
+    "color": "#9aa2b1",
+    "name": "Misc (other sessions)",
+    "pct": 8.65
+   }
+  ]
+ },
+ {
+  "weekStart": "2026-09-20",
+  "label": "Sep 20–27, 2026",
+  "url": "https://claude.ai/artifact/98VC5a6bStWvuBBcWF7oMm",
+  "projectCount": 9,
+  "totalCost": 680.53,
+  "slices": [
+   {
+    "color": "#2bb4c9",
+    "name": "Agent Eval Experiment",
+    "pct": 63.85
+   },
+   {
+    "color": "#d9534f",
+    "name": "Pokémon Go GBL Team Generator",
+    "pct": 14.64
+   },
+   {
+    "color": "#a13e85",
+    "name": "NISAR Archaeological Prospection",
+    "pct": 9.18
+   },
+   {
+    "color": "#e8710a",
+    "name": "Smash Analyzer",
+    "pct": 3.39
+   },
+   {
+    "color": "#7a8a99",
+    "name": "Token Efficiency Experiment",
+    "pct": 2.83
+   },
+   {
+    "color": "#0f8b8d",
+    "name": "Claude Config",
+    "pct": 1.24
+   },
+   {
+    "color": "#2e9e6b",
+    "name": "BugsCEP + SEAD Explorer",
+    "pct": 1.18
+   },
+   {
+    "color": "#7c5cff",
+    "name": "MCP Investigations",
+    "pct": 0.91
+   },
+   {
+    "color": "#c2185b",
+    "name": "Personal Website",
+    "pct": 0.66
+   },
+   {
+    "color": "#9aa2b1",
+    "name": "Misc (other sessions)",
+    "pct": 2.12
+   }
+  ]
+ },
+ {
+  "weekStart": "2026-09-27",
+  "label": "Sep 27–Oct 4, 2026",
+  "url": "https://claude.ai/artifact/3hnFpFZPc1WC2UiU678DsJ",
+  "projectCount": 15,
+  "totalCost": 1580.71,
+  "slices": [
+   {
+    "color": "#2bb4c9",
+    "name": "Agent Eval Experiment",
+    "pct": 64.5
+   },
+   {
+    "color": "#7c5cff",
+    "name": "Planner Building",
+    "pct": 10.2
+   },
+   {
+    "color": "#e8710a",
+    "name": "Deadlock Street Brawl Helper",
+    "pct": 3.67
+   },
+   {
+    "color": "#c2185b",
+    "name": "Open Video Editor",
+    "pct": 3.54
+   },
+   {
+    "color": "#7a8a99",
+    "name": "Token Efficiency Experiment",
+    "pct": 3.46
+   },
+   {
+    "color": "#d9534f",
+    "name": "Pokémon Go GBL Team Generator",
+    "pct": 2.58
+   },
+   {
+    "color": "#b8860b",
+    "name": "Deadlock Optimal Build Finder",
+    "pct": 2.14
+   },
+   {
+    "color": "#6d4c41",
+    "name": "Workout Visualizer",
+    "pct": 2.14
+   },
+   {
+    "color": "#2e9e6b",
+    "name": "Beetles & Buried Time",
+    "pct": 1.36
+   },
+   {
+    "color": "#8bc34a",
+    "name": "Music Finder",
+    "pct": 1.03
+   },
+   {
+    "color": "#a13e85",
+    "name": "Wordbound: Crescendo",
+    "pct": 0.66
+   },
+   {
+    "color": "#ff8a65",
+    "name": "squid-pet",
+    "pct": 0.43
+   },
+   {
+    "color": "#26a69a",
+    "name": "Slideshow Maker",
+    "pct": 0.36
+   },
+   {
+    "color": "#827717",
+    "name": "Archery Range",
+    "pct": 0.11
+   },
+   {
+    "color": "#43a047",
+    "name": "Money Maker",
+    "pct": 0.1
+   },
+   {
+    "color": "#9aa2b1",
+    "name": "Misc (other sessions)",
+    "pct": 3.74
+   }
+  ]
+ }
+]

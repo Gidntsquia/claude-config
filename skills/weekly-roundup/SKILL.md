@@ -262,12 +262,16 @@ Re-read this checklist against the finished HTML immediately before publishing.
 
 **Roundup Archive** (`https://claude.ai/code/artifact/61e892af-ab44-48cb-9c9b-74ee690c6dad`,
 `archive_url` in `state.json`) is a gallery of every week: a thumbnail donut per week that expands
-to the full pie + legend on hover. It reads its own `db` at load, so adding a week is a database
-write, never a republish of its HTML.
+to the full pie + legend on hover. Its weeks are written into the page itself (no `db`), so
+anyone with the public link sees every week. The data lives in `archive_weeks.json` next to this
+file; `archive_template.html` is the page.
 
-After publishing this week's roundup, write one document to its `weeks` collection via `Artifact`
-(`action: "write_db"`, `db_op: "set"`, `url: archive_url`, `collection: "weeks"`,
-`doc_id: "<window-start, YYYY-MM-DD>"`):
+After publishing this week's roundup, write this week to a scratch JSON file, then run
+`python3 "$SKILL_DIR/build_archive.py" --add <file> --out <scratch>/archive.html` (it inserts or
+replaces the week by `weekStart` in `archive_weeks.json` and builds the page) and republish the
+page with `Artifact` (`url: archive_url`; read it first per the update flow; omit `capabilities`).
+Commit `archive_weeks.json` in `~/files/claude-config`. Never give the archive a `db`: a `db` page
+is organization-only, so public viewers would not see the weeks.
 
 ```
 {
@@ -285,7 +289,8 @@ After publishing this week's roundup, write one document to its `weeks` collecti
 }
 ```
 
-Omit the "Unused" slice if `unused_pct` is 0.
+Omit the "Unused" slice if `unused_pct` is 0. Slices must sum to 100: when cap usage is over
+100%, divide every weekly % by `p/100`.
 
 ## 6. Update state
 
