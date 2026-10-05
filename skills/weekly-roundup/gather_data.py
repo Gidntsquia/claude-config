@@ -24,9 +24,10 @@ from datetime import datetime
 from pathlib import Path
 
 # Per-million-token USD list prices (source: platform.claude.com/docs/en/about-claude/pricing,
-# checked 2026-09-27). Cache reads default to 0.1x input; override with "cache_read_mult".
+# checked 2026-10-04). Cache reads default to 0.1x input; override with "cache_read_mult".
 # Cache writes are 1.25x (5m) / 2x (1h) input. Update as pricing changes.
 PRICING = {
+    "claude-sonnet-5-5":      {"in": 2.00,  "out": 10.00, "display": "Sonnet 5.5"},
     "claude-sonnet-5":        {"in": 2.00,  "out": 10.00, "display": "Sonnet 5"},
     "claude-opus-5-5":        {"in": 4.00,  "out": 20.00, "cache_read_mult": 0.05, "display": "Opus 5.5"},
     "claude-opus-5":          {"in": 5.00,  "out": 25.00, "display": "Opus 5"},
