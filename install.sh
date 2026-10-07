@@ -31,4 +31,18 @@ if grep -qi microsoft /proc/version 2>/dev/null; then
   for S in "$W"/Packages/Microsoft.WindowsTerminal*/LocalState/settings.json; do
     [ -f "$S" ] && python3 "$R/wsl/wt-profile.py" "$S" "$WSL_DISTRO_NAME" "wsl.exe -d $WSL_DISTRO_NAME -- $HOME/.local/bin/tmux-quad" || true
   done
+
+  # Windows Terminal resets to 100% in the volume mixer after reboots; set it to 18% each time WSL boots.
+  # The .ps1 is copied (Windows runs it from %USERPROFILE%\Scripts), so rerun install.sh after editing it.
+  WP="$(cmd.exe /C 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')"
+  mkdir -p "$(wslpath "$WP")/Scripts"
+  cp "$R/wsl/terminal-volume.ps1" "$(wslpath "$WP")/Scripts/terminal-volume.ps1"
+  powershell.exe -NoProfile -Command "
+    \$a = New-ScheduledTaskAction -Execute conhost.exe -Argument '--headless powershell.exe -MTA -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $WP\\Scripts\\terminal-volume.ps1'
+    \$s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+    Register-ScheduledTask -TaskName 'Pin Windows Terminal Volume' -Action \$a -Settings \$s -Force | Out-Null"
+  mkdir -p "$HOME/.config/systemd/user"
+  link "$R/wsl/terminal-volume.service" "$HOME/.config/systemd/user/terminal-volume.service"
+  systemctl --user daemon-reload && systemctl --user enable terminal-volume.service >/dev/null 2>&1 || true
+  echo "Windows Terminal volume will be set to 18% each time WSL boots"
 fi

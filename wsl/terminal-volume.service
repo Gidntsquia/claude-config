@@ -1,0 +1,9 @@
+[Unit]
+Description=Set Windows Terminal mixer volume when WSL boots (runs Windows task "Pin Windows Terminal Volume")
+
+[Service]
+Type=oneshot
+ExecStart=/mnt/c/Windows/System32/schtasks.exe /run /tn "Pin Windows Terminal Volume"
+
+[Install]
+WantedBy=default.target
