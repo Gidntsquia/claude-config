@@ -51,6 +51,7 @@ The same night I also:
 - Added `skillOverrides` to turn off or hide skills I don't use, and set `"workflowKeywordTriggerEnabled": false`.
 - Removed the `CLAUDE.md` rule "Re-read a file immediately before Edit if a previous Edit failed on string match." The Edit tool already reports a mismatch, so the rule cost tokens without changing behavior.
 - Shortened the descriptions in my auto-memory index (`~/.claude/projects/*/memory/MEMORY.md`, not in this repo) to about 8 words each, since the full detail is in each memory file. `CLAUDE.local.md` stays a separate file because it holds per-machine notes and is gitignored.
+- Emptied the ai-sandbox auto-memory, which loaded in every session there. I deleted two stale memories (orchestration reports, the second-device week). I moved the agent memories into agent-eval-experiment's project memory and the config memories into this repo's project memory. `CLAUDE.md` now has a one-line pointer to this repo instead.
 
 **Restore point:** the git tag `pre-trim-2026-10-08` marks the config before any of this trimming. If something breaks, run `git checkout pre-trim-2026-10-08 -- settings.json` (or the whole tree) and restart Claude Code.
 
