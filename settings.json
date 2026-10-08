@@ -45,27 +45,6 @@
     "anthropic-skills:pptx": "name-only"
   },
   "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "jobs -r | grep -q . && echo 'Background jobs still running in this shell \u2014 verify results before stopping.' >&2 && exit 2 || exit 0"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "input=$(cat); file=$(echo \"$input\" | jq -r '.tool_input.file_path // empty'); [ -n \"$file\" ] && npx --no-install prettier --write \"$file\" >/dev/null 2>&1; exit 0"
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
