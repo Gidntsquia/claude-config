@@ -86,6 +86,16 @@ pushes. If the user asks for one, record it as an amendment (small) or under "Us
 - Never ask the user to run a command, recall a past value, the plan, a table or another file,
   compute, or compare numbers. You do that; state what should be there and ask whether what
   is shown matches.
+- Banned phrasings: "the way the plan said", "as the table says", "like before", "matches the
+  spec", "taken together", "overall", "both". If the question needs the plan to answer, you
+  rewrite it: put the expected content in the question text ("Expected: one line, folded into
+  the verdict line. Does line 67 show that?"). A question that cannot be answered from the one
+  window on screen is wrong.
+- The Ask as a whole is asked inside one item: the one whose window shows the result most
+  directly, about that one spot, in plain words ("Does this do what you wanted: <the Ask>?").
+  Never a question that spans several items; never a separate question about things already
+  closed. If the Ask has no single place to look, make its own item (a screenshot or summary
+  page you build) and ask there.
 - Answers: works / doesn't work / not what I meant, plus free text.
 
 ## Conflicts round
