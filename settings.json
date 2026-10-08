@@ -1,6 +1,9 @@
 {
   "permissions": {
-    "defaultMode": "auto"
+    "defaultMode": "auto",
+    "deny": [
+      "Workflow"
+    ]
   },
   "model": "opus",
   "hooks": {
@@ -37,7 +40,7 @@
       }
     ]
   },
-  "enableWorkflows": true,
+  "enableWorkflows": false,
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/statusline.sh"
@@ -45,7 +48,9 @@
   "enabledPlugins": {
     "skill-creator@claude-plugins-official": false,
     "frontend-design@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": false
+    "claude-md-management@claude-plugins-official": false,
+    "cc-plugin-diff@builtin": true,
+    "engineering@synced": false
   },
   "extraKnownMarketplaces": {},
   "outputStyle": "Concise",
@@ -75,7 +80,6 @@
   },
   "autoCompactWindow": 200000,
   "tui": "fullscreen",
-  "skipWorkflowUsageWarning": true,
   "theme": "auto",
   "remoteControlAtStartup": true,
   "inputNeededNotifEnabled": true,
