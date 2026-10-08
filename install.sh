@@ -27,10 +27,19 @@ fi
 if grep -qi microsoft /proc/version 2>/dev/null; then
   mkdir -p "$HOME/.local/bin"
   link "$R/wsl/tmux-quad" "$HOME/.local/bin/tmux-quad"
+
+  # Starship prompt (gruvbox-rainbow preset) in bash. Windows Terminal needs a Nerd Font for the glyphs.
+  [ -x "$HOME/.local/bin/starship" ] || curl -sS "https://starship.rs/install.sh" | sh -s -- -y -b "$HOME/.local/bin"
+  mkdir -p "$HOME/.config"
+  link "$R/wsl/starship.toml" "$HOME/.config/starship.toml"
+  grep -q 'starship init bash' "$HOME/.bashrc" || printf '\neval "$(~/.local/bin/starship init bash)"\n' >> "$HOME/.bashrc"
+  grep -q 'CLAUDE_STATUSLINE_NF' "$HOME/.bashrc" || echo 'export CLAUDE_STATUSLINE_NF=1' >> "$HOME/.bashrc"
   W="$(wslpath "$(cmd.exe /C 'echo %LOCALAPPDATA%' 2>/dev/null | tr -d '\r')")"
   for S in "$W"/Packages/Microsoft.WindowsTerminal*/LocalState/settings.json; do
-    [ -f "$S" ] && python3 "$R/wsl/wt-profile.py" "$S" "$WSL_DISTRO_NAME" "wsl.exe -d $WSL_DISTRO_NAME -- $HOME/.local/bin/tmux-quad" || true
+    [ -f "$S" ] && python3 "$R/wsl/wt-profile.py" "$S" "$WSL_DISTRO_NAME" "wsl.exe -d $WSL_DISTRO_NAME -- $HOME/.local/bin/tmux-quad" "JetBrainsMono Nerd Font" || true
   done
+  compgen -G "/mnt/c/Windows/Fonts/JetBrainsMonoNerdFont-*" >/dev/null || compgen -G "$W/Microsoft/Windows/Fonts/JetBrainsMonoNerdFont-*" >/dev/null \
+    || echo "Install JetBrainsMono Nerd Font on Windows (https://www.nerdfonts.com/font-downloads) or the prompt shows boxes"
 
   # Windows Terminal resets to 100% in the volume mixer after reboots; set it to 18% each time WSL boots.
   # The .ps1 is copied (Windows runs it from %USERPROFILE%\Scripts), so rerun install.sh after editing it.
