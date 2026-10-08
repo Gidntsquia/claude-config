@@ -5,7 +5,6 @@ Give every clock time in US Eastern time, never UTC (logs and `date -u` are UTC;
 ## Shell Conventions
 - Always quote URLs and paths in shell commands to avoid word-splitting.
 - Exclude large data files from grep/search (e.g. `--exclude=*.txt --exclude-dir=data`); never scan multi-MB dictionaries.
-- Re-read a file immediately before Edit if a previous Edit failed on string match.
 
 ## Machine-Specific Notes
 @~/.claude/CLAUDE.local.md
