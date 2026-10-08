@@ -1,18 +1,38 @@
 {
   "permissions": {
-    "defaultMode": "auto",
     "deny": [
       "Workflow"
-    ]
+    ],
+    "defaultMode": "auto"
   },
   "model": "opus",
+  "env": {
+    "ENABLE_CLAUDEAI_MCP_SERVERS": "false"
+  },
+  "skillOverrides": {
+    "anthropic-skills:chrome-browser": "off",
+    "anthropic-skills:built-in-browser": "off",
+    "anthropic-skills:computer-use": "off",
+    "test-speedup": "user-invocable-only",
+    "anthropic-skills:skill-creator": "user-invocable-only",
+    "anthropic-skills:setup-writing-style": "user-invocable-only",
+    "review-skill": "user-invocable-only",
+    "anthropic-skills:morning": "off",
+    "anthropic-skills:google-workspace": "name-only",
+    "anthropic-skills:docx": "name-only",
+    "anthropic-skills:docs": "name-only",
+    "anthropic-skills:import-memory": "off",
+    "summarize_commits": "off",
+    "weekly-roundup": "user-invocable-only",
+    "write-readme": "user-invocable-only"
+  },
   "hooks": {
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "jobs -r | grep -q . && echo 'Background jobs still running in this shell — verify results before stopping.' >&2 && exit 2 || exit 0"
+            "command": "jobs -r | grep -q . && echo 'Background jobs still running in this shell \u2014 verify results before stopping.' >&2 && exit 2 || exit 0"
           }
         ]
       }
@@ -41,6 +61,7 @@
     ]
   },
   "enableWorkflows": false,
+  "workflowKeywordTriggerEnabled": false,
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/statusline.sh"
@@ -89,8 +110,8 @@
       "### Org-wide",
       "**Organization**: None configured",
       "**Cloud provider(s)**: None configured",
-      "**Repository visibility**: PUBLIC — Gidntsquia/descent-of-essence (github.com)",
-      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Repository visibility**: PUBLIC \u2014 Gidntsquia/descent-of-essence (github.com)",
+      "**Internal sharing / snippet hosting**: None configured \u2014 treat public paste/gist services as outside the trust boundary",
       "**Secrets management**: None configured",
       "**Default / protected branches**: main (default); no branch protection rules or rulesets listed via gh",
       "**CI/CD deploy targets**: None configured",
@@ -103,11 +124,11 @@
       "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar",
       "**Data retention / declassification**: None configured",
       "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment",
-      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected deployment namespaces / environments**: None configured \u2014 fall back to the Sensitive remote targets heuristic",
       "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
       "### User-specific",
       "**Primary use of Claude Code**: software development (browser-based JavaScript game, Wordbound, in this repo)",
-      "**Trusted repo**: Gidntsquia/descent-of-essence (public GitHub repo, working directory /home/jaxon/ai-test) and its origin remote — this is a public repo, so only this repo's own work is safe to publish there; secrets and sensitive data are never cleared into it by virtue of visibility",
+      "**Trusted repo**: Gidntsquia/descent-of-essence (public GitHub repo, working directory /home/jaxon/ai-test) and its origin remote \u2014 this is a public repo, so only this repo's own work is safe to publish there; secrets and sensitive data are never cleared into it by virtue of visibility",
       "**Org-specific CLIs**: None configured",
       "routine actions scoped to this repo's working tree and its origin remote only"
     ]

@@ -45,6 +45,13 @@ claude --agent evaluator   # Launches the result, asks you if it works, writes p
 
 On 2026-10-08 I turned off the Workflow tool to save context. `settings.json` has `"permissions": {"deny": ["Workflow"]}` and `"enableWorkflows": false`, so the tool's definition never loads. To bring it back, remove both.
 
+The same night I also:
+
+- Set `"env": {"ENABLE_CLAUDEAI_MCP_SERVERS": "false"}` so claude.ai connectors (Claude Docs) don't load into Claude Code. Remove it to get them back.
+- Added `skillOverrides` to turn off or hide skills I don't use, and set `"workflowKeywordTriggerEnabled": false`.
+
+**Restore point:** the git tag `pre-trim-2026-10-08` marks the config before any of this trimming. If something breaks, run `git checkout pre-trim-2026-10-08 -- settings.json` (or the whole tree) and restart Claude Code.
+
 I also wanted Agent and Artifact to load only when needed, but Claude Code has no setting for that. On-demand loading (ToolSearch) only covers MCP tools and the built-ins Claude Code picks itself, so both still load in every session. Revisit if a setting appears.
 
 ## Documentation 📚
