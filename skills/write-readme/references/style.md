@@ -62,10 +62,8 @@ Numbered steps in Quickstart are fine when the user has to do something outside 
 
 ## Voice
 
-- Plain, direct, first person where it's natural ("the four players I check against"). Neutral
-  register: not corporate, not chummy. The MRC-ARL README is the ceiling for casualness
-  (an exclamation mark or two, "Note:", "IMPORTANT:"), and even that is more casual than the
-  user wants for a public tool repo.
+- Plain, direct, first person where natural. Neutral register: not corporate, not chummy; at most
+  an exclamation mark or a "Note:".
 - Say what the thing does. Don't sell it and don't explain why it's clever; that goes in the wiki.
 - One idea per bullet, one or two sentences. Bullets don't need parallel structure or a bolded lead-in.
 - Features are things a user notices, not implementation facts. "Items past your usual final net
@@ -104,15 +102,7 @@ General tells to strip:
 - Asides that perform a personality ("to keep myself honest", "nitty gritty")
 - Closing reassurance clauses ("so you never have to worry about ...")
 
-## Worked example: deadlock-build-optimizer
+## Finished examples
 
-Before: a 370-line README with the scoring formula, pixel coordinates, held-out tables, and a
-"Judgment calls" log inline.
-
-After: an 83-line README (template above) plus eight wiki pages:
-Data-Pipeline, How-the-Build-Generator-Works, Held-out-Validation, Street-Brawl-Advisor,
-Screen-Reader, Overlay-and-Phone-Display, Judgment-Calls, Development. The old text was split by
-`##`/`###` heading with `sed -n 'a,bp'` and pasted into pages nearly verbatim; each page got a
-one-line lead naming the source files. The final README is at
-https://github.com/Gidntsquia/deadlock-build-optimizer/blob/main/README.md; the two Pokemon GO
-repos are the other two examples of the finished style.
+https://github.com/Gidntsquia/deadlock-build-optimizer (370-line README cut to 83 lines + 8 wiki pages),
+pogo-gbl-team-generator, pokemon-go-video-to-csv.

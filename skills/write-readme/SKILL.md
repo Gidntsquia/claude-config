@@ -1,33 +1,37 @@
 ---
 name: write-readme
-description: Write or rewrite a repo's README.md in the user's house style (screenshot at the top, short plain-English description, Quickstart, Features, wiki links, License) and move any long technical detail out into the GitHub wiki. Use this whenever the user asks for a README, wants a README rewritten, shortened, cleaned up, made "less AI-sounding", or says a README should match their other repos. Also use it when a repo has no README yet and the user wants one. Optional args after `/write-readme` are tone or content adjustments (e.g. "no wiki, keep it in one file", "more formal", "skip the brawl part").
+description: Write or rewrite a repo's README in the user's short house style, move long technical detail to the GitHub wiki (cloned into a gitignored wiki/ folder), and create the GitHub repo if there isn't one. Use for any README request (new, rewrite, shorten, "less AI-sounding"). Args after /write-readme adjust the defaults.
 ---
 
 # write-readme
 
-Turn whatever README exists (or none) into the user's standard short README, and park the detail in the wiki. The reference for the target style is `references/style.md`; read it before writing a word. It has the section template, the voice rules, and before/after examples of sentences the user rejected as "clearly AI generated".
+Short README in the user's style + detail in the GitHub wiki, done in one pass. Read `references/style.md` before writing; it has the template, voice rules and the sentences the user rejected.
 
-Arguments after `/write-readme` are adjustments layered on top of the defaults below. Typical ones: "keep everything in the README, no wiki", "drop the license section", "more/less casual", "lead with X instead of Y", "the gif is at docs/foo.gif". Apply them; don't ask about them.
+Args are adjustments ("no wiki", "private", "name it X", "gif is docs/foo.gif"). Apply them without asking.
 
 ## Steps
 
-1. **Read what's there.** `cat README.md` (may not exist), `package.json` / `pyproject.toml` / `Cargo.toml` for the run commands, `ls docs screenshots` for images, `git remote -v` for the GitHub URL, `ls LICENSE`. Skim the main entry point if the README doesn't say what the app does. Don't invent features; everything in the README has to be true of the code as it is.
+1. **Read.** `README.md`, the manifest (`package.json`/`pyproject.toml`/`Cargo.toml`) for run commands, `ls docs screenshots`, `ls LICENSE`, `git remote -v`, `gh auth status`. Skim the entry point if needed. Everything written must be true of the current code.
 
-2. **Pick the hero image.** The top of the README is a screenshot or gif of the main thing the app does. Order of preference: an existing gif in `docs/`, a screenshot the user names, the widest existing screenshot of the main screen. Look at the candidates with the Read tool before choosing. If `screenshots/` is gitignored, copy the chosen file(s) into `docs/` so they render on GitHub. If there is no image at all, leave a clearly marked `<!-- TODO: screenshot of X -->` at the top and tell the user; don't fake one. A second image is fine lower down if the app has a second major mode (see the deadlock example in the style reference).
+2. **GitHub repo.** If there's no `origin`, create it: `gh repo create <owner>/<name> --public --source . --remote origin --push` (public unless args say private; name = the project's name from the manifest/title in kebab-case, else the folder name). Then `gh repo edit --enable-wiki`.
 
-3. **Write the README** using the template and voice in `references/style.md`. Aim for 60-90 lines. Anything that explains *how* something works internally (formulas, thresholds, pixel coordinates, the reasoning behind a parameter) goes to the wiki, not the README.
+3. **Wiki check, early.** `git ls-remote "https://github.com/<o>/<r>.wiki.git"`. If it fails, the wiki has never had a page (GitHub has no API to create one). Tell the user right away: "Open https://github.com/<o>/<r>/wiki/_new and click Save page", and keep working on steps 4-6 while they do it.
 
-4. **Move detail to the wiki** unless told not to. The wiki is a separate git repo at `https://github.com/<owner>/<repo>.wiki.git`. Clone it into the scratchpad, split the old README's technical sections into pages (one page per topic, `Title-Case-With-Dashes.md`, `# Title` as the first line), write a `Home.md` index with one line per page, commit, push. Promote `###` to `##` inside pages since each page is its own document. Keep the old text mostly verbatim; the point is relocation, not rewriting. Then link every page from the README's Documentation section with a short dash-separated summary of what it covers. If the wiki clone fails (wiki disabled, no push access), say so and keep the detail in a `docs/` markdown file instead, linked the same way.
+4. **Hero image.** Preference: a gif in `docs/`, an image the user names, the widest screenshot of the main screen. Look at candidates with Read. Copy it into `docs/` if its folder is gitignored. None at all: put `<!-- TODO: screenshot of X -->` at the top and say so. A second image is fine for a second major mode.
 
-5. **License.** If the repo has no LICENSE and the user's other repos are MIT, add the same MIT file (copyright the user's name, current year) and mention that you did so they can remove it. Don't silently skip the License section.
+5. **README.** Template and voice from `references/style.md`, 60-90 lines. How-it-works detail (formulas, thresholds, internals, reasoning) goes to the wiki.
 
-6. **Commit** the README, the license, and any images copied into `docs/`, and push if the branch tracks a remote. Report what moved where in a few lines.
+6. **License.** No LICENSE: add MIT (user's name, current year) and tell the user so they can remove it. Always include the License section.
 
-## Self-check before committing
+7. **Wiki in `wiki/`.** Unless args say no wiki:
+   - `git clone "https://github.com/<o>/<r>.wiki.git" wiki` in the repo root (retry once the user has saved the first page), and add `/wiki/` to `.gitignore` under a `# GitHub wiki clone (its own repo)` comment.
+   - Split the old README/docs by heading into pages: `Title-Case-With-Dashes.md`, `# Title` first line, `###` promoted to `##`, text mostly verbatim. Write `Home.md` with one line per page. Delete the placeholder page the user made.
+   - `git -C wiki add -A && git -C wiki commit && git -C wiki push --force origin HEAD:master` (force only to replace the placeholder; never over real pages).
+   - Remove any `docs/*.md` the pages replace. Link every page from the README's Documentation section.
+   - Fall back to `docs/` markdown only if the wiki can't be pushed at all; say why.
 
-Read the finished README once more looking only for the tells listed in `references/style.md` under "Sentences the user flagged". The two the user has called out by name:
+8. **Self-check**, then commit README, LICENSE, `.gitignore`, images and removed docs; push. Check each wiki page returns 200 (`curl -so /dev/null -w '%{http_code}'`). Report in a few lines: repo URL, what moved to which page, and that `wiki/` is a clone (edit, commit and push from inside it).
 
-- "X comes from Y, not from Z" / "not X, but Y" contrast framing. Just state what it is.
-- Words that exist to sound conversational: "actually", "really", "spits out", "nitty gritty", "to keep myself honest", "that's it".
+## Self-check
 
-If a bullet reads like a marketing tagline, rewrite it as a plain statement of what the software does.
+Reread the README for the tells in `references/style.md`. The two the user named: "not X, but Y" / "comes from Y, not Z" contrasts, and conversational filler ("actually", "really", "spits out", "nitty gritty", "that's it"). Rewrite tagline-like bullets as plain statements of what the software does.
