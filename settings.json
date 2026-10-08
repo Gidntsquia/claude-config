@@ -147,5 +147,10 @@
       "**Org-specific CLIs**: None configured",
       "routine actions scoped to this repo's working tree and its origin remote only"
     ]
-  }
+  },
+  "deniedMcpServers": [
+    {
+      "serverName": "claude.ai Claude Docs"
+    }
+  ]
 }
