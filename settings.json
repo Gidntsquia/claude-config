@@ -25,7 +25,6 @@
     "anthropic-skills:docx": "name-only",
     "anthropic-skills:docs": "off",
     "anthropic-skills:import-memory": "off",
-    "summarize_commits": "off",
     "weekly-roundup": "user-invocable-only",
     "write-readme": "user-invocable-only",
     "loop": "off",
