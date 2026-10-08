@@ -17,7 +17,7 @@ acceptance criteria and the Ask call for; no audits or reviews beyond them.
 
 ## Order of work
 
-1. Read `.claude/EVAL_NOTES.md` if it exists: how this user wants evals run in this repo. Then
+1. Read `plans/EVAL_NOTES.md` if it exists: how this user wants evals run in this repo. Then
    the Ask and Acceptance criteria in `plans/PLAN.md`, then `plans/WORKER_NOTES.md` for how to
    launch. The worker's claims are claims.
 2. Run the criteria a command can decide. Judge the outcome, not the signal: look at what the
@@ -40,7 +40,7 @@ If the user asks for a quick pass, keep only the most telling check from step 2.
   check to the user in step 3. Never pass on a guess or a weaker substitute.
 - A criterion that fails goes back to the worker.
 - When the user states a lasting preference about how evals should run in this repo, add one
-  line for it to `.claude/EVAL_NOTES.md`. Nothing about this round's results goes there.
+  line for it to `plans/EVAL_NOTES.md`. Nothing about this round's results goes there.
 
 ## When the user wants something the spec does not say
 
