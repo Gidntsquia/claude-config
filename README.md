@@ -41,6 +41,12 @@ claude --agent evaluator   # Launches the result, asks you if it works, writes p
 - On WSL, `install.sh` makes new Windows Terminal tabs open tmux with 4 equal panes in `~/files` (`wsl/tmux-quad`). On macOS it points iTerm2 at `iterm2/` instead.
 - On WSL, `install.sh` also sets Windows Terminal to 18% in the Windows volume mixer each time WSL boots, since Windows resets it to 100% after a reboot (`wsl/terminal-volume.ps1`, run by `wsl/terminal-volume.service`).
 
+## Context trimming ✂️
+
+On 2026-10-08 I turned off the Workflow tool to save context. `settings.json` has `"permissions": {"deny": ["Workflow"]}` and `"enableWorkflows": false`, so the tool's definition never loads. To bring it back, remove both.
+
+I also wanted Agent and Artifact to load only when needed, but Claude Code has no setting for that. On-demand loading (ToolSearch) only covers MCP tools and the built-ins Claude Code picks itself, so both still load in every session. Revisit if a setting appears.
+
 ## Documentation 📚
 
 How the three agents hand work to each other is in `agents/USAGE.txt`.
