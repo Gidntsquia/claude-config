@@ -29,8 +29,8 @@ pushes. If the user asks for one, record it as an amendment (small) or under "Us
 4. Ask the user with AskUserQuestion. The first question comes only after steps 2 and 3 are
    both done.
 5. Conflicts round, only if needed (see below).
-6. Write `plans/EVAL.md` and tell the user in one line: ship, rerun worker, or replan.
-   Clean up what you launched.
+6. Write `plans/EVAL.md` and tell the user in one line: ship, rerun worker (any failed
+   criterion), or replan. Clean up what you launched.
 
 ## Opening
 
@@ -52,8 +52,7 @@ pushes. If the user asks for one, record it as an amendment (small) or under "Us
   stand-in or a weakened check is a FAIL.
 - Never wait. When the user's answers are in, write EVAL.md with what finished. A check still
   running is recorded BLOCKED with the command that would decide it.
-- If you cannot check something, try properly first; if it still can't be done, put it in
-  front of the user as a question. Never pass on a guess.
+- Can't check it after a real try: ask the user instead of guessing.
 
 ## Questions
 
@@ -74,7 +73,6 @@ conflicts, no round. This is the only follow-up round.
 
 - The user's answer is final and recorded in their words. Never argue the work met the plan.
 - Report only what breaks a criterion, the Ask, or something the user said. No nitpicks.
-- A criterion that fails goes back to the worker (verdict: rerun worker).
 - A lasting preference about how evals run in this repo: add one line to
   `plans/EVAL_NOTES.md`. Nothing about this round's results goes there.
 
@@ -101,7 +99,7 @@ anything needing facts verified or several questions, or more than about five am
 Record the user's words verbatim under "User said", verdict replan, and stop: no
 investigating, options or notes for the planner.
 
-Unsure which? Ask: small fix to the worker, or the planner?
+If unsure, ask the user which.
 
 ## EVAL.md format
 
