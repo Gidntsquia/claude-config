@@ -1,6 +1,6 @@
 ---
 name: test-speedup
-description: Make a slow test suite fast. Measures the suite, then wires parallel execution, changed-files-only local runs, fast/slow tiering, fixes to the slowest tests, and both halves of the policy that keeps it fast — a CLAUDE.md section and a PreToolUse hook that blocks whole-suite runs — so the agent stops running everything after every small change and stops writing redundant tests. Also finds the retread: the expensive thing (engine, browser, container, seeded DB) stood up over and over to check plumbing one shared run already proves, which is usually the largest number in the pass — measured and proposed, then folded into a single file on the user's yes. Use this whenever tests or CI feel slow — including when the user is just complaining ("the tests take forever", "CI is so slow now", "I stopped running the suite") rather than asking for a fix, when a repo has piled up agent-written tests, when Claude keeps running the full suite for a one-line edit, or when asked to speed up, profile, parallelize, tier, consolidate, deduplicate, or triage a test suite. Prefer it over ad-hoc timing: it measures first, and the infrastructure steps never lose a test. Runs end to end; pauses only to get approval before cutting any test.
+description: Make a slow test suite fast. Measures the suite, then wires parallel execution, changed-files-only local runs, fast/slow tiering, fixes to the slowest tests, and the routing that keeps it fast — a default test script that runs the fast tier plus a CLAUDE.md section saying which tests to run — so the agent stops running everything after every small change and stops writing redundant tests. Also finds the retread: the expensive thing (engine, browser, container, seeded DB) stood up over and over to check plumbing one shared run already proves, which is usually the largest number in the pass — measured and proposed, then folded into a single file on the user's yes. Use this whenever tests or CI feel slow — including when the user is just complaining ("the tests take forever", "CI is so slow now", "I stopped running the suite") rather than asking for a fix, when a repo has piled up agent-written tests, when Claude keeps running the full suite for a one-line edit, or when asked to speed up, profile, parallelize, tier, consolidate, deduplicate, or triage a test suite. Prefer it over ad-hoc timing: it measures first, and the infrastructure steps never lose a test. Runs end to end; pauses only to get approval before cutting any test.
 argument-hint: "[repo path, defaults to cwd] [quick]"
 ---
 
@@ -26,10 +26,13 @@ baseline.** Both, not either. A 12-minute suite cut to a 2-minute fast tier is
 a 6x win that still misses: two minutes is long enough that the agent and the
 human each stop running it, which puts the repo back where it started.
 
-**The guard is installed and passes its self-test** (`references/enforcement.md`).
-Tiering is the mechanism; routing is what makes it pay. A repo can be perfectly
-tiered and lose the entire gain to an agent that keeps typing the full-suite
-command, and a CLAUDE.md paragraph on its own does not stop that.
+**The routing is in place.** The command the repo habitually types (`npm test`,
+`make test`, the `test` script) runs the fast tier, and CLAUDE.md ships the
+filled-in **Which tests to run** table. Tiering is the mechanism; routing is what
+makes it pay. Don't install a hook that blocks full-suite commands: one was run
+on four repos for a month (~30k Bash calls, 29 blocks) and saved no measurable
+time. Agents put the override on every full run, and most blocks hit a command
+that cost the same as the allowed default. Each Bash call paid 25–80 ms for it.
 
 **The retread is measured and put to the user** (step 3b). Most slow suites are
 not slow because any one test is slow. They are slow because the same expensive
@@ -121,8 +124,6 @@ Target dir: `$ARGUMENTS`, else cwd. Detect each stack by its **test-runner depen
 | rspec, minitest | `references/ruby.md` |
 | gradle, maven | `references/jvm.md` |
 
-The guard install is stack-independent: `references/enforcement.md`, read once in step 1's shadow.
-
 Confirm with `scripts/measure.sh detect`. No tests → say so and stop. Unlisted runner → same steps with that runner's own flags; say in the report it was improvised.
 
 Several stacks → **measure them one at a time**, largest first; concurrent baselines contend and both numbers are wrong. But stack B's reference reading and wire-up belong in the shadow of stack A's run, same as everything else.
@@ -137,9 +138,7 @@ Launch `scripts/measure.sh baseline 50` in the background **first**, before read
 
 Capped at 15 minutes via whichever of `timeout`/`gtimeout` exists (stock macOS has neither, in which case it runs uncapped and says so). Override with `CAP_SECONDS`. Exit 3 means the stack isn't covered — fall back to the reference's commands, still one pass, still backgrounded.
 
-**In its shadow:** read the stack reference and `references/enforcement.md`. Inspect CI, hook infra, and any existing CLAUDE.md test section. Write and commit the CI changes (fast tier on push, full suite plus slow tier on PR and main — never reduce what runs before a merge), the git pre-push hook if hook infra already exists (none → propose it in the report, don't install one), and the `references/policy.md` block merged into CLAUDE.md with its four `<CMD>` placeholders still unfilled.
-
-Also in this shadow, wire the **PreToolUse guard** per `references/enforcement.md`. Check `~/.claude/hooks/full-suite-guard.sh` and `~/.claude/settings.json` first: installed globally → the only thing this repo needs is the `.claude/test-commands.sh` stub, which is the guard's on switch. Otherwise install the repo copy, the stub, and the merged `settings.json` entry. All of it is runner-invisible, so it is safe here. The guard is what makes the policy hold — it blocks a test command that names no path, no filter and no tier, and hands back the narrow command instead. Prose asks; the hook decides.
+**In its shadow:** read the stack reference. Inspect CI, hook infra, and any existing CLAUDE.md test section. Write and commit the CI changes (fast tier on push, full suite plus slow tier on PR and main — never reduce what runs before a merge), the git pre-push hook if hook infra already exists (none → propose it in the report, don't install one), and the `references/policy.md` block merged into CLAUDE.md with its four `<CMD>` placeholders still unfilled.
 
 Decide, on paper, the parallel mechanism and the tier mechanism from the reference.
 
@@ -275,7 +274,7 @@ Rungs 2 and 3 are where a suite that "won't go faster" usually goes faster. Reac
 
 ## 5. Verify and report — run 3 of 3
 
-Launch the union command in the background, once. **In its shadow:** fill all four `<CMD>` placeholders in CLAUDE.md, in `.claude/test-commands.sh`, and in any CI config or hook, with the real command strings from steps 2–4. Set `DEFAULT_IS_FAST=1` only if the repo's default script really does run the fast tier now. Then run `scripts/guard-selftest.sh .claude/hooks/full-suite-guard.sh` — both halves have to pass, since a guard that blocks everything just stops the agent testing at all. Then `grep -rnE '<[A-Z][A-Z_ ]*>' CLAUDE.md .claude .github .husky` and confirm it returns nothing — that catches the four `<*_CMD>` strings and the policy block's `<CONSOLIDATED_FILE>` / `<THE EXPENSIVE THING>` slots alike. An unfilled placeholder is worse than no policy, because the agent can't run the narrow command and falls back to the full suite. If step 3b did not consolidate, delete that paragraph from the block rather than shipping it with the slots empty. `<FILE_CMD>` in particular must bypass the tier exclusion (the reference gives the per-stack form): if `<FILE_CMD>` silently skips the slow tests in the file it names, it hands out false greens.
+Launch the union command in the background, once. **In its shadow:** fill all four `<CMD>` placeholders in CLAUDE.md and in any CI config or git hook, with the real command strings from steps 2–4. Then `grep -rnE '<[A-Z][A-Z_ ]*>' CLAUDE.md .github .husky` and confirm it returns nothing — that catches the four `<*_CMD>` strings and the policy block's `<CONSOLIDATED_FILE>` / `<THE EXPENSIVE THING>` slots alike. An unfilled placeholder is worse than no policy, because the agent can't run the narrow command and falls back to the full suite. If step 3b did not consolidate, delete that paragraph from the block rather than shipping it with the slots empty. `<FILE_CMD>` in particular must bypass the tier exclusion (the reference gives the per-stack form): if `<FILE_CMD>` silently skips the slow tests in the file it names, it hands out false greens.
 
 Also finish the report and the prune-candidate list.
 
@@ -286,7 +285,7 @@ If step 3b cut tests, the count legitimately dropped, and baseline is no longer 
 Report, in this order:
 
 1. **Did it hit the target** — measured fast-command time vs the 60s / one-fifth bar, and the baseline it came from. Missed → the three biggest remaining costs and what each would take. Never quote a fast-command time you did not measure with `measure.sh time`.
-2. **Is it enforced** — guard active (global or repo-local), self-test passed. Repo-local → note that Claude Code asks the user to approve a new project hook the first time it fires, and that it does nothing until they do. Whether the repo's default test script now runs the fast tier.
+2. **Is it routed** — whether the repo's default test script now runs the fast tier, and the **Which tests to run** table is filled in.
 3. **The retread** — how many times the suite stood the expensive thing up, what one call costs, what that came to, and what consolidating it would save or did save. Cut on a yes → the union before and after, the test count before and after, which files went, and **what coverage was genuinely lost** rather than merely moved. Cut declined or not offered → the number stays in the report as the largest remaining opportunity.
 4. Before/after wall time for the union; the four commands as written, confirmed placeholder-free; baseline vs current count; each file changed, one line each; dev deps added; which ladder rungs were used and which were skipped; slow tail fixed vs deferred and why; flaky tests found; prune candidates; anything reverted and why; **and the number of full-suite runs this pass cost**.
 
@@ -320,7 +319,7 @@ Two ways this goes wrong, both seen in practice:
 - Red verification → revert that step's commit alone, continue with the rest, report it.
 - Don't rewrite test logic or assertions. Step 4 changes how a test gets its environment, not what it checks. Step 3b may move an assertion into the consolidated file, but it carries it across intact — folding a test in means it asserts the same thing against a shared run, never a weaker thing against a cheaper one.
 - Settings already present (a second run on the same repo) → update in place, never append a duplicate.
-- The policy block ships with a filled-in **Which tests to run** table, and the guard ships installed and self-tested, or the pass isn't done. Tiering that nothing routes to gets ignored, and the suite is slow again within a week.
+- The policy block ships with a filled-in **Which tests to run** table, and the default test script runs the fast tier, or the pass isn't done. Tiering that nothing routes to gets ignored, and the suite is slow again within a week.
 - Never report a speedup you didn't measure. The fast command gets its own timed run; the union number is not a stand-in for it.
 - Tiering is not the finish line. If the fast command misses the target, work step 4's ladder until it lands or the ladder runs out — and if it runs out, say the number missed rather than reporting the union's improvement instead.
 - Don't move a test to the slow tier just to make the fast number look better. The reason has to be visible in the profile.

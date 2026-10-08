@@ -32,10 +32,9 @@ claude --agent evaluator   # Launches the result, asks you if it works, writes p
 - The worker builds the spec and follows what you tell it over what the plan says.
 - The evaluator runs the app and asks you whether it works. Small changes you ask for are added to the spec, and big ones are sent back to the planner. It never edits code.
 - `review-skill` audits a SKILL.md for correctness, edge cases, and token use.
-- `test-speedup` measures a slow test suite and sets up parallel runs, fast and slow tiers, and a guard against whole-suite runs.
+- `test-speedup` measures a slow test suite and sets up parallel runs, fast and slow tiers, and a CLAUDE.md table of which tests to run.
 - `weekly-roundup` builds an artifact of what I worked on in the past week from git activity.
 - `write-readme` writes a README like this one and moves the detail into the wiki.
-- `hooks/full-suite-guard.sh` blocks Bash calls that run a project's whole test suite.
 - `statusline.sh` draws the status line in the gruvbox colors from my starship prompt, with a different color for each model.
 - `commands/summarize_commits.md` writes a short summary for each commit on a branch.
 - On WSL, `install.sh` makes new Windows Terminal tabs open tmux with 4 equal panes in `~/files` (`wsl/tmux-quad`). On macOS it points iTerm2 at `iterm2/` instead.

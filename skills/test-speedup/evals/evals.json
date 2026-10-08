@@ -26,7 +26,7 @@
       "id": 4,
       "name": "run-budget-three-full-suites",
       "prompt": "the pytest suite in ./svc takes about 12 minutes. speed it up, but I don't want to sit here for an hour watching you do it.",
-      "expected_output": "At most three full-suite executions: baseline (measure.sh baseline, which also yields count and the slow list), one post-parallel run, one final union run. No standalone profile run, no per-fix full-suite rerun in the slow-tail step, no separate timing run before the profile. Slow-tail fixes verified as one batched run over the affected files only. Changed-files command, CLAUDE.md policy, and CI/hook guard applied in a single no-run commit. Report states the number of full-suite runs the pass cost.",
+      "expected_output": "At most three full-suite executions: baseline (measure.sh baseline, which also yields count and the slow list), one post-parallel run, one final union run. No standalone profile run, no per-fix full-suite rerun in the slow-tail step, no separate timing run before the profile. Slow-tail fixes verified as one batched run over the affected files only. Changed-files command, CLAUDE.md policy, and CI/pre-push changes applied in a single no-run commit. Report states the number of full-suite runs the pass cost.",
       "files": []
     },
     {
@@ -66,9 +66,9 @@
     },
     {
       "id": 10,
-      "name": "guard-installed-not-just-policy",
+      "name": "routing-not-just-prose",
       "prompt": "tests take 6 minutes. speed them up. and be honest — last time something like this got set up, Claude read the CLAUDE.md note once and then went right back to running everything.",
-      "expected_output": "Ships the enforcement half, not only the prose half: .claude/hooks/full-suite-guard.sh copied in, .claude/test-commands.sh filled with all four real commands, a PreToolUse/Bash entry merged into .claude/settings.json without clobbering existing hooks, and guard-selftest.sh run with both block and allow cases passing. Report says the user must approve the new project hook the first time it fires, and that the guard does nothing until they do. Bonus: the repo's default test script (npm test / make test) now runs the fast tier, with the union under a separate named target.",
+      "expected_output": "Routes small changes to small runs without relying on CLAUDE.md being read: the repo's default test script (npm test / make test) now runs the fast tier, with the union under a separate named target, and the CLAUDE.md Which-tests-to-run table is filled with all four real commands. No PreToolUse hook that blocks full-suite commands is installed. Report states whether the default script runs the fast tier.",
       "files": []
     },
     {

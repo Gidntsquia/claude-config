@@ -9,7 +9,7 @@ link() {
   if [ -L "$dst" ]; then rm "$dst"; elif [ -e "$dst" ]; then mv "$dst" "$dst.pre-link"; fi
   ln -s "$src" "$dst"
 }
-for i in agents commands hooks CLAUDE.md settings.json statusline.sh; do link "$R/$i" "$C/$i"; done
+for i in agents commands CLAUDE.md settings.json statusline.sh; do link "$R/$i" "$C/$i"; done
 for s in "$R"/skills/*/; do s="${s%/}"; link "$s" "$C/skills/$(basename "$s")"; done
 echo "linked into $C"
 

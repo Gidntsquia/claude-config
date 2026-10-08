@@ -2,7 +2,7 @@ Merge this into the repo's CLAUDE.md, filling in the four commands. Keep the wor
 
 Leaving a `<...>` placeholder unfilled makes the section worse than absent: the agent can't run the narrow command, so it falls back to the full suite. The consolidated-file paragraph under **Before adding a test** has two more slots, `<CONSOLIDATED_FILE>` and `<THE EXPENSIVE THING>` — fill them if step 3b consolidated, and delete the paragraph outright if it didn't. A rule pointing at a file that doesn't exist is worse than no rule.
 
-This block is only half the policy. `references/enforcement.md` is the half that enforces it — ship both, because an agent that never reads CLAUDE.md still hits the hook.
+The other half of the routing is the repo's default test script running the fast tier (SKILL.md step 3) — that works on an agent that never reads CLAUDE.md.
 
 ---
 
@@ -28,8 +28,6 @@ These override the table:
 - **At most one full-suite run per session**, at the end. Having already run it is a reason not to run it again, not a reason to be sure.
 - **The pre-push hook and CI run everything before anything merges.** Wide breakage is caught there. Mid-change your job is the narrow run; you are not the last line of defense.
 - **Don't run tests to prove unrelated code still works.** That is what the tiering is for.
-
-A `PreToolUse` hook blocks whole-suite commands and prints the narrow one to run instead. When you see `BLOCKED:`, run what it suggests. `TS_FULL=1 <cmd>` overrides it and exists for the four cases above — the user asked, the runner config or a dependency changed, or you are about to push. It is not the way past a block you'd rather not think about.
 
 If you genuinely can't tell which tests cover a change, run `<CHANGED_CMD>` — not the full suite.
 

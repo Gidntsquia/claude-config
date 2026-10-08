@@ -44,19 +44,6 @@
     "anthropic-skills:xlsx": "name-only",
     "anthropic-skills:pptx": "name-only"
   },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$HOME/.claude/hooks/full-suite-guard.sh\""
-          }
-        ]
-      }
-    ]
-  },
   "enableWorkflows": false,
   "workflowKeywordTriggerEnabled": false,
   "statusLine": {
