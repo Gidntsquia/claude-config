@@ -1,7 +1,10 @@
 {
   "permissions": {
     "deny": [
-      "Workflow"
+      "Workflow",
+      "SendFeedback",
+      "ScheduleWakeup",
+      "ReportFindings"
     ],
     "defaultMode": "auto"
   },

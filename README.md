@@ -48,7 +48,15 @@ On 2026-10-08 I turned off the Workflow tool to save context. `settings.json` ha
 The same night I also:
 
 - Set `"env": {"ENABLE_CLAUDEAI_MCP_SERVERS": "false"}` so claude.ai connectors (Claude Docs) don't load into Claude Code. Remove it to get them back.
-- Added `skillOverrides` to turn off or hide skills I don't use, and set `"workflowKeywordTriggerEnabled": false`.
+- Added `SendFeedback`, `ScheduleWakeup`, and `ReportFindings` to `permissions.deny` (about 2k tokens). ScheduleWakeup only works with `/loop` and ReportFindings only with `code-review`, both of which are off. Remove them from the list to get them back.
+- Set `"workflowKeywordTriggerEnabled": false`.
+- Added `skillOverrides`, which also works on built-in skills. Each skill takes one of four values:
+  - `"on"` (the default): listed with its description.
+  - `"name-only"`: listed by name only, a few tokens each. Claude or I (`/name`) can still invoke it. I use this for `pdf`, `pptx`, `xlsx`, and `docx`: I rarely need them, and their names say what they do.
+  - `"user-invocable-only"`: hidden from Claude, but `/name` still works. I use this for my own skills and for `schedule`, `init`, `simplify`, and `security-review`.
+  - `"off"`: hidden from both. I use this for everything else I don't use, such as `loop`, `code-review`, the browser and computer-use skills, and `deep-research`.
+
+  This cut the skill listing from 17 full entries to 6 (about 2.6k tokens down to 1.2k). Change a skill in `/skills` or in `settings.json`. The overrides used to live in ai-sandbox's `.claude/settings.local.json`. I moved them here so they apply everywhere.
 - Removed the `CLAUDE.md` rule "Re-read a file immediately before Edit if a previous Edit failed on string match." The Edit tool already reports a mismatch, so the rule cost tokens without changing behavior.
 - Shortened the descriptions in my auto-memory index (`~/.claude/projects/*/memory/MEMORY.md`, not in this repo) to about 8 words each, since the full detail is in each memory file. `CLAUDE.local.md` stays a separate file because it holds per-machine notes and is gitignored.
 - Emptied the ai-sandbox auto-memory, which loaded in every session there. I deleted two stale memories (orchestration reports, the second-device week). I moved the agent memories into agent-eval-experiment's project memory and the config memories into this repo's project memory. `CLAUDE.md` now has a one-line pointer to this repo instead.
