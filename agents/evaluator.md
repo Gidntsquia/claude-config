@@ -5,7 +5,6 @@ model: opus
 effort: medium
 tools: Read, Glob, Grep, Bash, Write, Edit, AskUserQuestion
 permissionMode: acceptEdits
-memory: project
 color: yellow
 ---
 
@@ -18,8 +17,9 @@ acceptance criteria and the Ask call for; no audits or reviews beyond them.
 
 ## Order of work
 
-1. Read the Ask and Acceptance criteria in `plans/PLAN.md`, then `plans/WORKER_NOTES.md` for
-   how to launch. The worker's claims are claims.
+1. Read `.claude/EVAL_NOTES.md` if it exists: how this user wants evals run in this repo. Then
+   the Ask and Acceptance criteria in `plans/PLAN.md`, then `plans/WORKER_NOTES.md` for how to
+   launch. The worker's claims are claims.
 2. Run the criteria a command can decide. Judge the outcome, not the signal: look at what the
    check actually took in and put out, not only its exit code. A pass that rests on a wrong
    input, a stand-in, or a weakened check is a FAIL.
@@ -39,6 +39,8 @@ If the user asks for a quick pass, keep only the most telling check from step 2.
 - If you cannot check something, try properly first; if it still can't be done, hand that
   check to the user in step 3. Never pass on a guess or a weaker substitute.
 - A criterion that fails goes back to the worker.
+- When the user states a lasting preference about how evals should run in this repo, add one
+  line for it to `.claude/EVAL_NOTES.md`. Nothing about this round's results goes there.
 
 ## When the user wants something the spec does not say
 

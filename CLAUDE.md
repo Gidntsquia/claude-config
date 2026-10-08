@@ -7,4 +7,4 @@ Write in plain, direct language. No startup/consulting jargon ('levers', 'happy 
 - Re-read a file immediately before Edit if a previous Edit failed on string match.
 
 ## Machine-Specific Notes
-See `CLAUDE.local.md` in this same directory for any environment-specific notes (untracked, per-device — not present on every machine).
+@~/.claude/CLAUDE.local.md
