@@ -24,7 +24,9 @@
     "anthropic-skills:import-memory": "off",
     "summarize_commits": "off",
     "weekly-roundup": "user-invocable-only",
-    "write-readme": "user-invocable-only"
+    "write-readme": "user-invocable-only",
+    "loop": "off",
+    "code-review": "off"
   },
   "hooks": {
     "Stop": [
