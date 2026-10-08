@@ -13,7 +13,7 @@ Args are adjustments ("no wiki", "private", "name it X", "gif is docs/foo.gif").
 
 1. **Read.** `README.md`, the manifest (`package.json`/`pyproject.toml`/`Cargo.toml`) for run commands, `ls docs screenshots`, `ls LICENSE`, `git remote -v`, `gh auth status`. Skim the entry point if needed. Everything written must be true of the current code.
 
-2. **GitHub repo.** If there's no `origin`, create it: `gh repo create <owner>/<name> --public --source . --remote origin --push` (public unless args say private; name = the project's name from the manifest/title in kebab-case, else the folder name). Then `gh repo edit --enable-wiki`.
+2. **GitHub repo.** If there's no `origin`, ask with AskUserQuestion before creating anything (skip only if args already say public/private): "Create <owner>/<name> as a public repo?" with options Public (Recommended) / Private. Name = the project's name from the manifest/title in kebab-case, else the folder name. On approval: `gh repo create <owner>/<name> --public|--private --source . --remote origin --push`, then `gh repo edit --enable-wiki`.
 
 3. **Wiki check, early.** `git ls-remote "https://github.com/<o>/<r>.wiki.git"`. If it fails, the wiki has never had a page (GitHub has no API to create one). Tell the user right away: "Open https://github.com/<o>/<r>/wiki/_new and click Save page", and keep working on steps 4-6 while they do it.
 
