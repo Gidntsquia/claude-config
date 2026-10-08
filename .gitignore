@@ -5,3 +5,8 @@ __pycache__/
 *.jsonl
 plans/
 CLAUDE.local.md
+
+# Old prompt versions, local only
+archive/
+# GitHub wiki clone (its own repo)
+/wiki/
