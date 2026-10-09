@@ -16,7 +16,8 @@ Budget: about ten minutes and fifteen commands from the first command. Each chec
 Check only what the acceptance criteria and the Ask call for; no audits beyond them.
 
 Scope: change nothing outside `plans/`. No installs, publishes, config edits, commits or
-pushes. If the user asks for one, record it as an amendment (small) or under "User said" (big).
+pushes. Never `git pull`, fetch, checkout or otherwise change the repo state; long checks
+run in the background only. If the user asks for one, record it as an amendment (small) or under "User said" (big).
 
 ## Order of work
 
@@ -32,30 +33,46 @@ pushes. If the user asks for one, record it as an amendment (small) or under "Us
    (see Opening), then one AskUserQuestion call with up to four questions, all about this
    item. Nothing opens before its turn.
 6. Conflicts round, only if needed.
-7. Write `plans/EVAL.md` and tell the user in one line: ship, rerun worker (any failed
+7. Write `plans/EVAL.md` (always: if the user cancels, stops or the session is compacted,
+   write it with every answer so far in their words and the unjudged (user) criteria under
+   "Fix next" as not yet judged, then stop) and tell the user in one line: ship, rerun worker (any failed
    criterion), or replan. Close the last item and clean up what you launched.
 
 ## Opening
 
+- Show each item in the form the judgment needs. Motion, timing or interaction is judged on the
+  live program running in a window; a still or a series of stills is never used for motion. A
+  static look (text, layout, a file) may use the live thing or a picture of the exact state.
 - Firefox: web pages, HTML, running apps, GitHub-hosted docs. VS Code: `.md`, logs, text,
-  source. A `.md` that exists on GitHub (README, wiki) opens as its GitHub URL. Open the
-  rendered page, never raw markup of something meant to be viewed.
-- Use the new-window open commands and the close commands in `~/.claude/CLAUDE.local.md`, one
+  source. A `.md` that exists on GitHub opens as its GitHub URL. Open the rendered page, never
+  raw markup of something meant to be viewed. Terminal programs: use the terminal open/close
+  commands in `~/.claude/CLAUDE.local.md`, in a window you launch with a unique title, kept
+  open after the program's command ends.
+- Use the new-window open commands and close commands in `~/.claude/CLAUDE.local.md`, one
   window per item. Never bare `firefox.exe`, `wslview`, `explorer.exe`, `xdg-open` or `code`.
-- Open the item in the exact state the question is about (a dialog, a route, a selected hero,
-  a scrolled section). Get there yourself: URL parameters, a Playwright script that leaves the
-  browser on that state, or your own screenshot of that state opened in Firefox. A click or
-  navigation the user must perform counts as not opened; never write "click X" or "go to Y".
-- Before asking, confirm the opener exited 0 and a window with its title exists. If not, fix
-  and retry; never ask about something that did not open.
+- Launch everything you ask about yourself, titled so you can find and close it. Never send
+  keys, pointer events, messages or visits to a window, pane, session or process you did not
+  launch, and never ask the user to look at one of theirs.
+- Open the item in the exact state the question is about. Get there yourself (URL parameters,
+  a script that leaves the program in that state). A click or navigation the user must perform
+  counts as not opened; never write "click X" or "go to Y".
+- Proof before every question: capture the real display (e.g. PowerShell `CopyFromScreen`
+  saved to a file), read the capture, and ask only if the item's window and the state asked
+  about are visible in it. Opener exit codes and window-title or process lists do not count.
+  If the capture does not show it, fix and capture again; never ask blind. If capture is
+  unavailable, ask "do you see X?" first.
+- A state that lasts seconds is either kept on screen for as long as the question is open
+  (re-triggered in a loop by your own automation, or paused/slowed) or the question first asks
+  the user to say when they are ready and you trigger it then. The question says which. The
+  user is never expected to be watching at a particular moment.
+- If the user says it is not open, cannot see it, or the state was not there: keep fixing
+  (opener, state, timing, form) until a fresh capture shows the state, then ask once more;
+  never re-ask on the same evidence. If you cannot get proof, ask with AskUserQuestion how
+  else they want to see it and do that. Never BLOCKED, never skipped: no (user) criterion ends
+  unjudged because of opening trouble.
 - Terminal output or chat text never counts as opened. Launch apps the way they are really used.
-- If the user says it is not open or they cannot see it: fix it (retry the opener, verify it
-  ran, or fall back to your own screenshot of the state) and ask the same question once more.
-  If that fails too, ask with AskUserQuestion how else they want to see it (a screenshot per
-  state, a text dump in VS Code, a different URL) and do that. Never BLOCKED, never skipped:
-  no (user) criterion ends unjudged because of opening trouble.
-- One extra thing may open without a question: a report `plans/EVAL_NOTES.md` asks for (e.g.
-  an HTML eval report), after EVAL.md is written.
+- One extra thing may open without a question: a report `plans/EVAL_NOTES.md` asks for, after
+  EVAL.md is written.
 
 ## Background checks
 
@@ -73,10 +90,11 @@ pushes. If the user asks for one, record it as an amendment (small) or under "Us
 ## Questions
 
 - Ask only about (user) criteria and the Ask as a whole. Never about a command-decidable one.
-- One window, one spot per question: name this item's window and one spot in it (section,
-  table, row, screen), answerable by looking there. Two windows never share a question.
-  Several things in the same spot may be joined with "and". "In the Firefox window 'X', table
-  'Y', does row 3 show Z?"
+- One window, one spot per question: name this item's window and one spot in it, answerable
+  by looking there. Two windows never share a question. Several things in the same spot may
+  be joined with "and".
+- Short: window, one spot, one expected thing and the yes/no wanted, about 25 words or fewer.
+  Longer expected values go in a line you put on screen (in the window or a summary page).
 - Never ask the user to run a command, compute, compare numbers, or recall a past value, the
   plan, a table or another file. You do that: put the expected content in the question and
   ask whether what is shown matches ("Expected: one line, folded into the verdict line. Does
