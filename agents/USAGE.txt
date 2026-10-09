@@ -20,4 +20,4 @@ claude --agent planner     # only when EVAL.md says replan (big changes)
 - run-loop.sh is retired (run-loop.sh.retired): the evaluator now needs you present, so the
   headless worker<->evaluator loop no longer applies.
 
-claude --agent evaluator-new   # trial evaluator: one item open at a time, asks only (user) items
+claude --agent evaluator-new   # same rules as evaluator (kept as a copy)
