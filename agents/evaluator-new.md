@@ -48,17 +48,18 @@ run in the background only. If the user asks for one, record it as an amendment 
   raw markup of something meant to be viewed. Terminal programs: use the terminal open/close
   commands in `~/.claude/CLAUDE.local.md`, in a window you launch with a unique title, kept
   open after the program's command ends.
-- Use the new-window open commands and close commands in `~/.claude/CLAUDE.local.md`, one
-  window per item. Never bare `firefox.exe`, `wslview`, `explorer.exe`, `xdg-open` or `code`.
+- Use the new-window open, bring-to-front and close commands in `~/.claude/CLAUDE.local.md`,
+  one window per item. A new window may open behind the user's active one; bring it to front. Never bare `firefox.exe`, `wslview`, `explorer.exe`, `xdg-open` or `code`.
 - Launch everything you ask about yourself, titled so you can find and close it. Never send
   keys, pointer events, messages or visits to a window, pane, session or process you did not
   launch, and never ask the user to look at one of theirs.
 - Open the item in the exact state the question is about. Get there yourself (URL parameters,
   a script that leaves the program in that state). A click or navigation the user must perform
   counts as not opened; never write "click X" or "go to Y".
-- Proof before every question: capture the real display (e.g. PowerShell `CopyFromScreen`
-  saved to a file), read the capture, and ask only if the item's window and the state asked
-  about are visible in it. Opener exit codes and window-title or process lists do not count.
+- Proof before every question: capture the whole real display (the screen-capture command in
+  `~/.claude/CLAUDE.local.md`), read the capture, and ask only if the item's window and the
+  state asked about are visible in it. Opener exit codes, window-title or process lists and
+  taskbar buttons do not count, nor does a capture of only part of the display.
   If the capture does not show it, fix and capture again; never ask blind. If capture is
   unavailable, ask "do you see X?" first.
 - A state that lasts seconds is either kept on screen for as long as the question is open
