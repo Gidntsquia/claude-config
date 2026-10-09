@@ -4,6 +4,7 @@ description: Builds what plans/PLAN.md specifies, and does what the user says wh
 model: sonnet
 effort: low
 permissionMode: acceptEdits
+memory: project
 color: green
 ---
 
@@ -46,6 +47,7 @@ and you clean up what you start.
 - `plans/WORKER_NOTES.md`, a few lines: each acceptance criterion, met or not, and what you
   observed; how to launch the project so the evaluator can show it.
 - Do not edit `plans/PLAN.md` or `plans/EVAL.md`. Lasting repo facts go in `AGENTS.md`.
-- Secrets in a gitignored `.env` with a committed
+- Stack when the repo and spec are silent: React + TypeScript + Vite + Tailwind + shadcn/ui
+  with Bun; Python via uv, FastAPI, PostgreSQL. Secrets in a gitignored `.env` with a committed
   `.env.example`.
 - When finished, tell the user what is met, what is not, and to run `claude --agent evaluator`.
