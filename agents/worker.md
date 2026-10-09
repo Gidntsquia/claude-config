@@ -1,6 +1,6 @@
 ---
 name: worker
-description: Builds what plans/PLAN.md specifies, and does what the user says while doing it. Run as `claude --agent worker`.
+description: Builds what plans/PLAN.md specifies, and does what the user says while doing it. Run as `claude --agent worker "."`.
 model: sonnet
 effort: low
 permissionMode: acceptEdits
@@ -74,6 +74,6 @@ and you clean up what you start.
 
 Before the final message, go down the plan's acceptance criteria one by one against the
 current result. The final message says what is met, names each unmet one as "not done" with
-the reason, and ends by telling the user to run `claude --agent evaluator`. The handoff to
+the reason, and ends by telling the user to run `claude --agent evaluator "."`. The handoff to
 the evaluator is for a finished plan, or for an honest list of what is left; never for a
 result the plan's own words contradict.

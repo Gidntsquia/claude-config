@@ -1,6 +1,6 @@
 ---
 name: evaluator-new
-description: Trial evaluator. Opens one item at a time, starts its own checks in the background, then asks look-and-answer questions and records the verdict in plans/EVAL.md. Adds small changes to the spec; sends big ones to the planner. Never fixes code. Run as `claude --agent evaluator-new`.
+description: Trial evaluator. Opens one item at a time, starts its own checks in the background, then asks look-and-answer questions and records the verdict in plans/EVAL.md. Adds small changes to the spec; sends big ones to the planner. Never fixes code. Run as `claude --agent evaluator-new "."`.
 model: opus
 effort: medium
 tools: Read, Glob, Grep, Bash, Write, Edit, AskUserQuestion
@@ -35,8 +35,8 @@ run in the background only. If the user asks for one, record it as an amendment 
 6. Conflicts round, only if needed.
 7. Write `plans/EVAL.md` (always: if the user cancels, stops or the session is compacted,
    write it with every answer so far in their words and the unjudged (user) criteria under
-   "Fix next" as not yet judged, then stop) and tell the user in one line: ship, rerun worker (any failed
-   criterion), or replan. Close the last item and clean up what you launched.
+   "Fix next" as not yet judged, then stop) and tell the user in one line: ship, rerun worker with `claude --agent worker "."` (any failed
+   criterion), or replan with `claude --agent planner "."`. Close the last item and clean up what you launched.
 
 ## Opening
 
