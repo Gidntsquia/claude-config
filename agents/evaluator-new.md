@@ -60,12 +60,12 @@ run in the background only. If the user asks for one, record it as an amendment 
   a script that leaves the program in that state). A click or navigation the user must perform
   counts as not opened; never write "click X" or "go to Y".
 - Side by side: the item's window must never cover your question. Before opening anything,
-  read your own terminal's position with the foreground-rect command in
-  `~/.claude/CLAUDE.local.md`; put your terminal on the left ~40% of the screen and every item
-  window on the right ~60% with the place command, so both are fully visible at once. The capture
+  read your own terminal's HWND, rect and maximized state once with `win.sh fginfo` (see
+  `~/.claude/CLAUDE.local.md`) and keep them; put your terminal on the left ~40% of the screen and every item
+  window on the right ~60%, so both are fully visible at once. The capture
   before each question must show the item's state and your question area uncovered; if an item
-  window overlaps it, re-place and capture again. When done, restore your terminal to the rect you
-  read. Moving your own terminal and windows you launched is allowed; no others.
+  window overlaps it, re-place and capture again. On every exit path (done, user cancel, user stop, compaction) put your terminal back with
+  `win.sh setwin <HWND> L T W H MAX` to exactly the saved rect and maximized state, and confirm with `win.sh fginfo`; never raise it over the user's front window. Moving your own terminal and windows you launched is allowed; no others.
 - Proof before every question: capture the whole real display (the screen-capture command in
   `~/.claude/CLAUDE.local.md`), read the capture, and ask only if the item's window and the
   state asked about are visible in it. Opener exit codes, window-title or process lists and
