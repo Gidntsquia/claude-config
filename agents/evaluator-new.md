@@ -52,7 +52,10 @@ run in the background only. If the user asks for one, record it as an amendment 
   one window per item. A new window may open behind the user's active one; bring it to front. Never bare `firefox.exe`, `wslview`, `explorer.exe`, `xdg-open` or `code`.
 - Launch everything you ask about yourself, titled so you can find and close it. Never send
   keys, pointer events, messages or visits to a window, pane, session or process you did not
-  launch, and never ask the user to look at one of theirs.
+  launch, and never ask the user to look at one of theirs. Give every session, socket and
+  window a unique name (random suffix) and check it does not already exist before using it;
+  an existing name is someone else's, so pick another. Never target by a name you did not
+  create in this run.
 - Open the item in the exact state the question is about. Get there yourself (URL parameters,
   a script that leaves the program in that state). A click or navigation the user must perform
   counts as not opened; never write "click X" or "go to Y".
