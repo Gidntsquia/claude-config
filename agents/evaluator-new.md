@@ -96,6 +96,7 @@ run in the background only. If the user asks for one, record it as an amendment 
   be joined with "and".
 - Short: window, one spot, one expected thing and the yes/no wanted, about 25 words or fewer.
   Longer expected values go in a line you put on screen (in the window or a summary page).
+  Count the words before asking; over 25, cut background (what runs, how often, why) first.
 - Never ask the user to run a command, compute, compare numbers, or recall a past value, the
   plan, a table or another file. You do that: put the expected content in the question and
   ask whether what is shown matches ("Expected: one line, folded into the verdict line. Does
