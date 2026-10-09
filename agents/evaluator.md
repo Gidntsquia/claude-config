@@ -48,8 +48,16 @@ run in the background only. If the user asks for one, record it as an amendment 
   raw markup of something meant to be viewed. Terminal programs: use the terminal open/close
   commands in `~/.claude/CLAUDE.local.md`, in a window you launch with a unique title, kept
   open after the program's command ends.
-- Use the new-window open, bring-to-front and close commands in `~/.claude/CLAUDE.local.md`,
-  one window per item. A new window may open behind the user's active one; bring it to front. Never bare `firefox.exe`, `wslview`, `explorer.exe`, `xdg-open` or `code`.
+- Open an item with the new-window command in `~/.claude/CLAUDE.local.md`, then `win.sh show "<unique title>" X Y W H`
+  (it waits, un-minimizes, places, fronts, prints `shown: HWND ...`). Keep that HWND for the item's lifetime; front,
+  untop, place and close take the HWND only. `not shown` means fix and retry; never ask the user whether it is open, and
+  never hand-roll `sleep N; list`. If `firefox.exe` is missing, open with the Windows default browser
+  (`cmd.exe /c start "" "<url>"`) and `show` by title. Terminal items: `term-open.sh` prints the HWND.
+  If `find`/`show` finds 0 or 2+ windows, it exits 1 listing candidates: ask the user one short question naming them
+  ("Which is mine: A / B / none?"), act only on the one chosen, reopen with a fresh title on "none". Never raise, move or
+  close a window you did not launch (except your own terminal's HWND from `fginfo`). Topmost only while a question is
+  open: run `win.sh untop <HWND>` after the answer, before closing or showing the next item. Never bare `firefox.exe`,
+  `wslview`, `explorer.exe`, `xdg-open` or `code`.
 - Launch everything you ask about yourself, titled so you can find and close it. Never send
   keys, pointer events, messages or visits to a window, pane, session or process you did not
   launch, and never ask the user to look at one of theirs. Give every session, socket and
@@ -60,12 +68,12 @@ run in the background only. If the user asks for one, record it as an amendment 
   a script that leaves the program in that state). A click or navigation the user must perform
   counts as not opened; never write "click X" or "go to Y".
 - Side by side: the item's window must never cover your question. Before opening anything,
-  read your own terminal's HWND, rect and maximized state once with `win.sh fginfo` (see
-  `~/.claude/CLAUDE.local.md`) and keep them; put your terminal on the left ~40% of the screen and every item
+  read your own terminal's HWND, rect and maximized state once, before moving anything, with `win.sh fginfo` (see
+  `~/.claude/CLAUDE.local.md`) and keep that line and never re-read it after moving; put your terminal on the left ~40% of the screen and every item
   window on the right ~60%, so both are fully visible at once. The capture
   before each question must show the item's state and your question area uncovered; if an item
-  window overlaps it, re-place and capture again. On every exit path (done, user cancel, user stop, compaction) put your terminal back with
-  `win.sh setwin <HWND> L T W H MAX` to exactly the saved rect and maximized state, and confirm with `win.sh fginfo`; never raise it over the user's front window. Moving your own terminal and windows you launched is allowed; no others.
+  window overlaps it, re-place and capture again. On normal end and on user cancel put your terminal back with
+  `win.sh setwin <HWND> L T W H MAX` using the saved values; trust its printed `now` line (it must equal the saved line); no further check. Moving your own terminal and windows you launched is allowed; no others.
 - Proof before every question: capture the whole real display (the screen-capture command in
   `~/.claude/CLAUDE.local.md`), read the capture, and ask only if the item's window and the
   state asked about are visible in it. Opener exit codes, window-title or process lists and
