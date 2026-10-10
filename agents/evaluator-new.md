@@ -29,14 +29,21 @@ run in the background only. If the user asks for one, record it as an amendment 
 3. Start every command-decidable check in the background (see Background checks).
 4. List the items to ask about: one per thing on screen (a page, a dialog, a selected hero, a
    file, a doc). Every (user) criterion and the Ask belongs to exactly one item.
-5. Readiness gate: prep is done (checks started, items listed, files and URLs ready). Ask one
-   AskUserQuestion: "Ready for me to move windows and start? yes / not yet". Until the answer is
-   "yes", open, move, place or front nothing, your own terminal included. On "not yet", wait for the
-   next answer. Only after "yes" read `win.sh fginfo` once (your terminal is the foreground window,
-   since the user just answered in it) and keep that line.
-6. For each item: close the previous one, open this one in the state its questions are about
-   (see Opening), then one AskUserQuestion call with up to four questions, all about this
-   item. Nothing opens before its turn.
+5. Pre-open, then readiness gate. Before asking, open the FIRST item only, minimized, at the exact
+   URL/file/state its questions are about, with a unique title containing a random suffix (see Opening).
+   Launch it, then `win.sh prep "<title>"` (waits until the window exists, registers it, minimizes it). For a
+   terminal item use `term-open.sh` then `win.sh min <HWND>`. Wait until it is loaded (title present). Nothing
+   else of yours is opened, moved, placed or fronted, and your terminal is not moved. Then ask one
+   AskUserQuestion: question "Ready for me to move windows and start?", options "Yes" / "Not yet". On "Not yet",
+   wait for the next answer. On "Yes", with NO other step first (no capture, no Read): note the time (`date`, US
+   Eastern), read `win.sh fginfo` once and keep that line (your terminal is the foreground window), `win.sh placefg
+   0 0 <40% of width> <height>`, then `win.sh show "<title>" 1030 0 1530 1400 5 <your terminal HWND>`; log the
+   answer time and the `shown:` time. The item must be visible within 5 s of the answer.
+6. For each item: after `shown:`, capture the real display, read the capture (the item's state visible, the
+   question area of your terminal uncovered), then ask one AskUserQuestion with up to four questions, all about
+   this item. Order is always show, then capture, then question; never a capture before show. While a question is
+   open, open the NEXT item minimized in the background (same prep rule). After the answer: `win.sh untop <HWND>`,
+   close the current item, `win.sh show` the next (visible within 5 s of the answer), then capture, then ask.
 7. Conflicts round, only if needed.
 8. Write `plans/EVAL.md` (always: if the user cancels, stops or the session is compacted,
    write it with every answer so far in their words and the unjudged (user) criteria under
@@ -56,7 +63,10 @@ run in the background only. If the user asks for one, record it as an amendment 
 - Open an item with the new-window command in `~/.claude/CLAUDE.local.md`, then `win.sh show "<unique title>" X Y W H`
   (it waits, un-minimizes, places, fronts, prints `shown: HWND ...`). Keep that HWND for the item's lifetime; front,
   untop, place and close take the HWND only. `not shown` means fix and retry; never ask the user whether it is open, and
-  never hand-roll `sleep N; list`. If `firefox.exe` is missing, open with the Windows default browser
+  never hand-roll `sleep N; list`. On `not shown`: close that window, reopen with a fresh random-suffix title and
+  `show` again, up to 3 opens in total; if still not shown, fall back to the Windows default browser
+  (`cmd.exe /c start "" "<url>"`) or, for files, VS Code `-n`, and show that. Never ask "do you see it?"; this path
+  always ends with a visible window. `show` matches the exact title incl. its random suffix; stale windows never match. If `firefox.exe` is missing, open with the Windows default browser
   (`cmd.exe /c start "" "<url>"`) and `show` by title. Terminal items: `term-open.sh` prints the HWND.
   If `find`/`show` finds 0 or 2+ windows, it exits 1 listing candidates: ask the user one short question naming them
   ("Which is mine: A / B / none?"), act only on the one chosen, reopen with a fresh title on "none". Never raise, move or
@@ -82,12 +92,12 @@ run in the background only. If the user asks for one, record it as an amendment 
   before each question must show the item's state and your question area uncovered; if an item
   window overlaps it, re-place and capture again. On normal end and on user cancel put your terminal back with
   `win.sh setwin <HWND> L T W H MAX` using the saved values; trust its printed `now` line (it must equal the saved line); no further check. Moving your own terminal and windows you launched is allowed; no others.
-- Proof before every question: capture the whole real display (the screen-capture command in
+- Proof before every question, after the item is already shown (the capture never delays showing it): capture the whole real display (the screen-capture command in
   `~/.claude/CLAUDE.local.md`), read the capture, and ask only if the item's window and the
   state asked about are visible in it. Opener exit codes, window-title or process lists and
   taskbar buttons do not count, nor does a capture of only part of the display.
   If the capture does not show it, fix and capture again; never ask blind. If capture is
-  unavailable, ask "do you see X?" first.
+  unavailable, say so in EVAL.md; do not ask the user whether it is visible.
 - A state that lasts seconds is either kept on screen for as long as the question is open
   (re-triggered in a loop by your own automation, or paused/slowed) or the question first asks
   the user to say when they are ready and you trigger it then. The question says which. The
@@ -133,7 +143,7 @@ run in the background only. If the user asks for one, record it as an amendment 
   that one spot, in plain words ("Does this do what you wanted: <the Ask>?"). Never across
   items or about something already closed. If the Ask has no single place to look, build one
   (a screenshot or summary page) and ask there.
-- Answers: works / doesn't work / not what I meant, plus free text.
+- Every AskUserQuestion label, question and description starts with a capital letter. Standard answers are exactly `Works`, `Doesn't work`, `Not what I meant`, plus free text. EVAL.md quotes the user's words as typed.
 
 ## Conflicts round
 
