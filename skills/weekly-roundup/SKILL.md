@@ -1,13 +1,34 @@
 ---
 name: weekly-roundup
-description: Build a "Weekly Roundup" artifact summarizing projects Jaxon worked on in the past week — pulled from git activity under ~/files, with a per-project deep dive. Use when Jaxon asks for a weekly roundup, weekly recap, or asks what he worked on this week.
+description: Build or add to the "Weekly Roundup" artifact summarizing projects worked on this week — pulled from git activity under ~/files, pooled across every machine that uses this Claude account, with a per-project deep dive. Use when the user asks for a weekly roundup, weekly recap, or what they worked on this week.
 ---
 
 # Weekly Roundup
 
 Produces one HTML artifact per run: projects worked on and a deeper look at each project
-(picture + one paragraph). Styled like Jaxon's Pokemon Go Podium artifacts — tight,
+(picture + one paragraph). Styled like the Pokemon Go Podium artifacts — tight,
 data-dense, no filler.
+
+## 0. Pooling: find this week's page first
+
+Several machines share this Claude account (Jaxon's and Jaxon's brother's). Each week has one
+roundup artifact, and every machine's run adds its own data to it: the first run of the week
+creates the page, later runs (from any machine, or a rerun from the same one) update it in
+place. The pooled raw data lives inside the page in
+`<script type="application/json" id="roundup-data">`; `gather_data.py` reads it, swaps in this
+machine's fresh data, and writes the merged pool back out. Never rely on this machine's
+`state.json` to find the week's page; another machine may have made it.
+
+1. Read the Roundup Archive (`Artifact` action: read, `url` = `archive_url` below). Keep the
+   saved file path; step 5 rebuilds from it. Its `weeks-data` block lists every week's `url` by
+   `weekStart`.
+2. If the current week's `weekStart` is listed, this is a **joining run**: read that artifact and
+   keep its saved file path (`<this-week page>`). Take `window_start` and `token_window_start`
+   from its `roundup-data` block and use them below, so every machine counts the same window.
+   If the page has no `roundup-data` block (built before pooling), stop and ask the user;
+   rebuilding it from this machine alone would drop the other machine's data.
+3. Otherwise this is a **first run**: no `--pool-in`.
+4. The previous week's artifact is the archive entry just before this week's `weekStart`.
 
 ## 1. Determine the window and run the data script
 
@@ -17,8 +38,9 @@ usage week (most recent Sunday 10pm local) and run to now. For a past or just-en
 boundaries on each side. Never use `last_run` from `state.json` as the window start; it is only a
 record of when the skill last ran.
 
-Ask Jaxon for `cap-pct` (% of weekly cap consumed so far) fresh every run. `last_cap_usage_pct` in
-`state.json` only prefills your question; never reuse it silently.
+Ask the user for `cap-pct` (% of weekly cap consumed so far) fresh every run. It is account-wide,
+so the newest figure covers every machine and replaces the one stored in the pool.
+`last_cap_usage_pct` in `state.json` only prefills your question; never reuse it silently.
 
 `plan-cost` ($/mo, flat-rate plan) is hardcoded at `100` below; update it here if the plan changes.
 
@@ -32,11 +54,20 @@ python3 "$SKILL_DIR/gather_data.py" \
   --token-window-start <most recent Sunday 22:00 local, ISO datetime> \
   --token-window-end <next Sunday 22:00 local, ISO datetime; omit for the current, unfinished week> \
   --cap-pct <p> \
-  --plan-cost 100
+  --plan-cost 100 \
+  --pool-out <scratch>/pool.json \
+  [--pool-in <this-week page>]   # joining run only
 ```
 
-(`$SKILL_DIR` is this skill's directory.) It prints JSON: `projects` (name, path, remote_url,
-commits, screenshot path, token_rows per model, fe_total, cost_total, weekly_pct, `sessions`), `misc`,
+(`$SKILL_DIR` is this skill's directory.) `--device` defaults to `<user>@<hostname>`; this
+machine's previous entry in the pool (same label) is replaced, other machines' entries are kept.
+If `~/files` doesn't exist on this machine, ask the user where their repos live and pass
+`--files-dir`. The same project on two machines merges by GitHub remote, else by repo folder
+name; shared commits and sessions count once.
+
+It prints JSON for the pooled week: `devices` (label, collected_at), `projects` (name, path,
+remote_url, commits, screenshot path, token_rows per model, fe_total, cost_total, weekly_pct,
+`sessions`), `misc`,
 `unused_pct`, `implied_cap_fe`, `combined_cost`, `model_breakdown` (per model across all
 projects + Misc: model_display, raw_tokens, fe_tokens, cost, usage_pct), `model_effort_breakdown`
 (per family x effort: label, color, usage_pct), `unpriced_models`. Use its numbers directly; do not
@@ -52,12 +83,15 @@ manually with a placeholder/zero token row if no matching Claude project directo
 
 ### Key features per project
 
-Each project's `sessions` list (id, start, first prompt, fe_tokens, weekly_pct; subagent usage is
-already in its parent session) feeds the drawer's feature breakdown. For each project with
+Each project's `sessions` list (id, start, first prompt, device, fe_tokens, weekly_pct; subagent
+usage is already in its parent session) feeds the drawer's feature breakdown. For each project with
 sessions, pick roughly 2-6 key features (what was built or changed this week) and assign every
 session belonging to one, judging by first prompts, commit subjects and diffs. Write
 `{"<project name>": {"<Feature name>": ["<session id or unique prefix>", ...]}}` to a scratch file
-and rerun the script with `--features-file <file>`. Each project then gains `features`: name,
+and rerun the script (same arguments) with `--features-file <file>`. On a joining run, start from
+the `features` map already in `<scratch>/pool.json` (the script applies it by default) and only
+assign this machine's sessions (other machines' sessions have an empty prompt and are already
+assigned); add new features or reuse existing names. The file you pass replaces the stored map. Each project then gains `features`: name,
 fe_tokens, weekly_pct (same basis as the project's `weekly_pct`; features sum to it), sessions,
 and `models` (family, color, pct of that feature's tokens). Unassigned sessions land in an
 automatic "Other" feature; a session goes to exactly one feature. Fix any `no session matches`
@@ -65,11 +99,22 @@ warnings on stderr. Use the rerun's output for everything downstream. A project 
 (artifact-only) gets no drawer.
 
 Read a few actual diffs for the meatiest commits (each project's `commits` list), not just commit
-messages, to inform the deep-dive paragraphs.
+messages, to inform the deep-dive paragraphs. Diffs only exist for repos on this machine.
+
+### Joining run: build on the existing page
+
+Start from `<this-week page>`, not from scratch. Keep every existing card's picture, paragraph,
+card-meta, accent color and link, and every "Things fixed" entry. Replace all numbers (project
+list, pies, total cost, token tables, drawers) with the new output, which already covers every
+machine. Add cards (and pie slices, list rows) for projects only this machine worked on, with new
+distinct accent colors. Rewrite an existing paragraph only when this machine's commits change
+what the project does. Add "Things fixed" entries from this machine's transcripts.
 
 ## 4. Write the artifact
 
-Follow the `artifact-design` skill, then build one HTML page:
+Follow the `artifact-design` skill, then build one HTML page. When the HTML is final, embed the
+pool: `python3 "$SKILL_DIR/embed_pool.py" --pool <scratch>/pool.json --html <page>` (adds or
+replaces the `roundup-data` block; rerun it after any later edit that rewrites the page).
 
 - Reuse the Podium visual language: Barlow Condensed headings / Source Sans 3 body (Google
   Fonts), light/dark tokens (`--ground`, `--card`, `--ink`, `--muted`, `--line`, `--blue`,
@@ -98,17 +143,17 @@ Follow the `artifact-design` skill, then build one HTML page:
      a swatch + `label` (e.g. "Sonnet · low") + percentage. Versions of a family (Fable 5 / 5.1)
      are merged. Local Qwen models are priced $0 and never appear in this pie, the tables, or the
      cost. If `unpriced_models` is non-empty, they were priced at Sonnet 5 rates as a fallback; add
-     them to the price table and tell Jaxon when reporting, not on the page.
+     them to the price table and tell the user when reporting, not on the page.
      Below that pie, a big total-cost figure (no label), the summed dollar Cost across all
      projects plus Misc, formatted like `$942.02`, with a small caption underneath: "Equivalent
      pay-by-token API price; actually paid $100 / mo" (plan cost hardcoded; update here if it
      changes). The total cost is the last thing in this section, below both pies.
   3. **Things fixed** — short section between the projects list and the deep dives, only for big,
-     non-obvious issues Jaxon hit and resolved that week: things that broke his environment, cost
-     real time, or whose fix he'd want to remember (e.g. "leftover Ollama install was crashing
+     non-obvious issues the user hit and resolved that week: things that broke their environment, cost
+     real time, or whose fix they'd want to remember (e.g. "leftover Ollama install was crashing
      WSL — had to fully uninstall it"). Find them by reading the window's session transcripts
      (`~/.claude/projects/*/`) for moments outside normal feature work (crashes, broken
-     environments, corrupted state, misconfigured tools) where he had to stop and fix something.
+     environments, corrupted state, misconfigured tools) where they had to stop and fix something.
      Skip ordinary "wrote a bug, fixed it". If nothing qualifies, omit the section entirely.
      Format: a plain `<ul>` under the section header (no card styling), one entry per issue: bold
      one-line problem statement, then one or two plain sentences on the fix, in the write-readme
@@ -208,22 +253,23 @@ Use as-is. Method, for reference:
   `MOVED_FROM` in `gather_data.py`, or their old-path usage lands in Misc.
 - Favicon: 🗓️. Title: "Weekly Roundup — <date range>" (e.g. "Weekly Roundup — Sep 6-11, 2026"),
   matching the eyebrow so artifacts are distinguishable in the list.
-- Publish with `Artifact`. If `state.json` has `last_artifact_url`, pass it as `url` to update in
-  place (read it first per the Artifact tool's update flow) rather than creating a new artifact.
-- Artifacts start private. After publishing, remind Jaxon to share it (claude.ai Share button →
+- Publish with `Artifact`. Joining run: pass this week's artifact URL as `url` to update it in
+  place (already read in step 0). First run: publish a new artifact.
+- Artifacts start private. After publishing, remind the user to share it (claude.ai Share button →
   public link); the tool has no publish-time flag for this.
 
 ## Prev/next week navigation
 
-- `state.json`'s `last_artifact_url` (before you overwrite it this run) is the previous week's
-  artifact; read it (`Artifact` action: read) before building the new page.
+- The previous week's artifact comes from the archive (step 0); read it (`Artifact` action:
+  read) before building the new page. On a joining run the nav row already exists; keep it and
+  skip the "republish the previous week" step below.
 - Add a "← Previous week" link to that URL near the title/eyebrow. The new artifact is always the
   current week, so omit the "Next week →" side entirely (no placeholder self-link).
 - In the same `.weeknav` row add a "Dashboard" link to the Roundup Archive (`archive_url` in
   `state.json`), always.
 - After publishing, republish the previous week's artifact with its "Next week →" pointing at the
   new URL (adding the link if it had none).
-- The very first roundup (no `last_artifact_url`) has no previous week: omit or gray out the
+- The very first roundup (no earlier archive week) has no previous week: omit or gray out the
   "← Previous week" link.
 
 ## Output checklist (verify before publishing)
@@ -233,14 +279,14 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
 
 - Footer text is exactly `Generated by the weekly-roundup skill`, no variants.
 - No extra paragraphs, notes, or CSS classes beyond this file (no `.backfill-note` etc.). If
-  something is unusual (missing data), ask Jaxon rather than adding a visible element.
+  something is unusual (missing data), ask the user rather than adding a visible element.
 - Card `card-title` is a plain `<a href="...">` with no `target`/`rel`; same-tab links throughout.
 - Card `card-meta` is a short line `<category> &middot; <stack/notes>` (e.g. "Node.js tool ·
   evolutionary search"), never a raw repo URL or domain.
 - Token table Model column uses friendly names (`Sonnet 5`, `Fable 5.1`, `Opus 5`), never API
   slugs.
 - Project pie = project shares + Misc + Unused summing to 100%, against the weekly cap %. `p` is
-  the real figure Jaxon gave (100% for a week that hit the cap); never call it assumed or
+  the real figure the user gave (100% for a week that hit the cap); never call it assumed or
   estimated on the page.
 - "Usage by model" pie sits above the total cost, which is last in the projects section; it is
   split by effort, uses the script's `color` values, sums to 100%, has no Unused slice.
@@ -256,6 +302,10 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
   of the window; `document.documentElement.scrollWidth <= innerWidth` at 360, 768, 1024, 1440,
   1920 and 2560px in light and dark; at 390px the page is a single column.
 
+- The page has exactly one `<script type="application/json" id="roundup-data">` block, written
+  by `embed_pool.py` from this run's `pool.json`, and the output's `devices` lists every machine
+  that was in the pool before this run plus this one.
+
 Re-read this checklist against the finished HTML immediately before publishing.
 
 ## 5. Add this week to the Roundup Archive
@@ -267,10 +317,12 @@ anyone with the public link sees every week. The data lives in `archive_weeks.js
 file; `archive_template.html` is the page.
 
 After publishing this week's roundup, write this week to a scratch JSON file, then run
-`python3 "$SKILL_DIR/build_archive.py" --add <file> --out <scratch>/archive.html` (it inserts or
-replaces the week by `weekStart` in `archive_weeks.json` and builds the page) and republish the
-page with `Artifact` (`url: archive_url`; read it first per the update flow; omit `capabilities`).
-Commit `archive_weeks.json` in `~/files/claude-config`. Never give the archive a `db`: a `db` page
+`python3 "$SKILL_DIR/build_archive.py" --base <archive file read in step 0> --add <file> --out
+<scratch>/archive.html` (it takes the weeks from the published archive, since other machines
+update it too, inserts or replaces this week by `weekStart`, saves them to
+`archive_weeks.json` and builds the page) and republish the page with `Artifact`
+(`url: archive_url`; omit `capabilities`).
+Commit `archive_weeks.json` in `~/files/claude-config` if this machine has that repo. Never give the archive a `db`: a `db` page
 is organization-only, so public viewers would not see the weeks.
 
 ```
@@ -299,6 +351,10 @@ Write `state.json`: `{"last_run": "<today's date>", "last_artifact_url": "<publi
 "last_cap_usage_pct": <p>}`.
 
 ## Notes
+
+- When reporting, list the machines in the output's `devices` with their `collected_at`. A
+  machine whose data is days old makes the Unused slice look bigger than it is (its newer usage
+  is in the cap % but not in the pool); say so.
 
 - If zero repos had activity in the window, still publish a short artifact saying so.
 - Keep tool calls modest: commit logs, diffs of significant commits, and README/screenshot lookups
