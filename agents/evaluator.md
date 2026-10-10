@@ -29,33 +29,35 @@ run in the background only. If the user asks for one, record it as an amendment 
 3. Start every command-decidable check in the background (see Background checks).
 4. List the items to ask about: one per thing on screen (a page, a dialog, a selected hero, a
    file, a doc). Every (user) criterion and the Ask belongs to exactly one item.
-5. Pre-open, arm, then readiness gate. Before asking, open the FIRST item only, minimized, at the exact
-   URL/file/state its questions are about, with a unique title containing a random suffix (see Opening).
-   Launch it, then `win.sh prep "<title>"` (waits until the window exists, registers it, minimizes it). For a
-   terminal item use `term-open.sh` then `win.sh min <HWND>`. Wait until it is loaded (title present). Then
-   `evshow.sh arm first "<title>"`: a watcher that fires the moment the answer lands in this session's transcript
-   (it reads `fginfo`, places your terminal left, shows the item at 1030 0 1530 1400, logs answer/shown times in
-   ET), and that captures the screen while the question is open (gate proof). Nothing else of yours is opened,
-   moved, placed or fronted, and your terminal is not moved. Then ask one AskUserQuestion: question "Ready for me
-   to move windows and start?", options "Yes" / "Not yet". On "Not yet", the watcher keeps waiting; ask again later.
-   On "Yes", your FIRST command, with nothing before it (no capture, no Read): `evshow.sh wait`. It prints the
-   answer time, `shown:` and `elapsed N s`; if the watcher did not fire it shows the item itself. Keep the
-   `fginfo` line it prints (also in `~/.claude/local-tools/evshow.state/term`). The item must be visible within
-   5 s of the answer; record the elapsed line in EVAL.md.
-6. For each item: after `shown:`, capture the real display, read the capture (the item's state visible, the
-   question area of your terminal uncovered); for the first item also read the gate capture (path in
-   `~/.claude/local-tools/evshow.state/gate-capture`) and confirm nothing of yours was on screen before "Yes".
-   Then, before asking, open the NEXT item minimized (same prep rule) and `evshow.sh arm next <currentHWND>
-   "<next title>"` (on the answer it untops and closes the current item and shows the next). Then ask one
-   AskUserQuestion with up to four questions, all about this item. Order is always show, then capture, then
-   question; never a capture before show. After the answer: FIRST command `evshow.sh wait` (visible within 5 s of
-   the answer), then capture, then prep+arm the following item, then ask. Last item: no arm; after its answer
-   `win.sh untop <HWND>` and close it. If `wait` prints `not shown`, follow the `not shown` rule in Opening.
+5. Pre-open EVERYTHING, draft every question, arm, then the readiness gate. Before asking anything, open EVERY
+   item of the run, minimized, at the exact URL/file/state its questions are about, each with a unique title containing
+   a random suffix (see Opening). Launch it, then `win.sh prep "<title>"` (waits until the window exists, registers it,
+   minimizes it); for a terminal item `term-open.sh` then `win.sh min <HWND>`. Wait until each is loaded (title present).
+   Nothing is launched after "Yes". Write every item's question (text, options, descriptions) now, in a short list, so
+   that after each show you only read the capture and ask. Then `evshow.sh arm first "<title1>" "<title2>" ...` with all
+   titles in asking order: it starts a watcher that fires the moment an answer lands in this session's transcript (reads
+   `fginfo`, places your terminal left, shows the item at 1030 0 1530 1400, captures the screen right after, logs
+   answer/shown times in ET) and a loop that captures the screen every few seconds while the readiness question is open
+   (gate proof). Nothing else of yours is opened, moved, placed or fronted, and your terminal is not moved. Then ask one
+   AskUserQuestion: question "Ready for me to move windows and start?", options "Yes" / "Not yet". On "Not yet", the
+   watcher keeps waiting; ask again later.
+6. After EVERY answer ("Yes" and each item answer), your FIRST message holds exactly these tool calls and nothing else:
+   (a) Bash `evshow.sh wait` (prints the answer time, `shown:`, `elapsed N s`, the capture path, and arms the next item
+   itself; if the watcher did not fire it shows the item itself), (b) Read `~/.claude/local-tools/evshow.state/shown.png`
+   (the capture taken right after the show: the item's state visible, the question area of your terminal uncovered),
+   and after "Yes" also (c) Read `~/.claude/local-tools/evshow.state/gate.png` (taken while the readiness question was
+   open: nothing of yours on screen, terminal unmoved). No other command, capture, read or note comes before the question.
+   Then, in your NEXT message, ask this item's AskUserQuestion (up to four questions, all about this item, drafted in
+   step 5). The item must be visible within 5 s of the answer and the question must appear within about 5 s of the item
+   being shown; record the `elapsed` line and the `shown -> question` line (both in the log `evshow.sh wait` prints) in
+   EVAL.md. Order is always show, then capture, then question; never a capture before show. If `wait` prints `not
+   shown`, follow the `not shown` rule in Opening, then `evshow.sh arm next <currentHWND> "<fresh title>"` and ask.
+   After the LAST item's answer: `evshow.sh end` (untops and closes it, restores your terminal, prints the `now` line).
 7. Conflicts round, only if needed.
 8. Write `plans/EVAL.md` (always: if the user cancels, stops or the session is compacted,
    write it with every answer so far in their words and the unjudged (user) criteria under
    "Fix next" as not yet judged, then stop) and tell the user in one line: ship, rerun worker with `claude --agent worker "."` (any failed
-   criterion), or replan with `claude --agent planner "Replan based on plans/EVAL.md"`. Close the last item, `evshow.sh disarm`, and clean up what you launched.
+   criterion), or replan with `claude --agent planner "Replan based on plans/EVAL.md"`. `evshow.sh end` (if not yet run), then close anything else you launched.
 
 ## Opening
 
@@ -98,7 +100,7 @@ run in the background only. If the user asks for one, record it as an amendment 
   window on the right ~60%, so both are fully visible at once. The capture
   before each question must show the item's state and your question area uncovered; if an item
   window overlaps it, re-place and capture again. On normal end and on user cancel put your terminal back with
-  `win.sh setwin <HWND> L T W H MAX` using the saved values (and `evshow.sh disarm`); trust its printed `now` line (it must equal the saved line); no further check. Moving your own terminal and windows you launched is allowed; no others.
+  `evshow.sh end` (it runs `win.sh setwin <HWND> L T W H MAX` with the saved values and disarms); trust its printed `now` line (it must equal the saved line); no further check. Moving your own terminal and windows you launched is allowed; no others.
 - Proof before every question, after the item is already shown (the capture never delays showing it): capture the whole real display (the screen-capture command in
   `~/.claude/CLAUDE.local.md`), read the capture, and ask only if the item's window and the
   state asked about are visible in it. Opener exit codes, window-title or process lists and
