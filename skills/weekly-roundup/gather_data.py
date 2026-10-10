@@ -17,7 +17,7 @@ Usage:
       --window-start 2026-09-04 --window-end 2026-09-11 \
       --token-window-start "2026-09-06T22:00:00" \
       [--token-window-end "2026-09-13T22:00:00"] \
-      --cap-pct 90 --plan-cost 100 \
+      [--cap-pct 90] --plan-cost 100 \
       [--device jaxon@desktop] [--pool-in this-week.html] [--pool-out pool.json] \
       [--include-ai-sandbox] [--include-project yugioh-deck-optimizer]
 """
@@ -373,7 +373,17 @@ def report(contributions, cap_pct, features_map, args):
     projects = merge_projects(contributions)
     misc_sessions = {}
     for c in contributions:
-        misc_sessions.update(c["misc_sessions"])
+        misc_sessions.update({sid: {**m, "device": c["device"]} for sid, m in c["misc_sessions"].items()})
+
+    # Per-device totals for the page's "Data sources" drawer; each session counts once, toward
+    # the device that reported it.
+    dev_tot = {c["device"]: [0.0, 0.0, 0] for c in contributions}  # fe, cost, sessions
+    for sess in [s for p in projects for s in p["sessions"].values()] + list(misc_sessions.values()):
+        for model, t in counts_by([sess], lambda m, e: m).items():
+            cost, fe, _r = priced(t, model)
+            dev_tot[sess["device"]][0] += fe
+            dev_tot[sess["device"]][1] += cost
+        dev_tot[sess["device"]][2] += 1
 
     eff_totals = counts_by(
         [s for p in projects for s in p["sessions"].values()] + list(misc_sessions.values()),
@@ -552,7 +562,17 @@ def report(contributions, cap_pct, features_map, args):
         "token_window_end": args.token_window_end,
         "cap_pct": p,
         "plan_cost": args.plan_cost,
-        "devices": [{"device": c["device"], "collected_at": c["collected_at"]} for c in contributions],
+        "devices": [
+            {
+                "device": c["device"],
+                "collected_at": c["collected_at"],
+                "sessions": dev_tot[c["device"]][2],
+                "fe_tokens": round(dev_tot[c["device"]][0], 2),
+                "cost": round(dev_tot[c["device"]][1], 4),
+                "weekly_pct": round(dev_tot[c["device"]][0] / implied_cap_fe * 100, 2) if implied_cap_fe else 0,
+            }
+            for c in contributions
+        ],
         "implied_cap_fe": round(implied_cap_fe, 2),
         "combined_cost": round(combined_cost, 4),
         "projects": projects,
@@ -586,7 +606,7 @@ def main():
     ap.add_argument("--window-end", required=True, help="YYYY-MM-DD, project/commit window end")
     ap.add_argument("--token-window-start", required=True, help="ISO datetime, token tally window start")
     ap.add_argument("--token-window-end", default=None, help="ISO datetime, token tally window end (exclusive); default: now")
-    ap.add_argument("--cap-pct", type=float, required=True, help="percent of weekly cap consumed so far (whole account)")
+    ap.add_argument("--cap-pct", type=float, default=None, help="percent of weekly cap consumed so far (whole account); the newest entry wins. Default: the pool's last entered value")
     ap.add_argument("--plan-cost", type=float, required=True, help="flat-rate plan cost, $/mo")
     ap.add_argument("--features-file", default=None, help="JSON {project: {feature: [session id or prefix, ...]}}; adds per-feature usage to each project. Default: the pool's saved features")
     ap.add_argument("--device", default=f"{getpass.getuser()}@{socket.gethostname()}", help="label for this machine's data in the pool")
@@ -603,6 +623,17 @@ def main():
             sys.exit(f"--token-window-start {args.token_window_start} doesn't match the pool's "
                      f"{pool.get('token_window_start')}; use the pool's window")
 
+    if args.cap_pct is None:
+        if pool.get("cap_pct") is None:
+            sys.exit("--cap-pct is required (no earlier value in the pool)")
+        args.cap_pct = pool["cap_pct"]
+        cap_pct_at = pool.get("cap_pct_at")
+    else:
+        cap_pct_at = datetime.now().isoformat(timespec="minutes")
+        if pool.get("cap_pct") is not None and args.cap_pct < pool["cap_pct"]:
+            print(f"warning: --cap-pct {args.cap_pct} is lower than the {pool['cap_pct']} entered at "
+                  f"{pool.get('cap_pct_at')}; using {args.cap_pct} (newest entry)", file=sys.stderr)
+
     mine = collect(args, args.device)
     others = [c for c in pool["devices"] if c["device"] != args.device]
     contributions = others + [mine]
@@ -617,9 +648,11 @@ def main():
         pool_out = {
             "version": 1,
             "window_start": args.window_start,
+            "window_end": args.window_end,
             "token_window_start": args.token_window_start,
+            "token_window_end": args.token_window_end,
             "cap_pct": args.cap_pct,
-            "cap_pct_at": mine["collected_at"],
+            "cap_pct_at": cap_pct_at,
             "features": features_map,
             "devices": others + [public_contribution(mine)],
         }

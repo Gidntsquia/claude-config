@@ -9,7 +9,11 @@ Produces one HTML artifact per run: projects worked on and a deeper look at each
 (picture + one paragraph). Styled like the Pokemon Go Podium artifacts — tight,
 data-dense, no filler.
 
-## 0. Pooling: find this week's page first
+## 0. Pick the week and find its page
+
+The user names the week to build or update: "this week" (the default when they don't say),
+"last week", or a date in it. A week runs Sunday 22:00 local to the next Sunday 22:00; its
+`weekStart` is that first Sunday's date. Any week can be updated in place, current or past.
 
 Several machines share this Claude account (Jaxon's and Jaxon's brother's). Each week has one
 roundup artifact, and every machine's run adds its own data to it: the first run of the week
@@ -22,25 +26,31 @@ machine's fresh data, and writes the merged pool back out. Never rely on this ma
 1. Read the Roundup Archive (`Artifact` action: read, `url` = `archive_url` below). Keep the
    saved file path; step 5 rebuilds from it. Its `weeks-data` block lists every week's `url` by
    `weekStart`.
-2. If the current week's `weekStart` is listed, this is a **joining run**: read that artifact and
+2. If the chosen week's `weekStart` is listed, this is a **joining run**: read that artifact and
    keep its saved file path (`<this-week page>`). Take `window_start` and `token_window_start`
    from its `roundup-data` block and use them below, so every machine counts the same window.
-   If the page has no `roundup-data` block (built before pooling), stop and ask the user;
-   rebuilding it from this machine alone would drop the other machine's data.
-3. Otherwise this is a **first run**: no `--pool-in`.
-4. The previous week's artifact is the archive entry just before this week's `weekStart`.
+   If the page has no `roundup-data` block, it was built before pooling: leave that week as it
+   is, tell the user, and stop.
+3. Otherwise this is a **first run** for that week: no `--pool-in`.
+4. The previous and next weeks' artifacts are the archive entries on either side of the chosen
+   `weekStart` (no next week when it is the current week).
 
 ## 1. Determine the window and run the data script
 
-The project/commit window and the token window both start at the beginning of the current Claude
-usage week (most recent Sunday 10pm local) and run to now. For a past or just-ended week
-(including backfills), pass `--token-window-start` and `--token-window-end` as the Sunday 22:00
-boundaries on each side. Never use `last_run` from `state.json` as the window start; it is only a
+The project/commit window and the token window both start at the chosen week's Sunday 22:00 and,
+for the current week, run to now (omit `--token-window-end`; `--window-end` is today). For a past
+week, pass `--token-window-start` and `--token-window-end` as the Sunday 22:00 boundaries on each
+side and `--window-end` as the closing Sunday's date. Never use `last_run` from `state.json` as the window start; it is only a
 record of when the skill last ran.
 
-Ask the user for `cap-pct` (% of weekly cap consumed so far) fresh every run. It is account-wide,
-so the newest figure covers every machine and replaces the one stored in the pool.
-`last_cap_usage_pct` in `state.json` only prefills your question; never reuse it silently.
+Ask the user for `cap-pct` (% of the chosen week's cap consumed) every run. It is account-wide,
+and the most recently entered figure always wins: if Jaxon ran at 60% and his brother later
+enters 70%, the page uses 70%, and the 70% stays when anyone reruns without entering a new one.
+On a joining run, show the pool's stored `cap_pct` and `cap_pct_at` in the question; if the user
+keeps it (e.g. a past week whose final figure is already in), omit `--cap-pct` and the script
+reuses it. On a first run `--cap-pct` is required. `last_cap_usage_pct` in `state.json` only
+prefills the question on a first run; never reuse it silently. The script warns when a new
+figure is lower than the stored one (usage only rises within a week); confirm it with the user.
 
 `plan-cost` ($/mo, flat-rate plan) is hardcoded at `100` below; update it here if the plan changes.
 
@@ -169,6 +179,12 @@ replaces the `roundup-data` block; rerun it after any later edit that rewrites t
      usage; sums to the project's weekly %), and a small pie (same style) of that feature's usage
      by model, one slice per `models` entry using its `color` and `pct` (versions merged). Omit
      the drawer when the project has no `features`.
+  5. **Data sources** — last thing before the footer, collapsed so it takes one line: a
+     `<details class="drawer sources">` (summary "Data sources", `--accent: var(--muted)`, no
+     section header) opening to a small table with one row per entry of the output's `devices`:
+     Machine (`device`) / Collected (`collected_at`, as e.g. "Oct 9, 2:15 PM") / Sessions / Cost /
+     Weekly %, then one line under it: "Weekly cap usage: <p>% (entered <cap_pct_at>)". All other
+     pooled detail stays in the invisible `roundup-data` block.
 
 ### Desktop layout (screens 1000px and wider; phones unchanged)
 
@@ -253,7 +269,7 @@ Use as-is. Method, for reference:
   `MOVED_FROM` in `gather_data.py`, or their old-path usage lands in Misc.
 - Favicon: 🗓️. Title: "Weekly Roundup — <date range>" (e.g. "Weekly Roundup — Sep 6-11, 2026"),
   matching the eyebrow so artifacts are distinguishable in the list.
-- Publish with `Artifact`. Joining run: pass this week's artifact URL as `url` to update it in
+- Publish with `Artifact`. Joining run: pass the chosen week's artifact URL as `url` to update it in
   place (already read in step 0). First run: publish a new artifact.
 - Artifacts start private. After publishing, remind the user to share it (claude.ai Share button →
   public link); the tool has no publish-time flag for this.
@@ -262,13 +278,15 @@ Use as-is. Method, for reference:
 
 - The previous week's artifact comes from the archive (step 0); read it (`Artifact` action:
   read) before building the new page. On a joining run the nav row already exists; keep it and
-  skip the "republish the previous week" step below.
-- Add a "← Previous week" link to that URL near the title/eyebrow. The new artifact is always the
-  current week, so omit the "Next week →" side entirely (no placeholder self-link).
+  skip the republish steps below.
+- Add a "← Previous week" link to that URL near the title/eyebrow. Add "Next week →" only when
+  the archive has a later week (a first run for a past week); for the current week omit it
+  entirely (no placeholder self-link).
 - In the same `.weeknav` row add a "Dashboard" link to the Roundup Archive (`archive_url` in
   `state.json`), always.
 - After publishing, republish the previous week's artifact with its "Next week →" pointing at the
-  new URL (adding the link if it had none).
+  new URL (adding the link if it had none), and, for a past week, the next week's artifact with
+  its "← Previous week" pointing at it.
 - The very first roundup (no earlier archive week) has no previous week: omit or gray out the
   "← Previous week" link.
 
@@ -297,7 +315,9 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
   invented tokens, or reordered/renamed sections.
 - Desktop layout exactly as above: `section projects` / `section dives` classes, the
   `desktop-layout` style and `desktop-layout-js` script verbatim. Only classes beyond the base
-  ones: `projects`, `dives`, and script-created `mgrid`, `mcol`.
+  ones: `projects`, `dives`, `sources`, and script-created `mgrid`, `mcol`.
+- The collapsed "Data sources" drawer is present, lists every entry of `devices`, and shows the
+  cap % used.
 - Rendered check (headless browser if available): at 1440px and 1920px content spans at least 80%
   of the window; `document.documentElement.scrollWidth <= innerWidth` at 360, 768, 1024, 1440,
   1920 and 2560px in light and dark; at 390px the page is a single column.
@@ -316,7 +336,7 @@ to the full pie + legend on hover. Its weeks are written into the page itself (n
 anyone with the public link sees every week. The data lives in `archive_weeks.json` next to this
 file; `archive_template.html` is the page.
 
-After publishing this week's roundup, write this week to a scratch JSON file, then run
+After publishing the roundup, write the chosen week to a scratch JSON file, then run
 `python3 "$SKILL_DIR/build_archive.py" --base <archive file read in step 0> --add <file> --out
 <scratch>/archive.html` (it takes the weeks from the published archive, since other machines
 update it too, inserts or replaces this week by `weekStart`, saves them to
@@ -329,7 +349,7 @@ is organization-only, so public viewers would not see the weeks.
 {
   "weekStart": "<window-start, YYYY-MM-DD>",
   "label": "<eyebrow date range, e.g. 'Sep 6–11, 2026'>",
-  "url": "<this week's roundup artifact URL>",
+  "url": "<the chosen week's roundup artifact URL>",
   "projectCount": <number of projects in the Projects list>,
   "totalCost": <the total-cost number, as a plain float>,
   "slices": [
@@ -346,7 +366,8 @@ Omit the "Unused" slice if `unused_pct` is 0. Slices must sum to 100: when cap u
 
 ## 6. Update state
 
-Write `state.json`: `{"last_run": "<today's date>", "last_artifact_url": "<published url>",
+Write `state.json` (when the chosen week is a past week, keep the existing `last_artifact_url` and
+`last_cap_usage_pct`): `{"last_run": "<today's date>", "last_artifact_url": "<published url>",
 "archive_url": "https://claude.ai/code/artifact/61e892af-ab44-48cb-9c9b-74ee690c6dad",
 "last_cap_usage_pct": <p>}`.
 
