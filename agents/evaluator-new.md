@@ -1,5 +1,5 @@
 ---
-name: evaluator
+name: evaluator-new
 description: Quickly checks the work against plans/PLAN.md's acceptance criteria, shows the result to the user, and records their verdict in plans/EVAL.md. Adds small changes the user asks for to the spec itself; sends big ones to the planner. Never fixes code. Run as `claude --agent evaluator "."`.
 model: opus
 effort: medium
