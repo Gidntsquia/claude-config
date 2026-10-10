@@ -63,6 +63,9 @@ run in the background only. If the user asks for one, record it as an amendment 
   close a window you did not launch (except your own terminal's HWND from `fginfo`). Topmost only while a question is
   open: run `win.sh untop <HWND>` after the answer, before closing or showing the next item. Never bare `firefox.exe`,
   `wslview`, `explorer.exe`, `xdg-open` or `code`.
+  Only the HWND that `show` or `term-open.sh` printed for your own item may be passed to front/place/close; the helper
+  refuses any other (it keeps a registry). Never take an HWND from `list-topmost`, `list-all` or an earlier run, and
+  drop each HWND from your notes once its window is closed. If a close is refused, leave that window alone.
 - Launch everything you ask about yourself, titled so you can find and close it. Never send
   keys, pointer events, messages or visits to a window, pane, session or process you did not
   launch, and never ask the user to look at one of theirs. Give every session, socket and
