@@ -29,26 +29,33 @@ run in the background only. If the user asks for one, record it as an amendment 
 3. Start every command-decidable check in the background (see Background checks).
 4. List the items to ask about: one per thing on screen (a page, a dialog, a selected hero, a
    file, a doc). Every (user) criterion and the Ask belongs to exactly one item.
-5. Pre-open, then readiness gate. Before asking, open the FIRST item only, minimized, at the exact
+5. Pre-open, arm, then readiness gate. Before asking, open the FIRST item only, minimized, at the exact
    URL/file/state its questions are about, with a unique title containing a random suffix (see Opening).
    Launch it, then `win.sh prep "<title>"` (waits until the window exists, registers it, minimizes it). For a
-   terminal item use `term-open.sh` then `win.sh min <HWND>`. Wait until it is loaded (title present). Nothing
-   else of yours is opened, moved, placed or fronted, and your terminal is not moved. Then ask one
-   AskUserQuestion: question "Ready for me to move windows and start?", options "Yes" / "Not yet". On "Not yet",
-   wait for the next answer. On "Yes", with NO other step first (no capture, no Read): note the time (`date`, US
-   Eastern), read `win.sh fginfo` once and keep that line (your terminal is the foreground window), `win.sh placefg
-   0 0 <40% of width> <height>`, then `win.sh show "<title>" 1030 0 1530 1400 5 <your terminal HWND>`; log the
-   answer time and the `shown:` time. The item must be visible within 5 s of the answer.
+   terminal item use `term-open.sh` then `win.sh min <HWND>`. Wait until it is loaded (title present). Then
+   `evshow.sh arm first "<title>"`: a watcher that fires the moment the answer lands in this session's transcript
+   (it reads `fginfo`, places your terminal left, shows the item at 1030 0 1530 1400, logs answer/shown times in
+   ET), and that captures the screen while the question is open (gate proof). Nothing else of yours is opened,
+   moved, placed or fronted, and your terminal is not moved. Then ask one AskUserQuestion: question "Ready for me
+   to move windows and start?", options "Yes" / "Not yet". On "Not yet", the watcher keeps waiting; ask again later.
+   On "Yes", your FIRST command, with nothing before it (no capture, no Read): `evshow.sh wait`. It prints the
+   answer time, `shown:` and `elapsed N s`; if the watcher did not fire it shows the item itself. Keep the
+   `fginfo` line it prints (also in `~/.claude/local-tools/evshow.state/term`). The item must be visible within
+   5 s of the answer; record the elapsed line in EVAL.md.
 6. For each item: after `shown:`, capture the real display, read the capture (the item's state visible, the
-   question area of your terminal uncovered), then ask one AskUserQuestion with up to four questions, all about
-   this item. Order is always show, then capture, then question; never a capture before show. While a question is
-   open, open the NEXT item minimized in the background (same prep rule). After the answer: `win.sh untop <HWND>`,
-   close the current item, `win.sh show` the next (visible within 5 s of the answer), then capture, then ask.
+   question area of your terminal uncovered); for the first item also read the gate capture (path in
+   `~/.claude/local-tools/evshow.state/gate-capture`) and confirm nothing of yours was on screen before "Yes".
+   Then, before asking, open the NEXT item minimized (same prep rule) and `evshow.sh arm next <currentHWND>
+   "<next title>"` (on the answer it untops and closes the current item and shows the next). Then ask one
+   AskUserQuestion with up to four questions, all about this item. Order is always show, then capture, then
+   question; never a capture before show. After the answer: FIRST command `evshow.sh wait` (visible within 5 s of
+   the answer), then capture, then prep+arm the following item, then ask. Last item: no arm; after its answer
+   `win.sh untop <HWND>` and close it. If `wait` prints `not shown`, follow the `not shown` rule in Opening.
 7. Conflicts round, only if needed.
 8. Write `plans/EVAL.md` (always: if the user cancels, stops or the session is compacted,
    write it with every answer so far in their words and the unjudged (user) criteria under
    "Fix next" as not yet judged, then stop) and tell the user in one line: ship, rerun worker with `claude --agent worker "."` (any failed
-   criterion), or replan with `claude --agent planner "Replan based on plans/EVAL.md"`. Close the last item and clean up what you launched.
+   criterion), or replan with `claude --agent planner "Replan based on plans/EVAL.md"`. Close the last item, `evshow.sh disarm`, and clean up what you launched.
 
 ## Opening
 
@@ -86,12 +93,12 @@ run in the background only. If the user asks for one, record it as an amendment 
   a script that leaves the program in that state). A click or navigation the user must perform
   counts as not opened; never write "click X" or "go to Y".
 - Side by side: the item's window must never cover your question. Before opening anything,
-  use the `win.sh fginfo` line you read once right after the user's "yes" (see
-  `~/.claude/CLAUDE.local.md`), before any move; never re-read it after moving; put your terminal on the left ~40% of the screen and every item
+  use the `fginfo` line `evshow.sh wait` printed after the user's "yes" (read once by the watcher before any
+  move; see `~/.claude/CLAUDE.local.md`); never re-read it after moving; put your terminal on the left ~40% of the screen and every item
   window on the right ~60%, so both are fully visible at once. The capture
   before each question must show the item's state and your question area uncovered; if an item
   window overlaps it, re-place and capture again. On normal end and on user cancel put your terminal back with
-  `win.sh setwin <HWND> L T W H MAX` using the saved values; trust its printed `now` line (it must equal the saved line); no further check. Moving your own terminal and windows you launched is allowed; no others.
+  `win.sh setwin <HWND> L T W H MAX` using the saved values (and `evshow.sh disarm`); trust its printed `now` line (it must equal the saved line); no further check. Moving your own terminal and windows you launched is allowed; no others.
 - Proof before every question, after the item is already shown (the capture never delays showing it): capture the whole real display (the screen-capture command in
   `~/.claude/CLAUDE.local.md`), read the capture, and ask only if the item's window and the
   state asked about are visible in it. Opener exit codes, window-title or process lists and
