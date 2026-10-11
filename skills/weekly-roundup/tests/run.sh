@@ -14,7 +14,7 @@ log() { echo "[$(date +%H:%M:%S)] $*"; }
 "$T/setup_docker.sh" >/dev/null || { echo "docker setup failed"; exit 1; }
 D build -q -t roundup-test -f "$T/Dockerfile" "$SKILL" >/dev/null || exit 1
 python3 "$T/make_fixtures.py" --expected "$T/expected.json" || exit 1
-mkdir -p "$OUT"; [ -z "${ONLY:-}" ] && rm -rf "$OUT" && mkdir -p "$OUT"
+if [ -z "${ONLY:-}" ]; then R rm -rf "$OUT"; else R rm -rf "$OUT/$ONLY"; fi; mkdir -p "$OUT"
 
 start() {  # fresh containers; credentials copied in at start, never into the image
   for m in a b; do
@@ -59,7 +59,7 @@ run_roundup() {  # run_roundup <scenario> <machine> <cap|keep>
   local s="$1" m="$2" cap="$3" capText u who
   if [ "$cap" = keep ]; then capText="No new cap-pct: keep the stored one (omit --cap-pct)."; else capText="cap-pct is $cap."; fi
   who=$(person_for "$m" "$RUN")
-  u=$(cc "$m" "$OUT/$s/$m-$RUN.log" "$PREAMBLE Run /weekly-roundup for this week. $capText The usage on this machine belongs to: $who (pass exactly that text as --person). Assign features yourself. Publish the week page (a joining run if the archive already lists this week) and update the archive. Print the week page URL as the very last line, nothing after it.")
+  u=$(cc "$m" "$OUT/$s/$m-$RUN.log" "$PREAMBLE Run /weekly-roundup for this week. $capText The usage on this machine belongs to: $who (pass exactly that text as --person). Assign features yourself. Publish the week page (a joining run if the archive already lists this week) and update the archive. Write your full report to the user (what you replaced or added, as SKILL.md says) BEFORE the final step; then print the week page URL as the very last line, nothing after it.")
   RUN=$((RUN+1))
   [ -n "$u" ] || { echo "$s/$m: no URL (see log)"; return 1; }
   WEEK="$u"
