@@ -119,4 +119,51 @@ if all(pools.values()):
     n = {s: normalize(p) for s, p in pools.items()}
     check("S1 == S2 (ignoring collected_at, features, cap_pct)", n["S1"] == n["S2"], "pools differ")
     check("S3 == S1 (rerun replaced, did not duplicate)", n["S3"] == n["S1"], "pools differ")
+
+# ---- S4: A, then A again (same machine rerun) == a single run of A ----
+f4 = OUT / "S4" / "week.html"
+if not f4.exists():
+    check("S4: week.html present", False, "no S4/week.html")
+else:
+    html4 = f4.read_text()
+    m4 = re.findall(r'<script type="application/json" id="roundup-data">(.*?)</script>', html4, re.S)
+    check("S4: exactly one roundup-data block", len(m4) == 1, f"found {len(m4)}")
+    p4 = json.loads(m4[0]) if m4 else {"devices": []}
+    check("S4: pool devices length is 1", len(p4["devices"]) == 1, len(p4["devices"]))
+    d4 = p4["devices"][0] if p4["devices"] else None
+    if d4:
+        e = EXP["machines"][A]
+        check("S4: hostname field == machine-a", d4.get("hostname") == "machine-a", d4.get("hostname"))
+        nsess = len(d4["misc_sessions"]) + sum(len(p["sessions"]) for p in d4["projects"])
+        tfe = sum(fe_of(x) for x in d4["misc_sessions"].values()) + sum(fe_of(x) for p in d4["projects"] for x in p["sessions"].values())
+        check(f"S4: sessions == {e['sessions']}", nsess == e["sessions"], nsess)
+        check(f"S4: total FE == {e['fe_tokens']:.0f}", near(tfe, e["fe_tokens"]), tfe)
+        pr = next((p for p in d4["projects"] if p["name"] == "alpha-app"), None)
+        check(f"S4: alpha-app commits == {EXP['projects']['alpha-app']['commits']}", bool(pr) and len(pr["commits"]) == EXP["projects"]["alpha-app"]["commits"], pr and len(pr["commits"]))
+    titles = re.findall(r'<div class="card-title">(?:<a [^>]*>)?([^<]+)', html4)
+    check("S4: one deep-dive card for alpha-app", titles.count("alpha-app") == 1, titles)
+    check("S4: no card title repeated", len(titles) == len(set(titles)), titles)
+    rows = [r for r in re.findall(r"<tr.*?</tr>", html4, re.S) if "machine-a" in r]
+    check("S4: one Data sources row for machine-a", len(rows) == 1, len(rows))
+    ids = re.findall(r'data-fixed-id="([^"]+)"', html4)
+    check("S4: no duplicated Things-fixed id", len(ids) == len(set(ids)), ids)
+    sec = re.search(r"Things fixed(.*?)(?=<h[1-4]|</section>|$)", html4, re.S)
+    lis = [" ".join(re.sub(r"<[^>]+>", "", x).split()) for x in re.findall(r"<li[ >].*?</li>", sec.group(1) if sec else "", re.S)]
+    check("S4: no duplicated Things-fixed text", len(lis) == len(set(lis)), lis)
+    auth = p4.get("authored", {})
+    check("S4: authored.projects.alpha-app == machine-a", auth.get("projects", {}).get("alpha-app") == "machine-a", auth)
+    fx = auth.get("fixed", {})
+    check("S4: every Things-fixed id is authored by machine-a", set(ids) <= set(fx) and set(fx.values()) <= {"machine-a"}, (ids, fx))
+    log2 = OUT / "S4" / "a-2.log"
+    check("S4: second-run log says it replaced this machine's earlier data",
+          log2.exists() and "replaced this machine's earlier data" in log2.read_text(errors="ignore").replace("\u2019", "'").replace("’", "'"),
+          "string not in S4/a-2.log")
+    arch = OUT / "S4" / "archive.html"
+    if arch.exists():
+        mw = re.search(r'id="weeks-data"[^>]*>(.*?)</script>', arch.read_text(), re.S)
+        weeks = json.loads(mw.group(1)) if mw else []
+        check("S4: test archive lists the week once", len(weeks) == 1 and len({w["weekStart"] for w in weeks}) == 1, weeks)
+    else:
+        check("S4: archive.html present", False, "no S4/archive.html")
+
 sys.exit(1 if fails else 0)

@@ -366,11 +366,29 @@ def collect(args, device, person):
     }
 
 
+def host_of(device):
+    """Hostname part of a device label ('user@host' -> 'host'; a bare label is its own hostname)."""
+    return device.rsplit("@", 1)[-1]
+
+
+def entry_host(entry):
+    """Hostname of a stored pool entry; older entries without the field get it from `device`."""
+    return entry.get("hostname") or host_of(entry["device"])
+
+
+def entry_sids(entry):
+    sids = set(entry.get("misc_sessions", {}))
+    for p in entry.get("projects", []):
+        sids |= set(p.get("sessions", {}))
+    return sids
+
+
 def public_contribution(c):
     """A contribution as stored in the published page: drops first prompts, local paths and
     screenshot paths (the page may be shared publicly; other devices can't use them anyway)."""
     return {
         "device": c["device"],
+        "hostname": host_of(c["device"]),
         "person": c.get("person", UNKNOWN_PERSON),
         "collected_at": c["collected_at"],
         "projects": [
@@ -785,25 +803,70 @@ def main():
             print(f"warning: --cap-pct {args.cap_pct} is lower than the {pool['cap_pct']} entered at "
                   f"{pool.get('cap_pct_at')}; using {args.cap_pct} (newest entry)", file=sys.stderr)
 
-    others = [c for c in pool["devices"] if c["device"] != args.device]
+    hostname = host_of(args.device)
+    replaced = [c for c in pool["devices"] if entry_host(c) == hostname]
+    others = [c for c in pool["devices"] if entry_host(c) != hostname]
     stored_people = people_order(others, pool.get("people", []))
     if args.person is None:
-        prev = next((c.get("person") for c in pool["devices"] if c["device"] == args.device), None)
+        prev = next((c.get("person") for c in replaced), None)
         if not prev:
             sys.exit("--person is required (who does this machine's usage belong to?)")
         args.person = prev
-    person = canonical_person(args.person, stored_people)
+    person = canonical_person(args.person, people_order(pool["devices"], pool.get("people", [])))
     if person == UNKNOWN_PERSON:
         sys.exit(f"--person {args.person!r}: no name in it")
+    for c in replaced:
+        if c.get("person", UNKNOWN_PERSON) != person:
+            sys.exit(f"error: hostname {hostname} is already in the pool for {c.get('person', UNKNOWN_PERSON)}, "
+                     f"but this run is for {person}; one hostname cannot belong to two people. Nothing written.")
     mine = collect(args, args.device, person)
     contributions = others + [mine]
     people = people_order(contributions, stored_people)
 
     features_map = pool.get("features", {})
+    old_sids = set().union(*(entry_sids(c) for c in replaced)) if replaced else set()
+    other_sids = set().union(*(entry_sids(c) for c in others)) if others else set()
     if args.features_file:
         features_map = json.loads(Path(args.features_file).expanduser().read_text())
+    elif old_sids:
+        # This machine's earlier assignments are dropped; the skill reassigns from scratch.
+        features_map = {
+            proj: {f: kept for f, ids in feats.items()
+                   if (kept := [r for r in ids
+                                if not (any(o.startswith(r) for o in old_sids)
+                                        and not any(o.startswith(r) for o in other_sids))])}
+            for proj, feats in features_map.items()
+        }
+        features_map = {k: v for k, v in features_map.items() if v}
+    all_sids = other_sids | entry_sids(mine)
+    cleaned = {}
+    for proj, feats in features_map.items():
+        for f, ids in feats.items():
+            keep = []
+            for r in ids:
+                if any(o.startswith(r) for o in all_sids):
+                    keep.append(r)
+                else:
+                    print(f"warning: {proj} / {f}: session '{r}' is no longer in the pool; link dropped",
+                          file=sys.stderr)
+            if keep:
+                cleaned.setdefault(proj, {})[f] = keep
+    features_map = cleaned
 
     out = report(contributions, args.cap_pct, features_map, args, people)
+
+    authored = pool.get("authored") or {"projects": {}, "fixed": {}}
+    authored.setdefault("projects", {})
+    authored.setdefault("fixed", {})
+    out["authored"] = authored
+    if replaced:
+        out["rewrite"] = {
+            "hostname": hostname,
+            "replaced_collected_at": replaced[0]["collected_at"],
+            "projects": sorted({n for n, h in authored["projects"].items() if h == hostname}
+                               | {pr["name"] for pr in out["projects"] if set(pr["devices"]) == {args.device}}),
+            "fixed": sorted(i for i, h in authored["fixed"].items() if h == hostname),
+        }
 
     if args.pool_out:
         pool_out = {
@@ -815,6 +878,7 @@ def main():
             "cap_pct": args.cap_pct,
             "cap_pct_at": cap_pct_at,
             "features": features_map,
+            "authored": authored,
             "people": people,
             "devices": others + [public_contribution(mine)],
         }

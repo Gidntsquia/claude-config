@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One command: run.sh  -> docker setup, image, S1/S2/S3 in two containers, check.py, Firefox.
+# One command: run.sh  -> docker setup, image, S1-S4 in two containers, check.py, Firefox.
 #   run.sh --interactive   (Req 12 fallback) open one terminal per container; you run the scenarios.
 # Each claude -p run spends real tokens on this account.
 set -uo pipefail
@@ -14,7 +14,7 @@ log() { echo "[$(date +%H:%M:%S)] $*"; }
 "$T/setup_docker.sh" >/dev/null || { echo "docker setup failed"; exit 1; }
 D build -q -t roundup-test -f "$T/Dockerfile" "$SKILL" >/dev/null || exit 1
 python3 "$T/make_fixtures.py" --expected "$T/expected.json" || exit 1
-rm -rf "$OUT"; mkdir -p "$OUT"
+mkdir -p "$OUT"; [ -z "${ONLY:-}" ] && rm -rf "$OUT" && mkdir -p "$OUT"
 
 start() {  # fresh containers; credentials copied in at start, never into the image
   for m in a b; do
@@ -45,7 +45,7 @@ make_archive() {  # make_archive <scenario>: machine A publishes an empty throwa
   local s="$1" u
   u=$(cc a "$OUT/$s/archive.log" "Build an empty Roundup Archive page and publish it as a NEW artifact (no url). Run: echo '[]' > $SK/archive_weeks.json && python3 $SK/build_archive.py --out /tmp/archive.html ; then publish /tmp/archive.html with the Artifact tool (icon: calendar, no capabilities). Print the artifact URL as the very last line, nothing after it.")
   [ -n "$u" ] || { echo "no archive URL for $s (see $OUT/$s/archive.log)"; return 1; }
-  CREATED+=("$s archive: $u")
+  CREATED+=("$s archive: $u"); ARCHIVE="$u"
   for m in a b; do
     D exec "machine-$m" bash -c "echo '{\"last_run\":\"2026-10-04\",\"last_artifact_url\":\"\",\"archive_url\":\"$u\",\"last_cap_usage_pct\":0}' > $SK/state.json; echo '[]' > $SK/archive_weeks.json"
   done
@@ -71,12 +71,19 @@ fetch_week() {  # fetch_week <scenario>
   D cp machine-a:/tmp/week.html "$OUT/$s/week.html"
 }
 
+fetch_archive() {  # fetch_archive <scenario>: the throwaway archive page, to check the week is listed once
+  local s="$1"
+  cc a "$OUT/$s/fetch-archive.log" "Read the artifact $ARCHIVE with the Artifact tool (action read), then run: cp <the saved file path from the result> /tmp/archive-out.html . Print DONE as the last line." >/dev/null
+  D cp machine-a:/tmp/archive-out.html "$OUT/$s/archive.html"
+}
+
 scenario() {  # scenario <name> "machine:cap" ...
   local s="$1"; shift; mkdir -p "$OUT/$s"; RUN=1
   log "== $s: $*"; start; make_archive "$s" || return 1
   for step in "$@"; do run_roundup "$s" "${step%%:*}" "${step##*:}" || return 1; done
   CREATED+=("$s week page: $WEEK")
   fetch_week "$s"
+  [ "$s" = S4 ] && fetch_archive "$s"
   for m in a b; do last=$(ls "$OUT/$s"/$m-*.log 2>/dev/null | tail -1); [ -n "$last" ] && cp "$last" "$OUT/$s/$m.log"; done
 }
 
@@ -89,9 +96,12 @@ if [ "${1:-}" = --interactive ]; then
   exit 0
 fi
 
-scenario S1 a:40 b:55
-scenario S2 b:55 a:40
-scenario S3 a:40 b:55 a:keep
+# ONLY=S4 run.sh runs just that scenario (the others' week.html are then absent and check.py reports them)
+want() { [ -z "${ONLY:-}" ] || [ "$ONLY" = "$1" ]; }
+want S1 && scenario S1 a:40 b:55
+want S2 && scenario S2 b:55 a:40
+want S3 && scenario S3 a:40 b:55 a:keep
+want S4 && scenario S4 a:40 a:keep
 
 python3 "$T/check.py"; RC=$?
 FF="/mnt/c/Program Files/Mozilla Firefox/firefox.exe"

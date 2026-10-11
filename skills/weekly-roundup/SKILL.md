@@ -26,7 +26,9 @@ machine's fresh data, and writes the merged pool back out. Never rely on this ma
 1. Read the Roundup Archive (`Artifact` action: read, `url` = `archive_url` below). Keep the
    saved file path; step 5 rebuilds from it. Its `weeks-data` block lists every week's `url` by
    `weekStart`.
-2. If the chosen week's `weekStart` is listed, this is a **joining run**: read that artifact and
+2. If the chosen week's `weekStart` is listed, this is a **joining run** (and a **rerun** when the
+   page's `roundup-data` already has an entry for this machine's hostname). Never publish a new
+   artifact for a listed week; always update its artifact in place. Read that artifact: read that artifact and
    keep its saved file path (`<this-week page>`). Take `window_start` and `token_window_start`
    from its `roundup-data` block and use them below, so every machine counts the same window.
    If the page has no `roundup-data` block, it was built before pooling: leave that week as it
@@ -84,7 +86,11 @@ python3 "$SKILL_DIR/gather_data.py" \
 ```
 
 (`$SKILL_DIR` is this skill's directory.) `--device` defaults to `<user>@<hostname>`; this
-machine's previous entry in the pool (same label) is replaced, other machines' entries are kept.
+machine's previous entry in the pool (same hostname, the text after `@`) is replaced completely,
+other machines' entries are kept. If the hostname is already in the pool under a different
+person the script exits with an error naming both people and the hostname: stop, report it to
+the user, and do not work around it. On a rerun the output has `rewrite` (`hostname`,
+`replaced_collected_at`, `projects`, `fixed`) and the pool's `authored` map passes through.
 If `~/files` doesn't exist on this machine, ask the user where their repos live and pass
 `--files-dir`. The same project on two machines merges by GitHub remote, else by repo folder
 name; shared commits and sessions count once.
@@ -119,7 +125,10 @@ session belonging to one, judging by first prompts, commit subjects and diffs. W
 and rerun the script (same arguments) with `--features-file <file>`. On a joining run, start from
 the `features` map already in `<scratch>/pool.json` (the script applies it by default) and only
 assign this machine's sessions (other machines' sessions have an empty prompt and are already
-assigned); add new features or reuse existing names. The file you pass replaces the stored map. Each project then gains `features`: name,
+assigned); add new features or reuse existing names. On a rerun the script has already dropped
+every link to this machine's earlier sessions: reassign all of this machine's sessions from
+scratch, reusing existing feature names where they fit, and keep other machines' links. A link to
+a session no longer in the pool is warned about on stderr and dropped. The file you pass replaces the stored map. Each project then gains `features`: name,
 fe_tokens, weekly_pct (same basis as the project's `weekly_pct`; features sum to it), sessions,
 `models` (family, color, pct of that feature's tokens) and `people` (person, color, pct of that
 feature's tokens). Unassigned sessions land in an
@@ -137,8 +146,18 @@ card-meta and link, and every "Things fixed" entry. Replace all numbers and colo
 list, pies, person tags, total cost, token tables, drawers, Data sources) with the new output,
 which already covers every machine; accents come from the output's `accent` and can change when
 another person now leads a project. Add cards (and pie slices, list rows) for projects only
-this machine worked on. Rewrite an existing paragraph only when this machine's commits change
-what the project does. Add "Things fixed" entries from this machine's transcripts.
+this machine worked on. Add "Things fixed" entries from this machine's transcripts, each with a stable text id
+(`data-fixed-id="<slug>"` on the entry).
+
+**Rerun (the output has `rewrite`):** for every project in `rewrite.projects`, rewrite the
+deep-dive paragraph, re-pick the picture and card-meta from the current repo state; re-derive
+this machine's "Things fixed" entries from transcripts and remove the old ones listed in
+`rewrite.fixed`. Cards and entries owned by other hostnames are kept verbatim. Numbers and colors
+are always replaced. Never duplicate a card, list row, pie slice, Data sources row or "Things
+fixed" text. When embedding, record authorship:
+`embed_pool.py --pool ... --html ... --hostname <hostname> --wrote-projects "<names>" --wrote-fixed "<ids>"`
+(every card and entry this run wrote or rewrote). In the report to the user say "replaced this
+machine's earlier data from <replaced_collected_at>" and list what was rewritten.
 
 ## 4. Write the artifact
 
@@ -362,7 +381,9 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
 
 - The page has exactly one `<script type="application/json" id="roundup-data">` block, written
   by `embed_pool.py` from this run's `pool.json`, and the output's `devices` lists every machine
-  that was in the pool before this run plus this one.
+  that was in the pool before this run plus this one. On a rerun the `devices` count equals the
+  count before the run, and the page has one list row, one pie slice per person, one card per
+  project and one Data sources row per machine.
 
 Re-read this checklist against the finished HTML immediately before publishing.
 

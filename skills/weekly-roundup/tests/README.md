@@ -14,6 +14,7 @@ container instead, for driving the scenarios by hand.
 Scenarios (each on a fresh archive):
 - S1 A (cap 40) then B (cap 55): first run creates the page, second joins it; newest cap (55) wins.
 - S2 B (55) then A (40): same pool in the other order; cap is 40.
+- S4 A (cap 40), then A again (no cap): same machine rerun must equal one run: one device, one card per project, one Things-fixed text each, week listed once in the archive, second-run log says "replaced this machine's earlier data".
 - S3 A, B, then A again with no cap: the rerun replaces A's data, no duplicates; cap stays 55.
 
 Each run also names who the usage belongs to with a different fuzzy spelling (A: "Jet" / "jett" / "jet Lee",
