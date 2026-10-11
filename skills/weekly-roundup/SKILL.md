@@ -63,8 +63,10 @@ words, typos and short forms all ignored) against the pool's people and the acco
 people (`KNOWN_PEOPLE` in `gather_data.py`: Jaxon, Jet), so anything like "jet", "Jett", "jet
 Lee" pools into "Jet" and "jaxon.", "jax", "Jaxson" into "Jaxon"; a name that matches nobody
 starts a new person. Never normalize the answer yourself. Each person gets their own color
-scheme (first person seen in the week's pool: warm
-reds/oranges; second: cool blues/greens; then berry, earth), stable for the whole week. Store
+scheme once the week's pool has two or more people (first person seen: warm reds/oranges;
+second: cool blues/greens; then berry, earth). With one person, projects use the whole color
+wheel (the script's `full` palette), as in the early roundups; a second person joining switches
+the week to the per-person schemes. Store
 the answer as `person` in `state.json` (step 6).
 
 `plan-cost` ($/mo, flat-rate plan) is hardcoded at `100` below; update it here if the plan changes.
@@ -171,7 +173,7 @@ replaces the `roundup-data` block; rerun it after any later edit that rewrites t
   border, tabular-nums for numbers.
 - Each project's accent color is the output's `accent` (a shade from the color scheme of the
   person who did most of its usage, `lead_person`; warm for one person, cool for the other,
-  distinct per project). Use it for the project's name pill in the top list, the "Link" text in
+  distinct per project; the whole color wheel when the pool has one person). Use it for the project's name pill in the top list, the "Link" text in
   that row, and `--accent` on its deep-dive card (top border, title color, token-table header
   rule). Never invent accents.
 - **Who did what**: the output's `people` carries each person's `color` and palette. Whenever the
@@ -320,6 +322,13 @@ Use as-is. Method, for reference:
 - A repo may map to several Claude Code project directories (renamed/moved repos, sandbox
   copies); the script sums them. Repos moved since an earlier week (backfills) need an entry in
   `MOVED_FROM` in `gather_data.py`, or their old-path usage lands in Misc.
+- Test and scratch folders belong to the project they test, not their own card: demo apps built
+  to try an agent, replays of agent runs, sample projects. Fold them with `MOVED_FROM`
+  (`"<parent repo>": ["<folder>"]`, or `"<folder>/<subfolder>"` to fold one subfolder when a
+  scratch folder serves several projects) and assign their sessions to a feature of the parent.
+  Check every small project's first prompts before writing a card for it; ask the user when the
+  parent isn't clear. Current folds: first-project and tip-calculator -> helper-agent-building;
+  replay/ worker replays -> worker-building, evaluator replays -> evaluator-building.
 - Favicon: 🗓️. Title: "Weekly Roundup — <date range>" (e.g. "Weekly Roundup — Sep 6-11, 2026"),
   matching the eyebrow so artifacts are distinguishable in the list.
 - Publish with `Artifact`. Joining run: pass the chosen week's artifact URL as `url` to update it in
@@ -358,7 +367,8 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
   slugs.
 - Who did what is visible when the pool has more than one person: person tags in the list and
   drawers, pie slices per project x person from `pie_slices`, the "Usage by person" row, and the
-  Person column in Data sources; every person color comes from the script (warm vs cool schemes).
+  Person column in Data sources; every person color comes from the script (warm vs cool schemes
+  from two people on; one full-range palette for a single person).
 - Project pie = `pie_slices` + Unused summing to 100%, against the weekly cap %. Pie and legend
   keep `pie_slices` order: one person's slices together (most-used person first), then the next. `p` is
   the real figure the user gave (100% for a week that hit the cap); never call it assumed or

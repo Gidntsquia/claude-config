@@ -352,8 +352,8 @@
   "weekStart": "2026-10-04",
   "label": "Oct 4–11, 2026",
   "url": "https://claude.ai/artifact/9syKSHEvUk6m9gVMoHhFhz",
-  "projectCount": 17,
-  "totalCost": 594.0,
+  "projectCount": 14,
+  "totalCost": 593.91,
   "slices": [
    {
     "name": "Deadlock Street Brawl Helper",
@@ -362,88 +362,73 @@
    },
    {
     "name": "Worker Building",
-    "pct": 12.95,
-    "color": "#f0761f"
-   },
-   {
-    "name": "Evaluator Building",
-    "pct": 8.0,
-    "color": "#e3a008"
+    "pct": 13.22,
+    "color": "#2f80ed"
    },
    {
     "name": "Helper Agent",
-    "pct": 7.96,
-    "color": "#c63d8a"
+    "pct": 8.7,
+    "color": "#e8710a"
+   },
+   {
+    "name": "Evaluator Building",
+    "pct": 8.27,
+    "color": "#7c5cff"
    },
    {
     "name": "Pokémon Go GBL Team Generator",
     "pct": 6.9,
-    "color": "#b25a2a"
+    "color": "#2e9e6b"
    },
    {
     "name": "Deadlock Optimal Build Finder",
     "pct": 5.17,
-    "color": "#d4b000"
+    "color": "#c2185b"
    },
    {
     "name": "Open Picture Editor",
     "pct": 5.03,
-    "color": "#e5484d"
+    "color": "#2bb4c9"
    },
    {
     "name": "Open Video Editor",
     "pct": 3.96,
-    "color": "#f0761f"
+    "color": "#b8860b"
    },
    {
     "name": "claude-config",
     "pct": 3.59,
-    "color": "#e3a008"
+    "color": "#a13e85"
    },
    {
     "name": "terminal-pet",
     "pct": 2.07,
-    "color": "#c63d8a"
-   },
-   {
-    "name": "Replay",
-    "pct": 0.54,
-    "color": "#b25a2a"
-   },
-   {
-    "name": "First Project",
-    "pct": 0.43,
-    "color": "#d4b000"
+    "color": "#43a047"
    },
    {
     "name": "Slideshow Maker",
     "pct": 0.4,
-    "color": "#e5484d"
+    "color": "#ff8a65"
    },
    {
     "name": "LLC Advisor",
-    "pct": 0.37,
-    "color": "#f0761f"
-   },
-   {
-    "name": "Tip Calculator",
-    "pct": 0.31,
-    "color": "#e3a008"
+    "pct": 0.36,
+    "color": "#6d4c41"
    },
    {
     "name": "Planner Building",
     "pct": 0.28,
-    "color": "#c63d8a"
+    "color": "#e5484d"
    },
    {
     "name": "Workout Visualizer",
     "pct": 0.09,
-    "color": "#b25a2a"
+    "color": "#2f80ed"
    },
    {
     "name": "Misc",
     "pct": 7.88,
-    "color": "#b9a295"
+    "color": "#9aa3ad"
    },
    {
     "name": "Unused",

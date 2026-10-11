@@ -79,6 +79,12 @@ PERSON_PALETTES = [
     {"name": "earth", "main": "#8b6b2e", "misc": "#a8a394",
      "accents": ["#8b6b2e", "#5f7a3b", "#a0522d", "#6b8e7b", "#b08968", "#4e6b4c"]},
 ]
+# With only one person in the week's pool there is nothing to tell apart, so projects use the
+# whole color wheel instead of one person's scheme (the split schemes above apply from two
+# people on). Neutral grays are left out: Misc and Unused use them.
+SOLO_PALETTE = {"name": "full", "main": "#2f80ed", "misc": "#9aa3ad",
+                "accents": ["#e5484d", "#2f80ed", "#e8710a", "#7c5cff", "#2e9e6b", "#c2185b",
+                            "#2bb4c9", "#b8860b", "#a13e85", "#43a047", "#ff8a65", "#6d4c41"]}
 UNKNOWN_PERSON = "Unknown"  # contributions made before --person existed
 KNOWN_PEOPLE = ["Jaxon", "Jet"]  # the account's people; any fuzzy spelling of these pools into them
 FUZZY_MIN = 0.75  # difflib ratio at or above this counts as the same person
@@ -131,6 +137,11 @@ MOVED_FROM = {
     "token-experiment": ["ai-sandbox/token-experiment"],
     "deadlock-optimal-build-finder": ["deadlock-build-optimizer"],
     "nisar-archaeology": ["NISAR-projects"],
+    # Test runs of the agents: demo apps built to try the helper, and replays of worker and
+    # evaluator runs. A path with a "/" folds just that subfolder (and its own subfolders).
+    "helper-agent-building": ["first-project", "tip-calculator"],
+    "worker-building": ["replay/video-editor-replay", "replay/claude-config-replay"],
+    "evaluator-building": ["replay/deadlock-r14-replay", "replay/worker-building-evalreplay"],
 }
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
@@ -325,6 +336,12 @@ def collect(args, device, person):
     projects = []
     matched_slugs = set()
     moved_old = {old for olds in MOVED_FROM.values() for old in olds}
+    moved_owner = {slug_for(files_dir / old): new for new, olds in MOVED_FROM.items() for old in olds}
+
+    def claimed_elsewhere(name, repo_name):
+        """True when a MOVED_FROM entry of another repo owns this Claude project dir."""
+        return any((name == m or name.startswith(m + "-")) and owner != repo_name
+                   for m, owner in moved_owner.items())
     repos = list(find_repos(files_dir, args.include_ai_sandbox, claude_projects)) if files_dir.is_dir() else []
     for repo in repos:
         if repo.name in moved_old:
@@ -338,9 +355,12 @@ def collect(args, device, person):
         expected_slugs = [slug_for(repo)] + [slug_for(files_dir / old) for old in MOVED_FROM.get(repo.name, [])]
         sessions = {}
         for d in claude_projects.iterdir():
-            if d.is_dir() and any(d.name == e or d.name.startswith(e + "-") for e in expected_slugs):
+            if (d.is_dir() and any(d.name == e or d.name.startswith(e + "-") for e in expected_slugs)
+                    and not claimed_elsewhere(d.name, repo.name)):
                 matched_slugs.add(d.name)
                 scan_project_dir(d, token_window_start, token_window_end, sessions)
+        if not is_git and not any(s["usage"] for s in sessions.values()):
+            continue  # nothing left once MOVED_FROM folded its subfolders elsewhere
         projects.append({
             "name": repo.name,
             "path": str(repo),
@@ -459,6 +479,8 @@ def people_order(contributions, stored=()):
 
 
 def palette_for(person, order):
+    if len(order) == 1:
+        return SOLO_PALETTE
     return PERSON_PALETTES[order.index(person) % len(PERSON_PALETTES)]
 
 
@@ -612,11 +634,12 @@ def report(contributions, cap_pct, features_map, args, stored_people=()):
     projects.sort(key=lambda pr: pr["weekly_pct"], reverse=True)
     pie_slices = []  # filled below, grouped by person (most usage first)
     for i, proj in enumerate(projects):
-        slot = i % len(PERSON_PALETTES[0]["accents"])
-        proj["people"] = by_person(proj["sessions"].values(), order, implied_cap_fe,
-                                   lambda who, slot=slot: palette_for(who, order)["accents"][slot])
+        def accent(who, i=i):
+            acc = palette_for(who, order)["accents"]
+            return acc[i % len(acc)]
+        proj["people"] = by_person(proj["sessions"].values(), order, implied_cap_fe, accent)
         lead = proj["people"][0]["person"] if proj["people"] else order[0]
-        proj["accent"] = palette_for(lead, order)["accents"][slot]
+        proj["accent"] = accent(lead)
         proj["lead_person"] = lead
         for row in proj["people"]:
             pie_slices.append({"project": proj["name"], "person": row["person"], "fe": row["fe_tokens"],
