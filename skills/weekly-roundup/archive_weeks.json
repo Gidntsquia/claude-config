@@ -347,5 +347,109 @@
     "pct": 3.74
    }
   ]
+ },
+ {
+  "weekStart": "2026-10-04",
+  "label": "Oct 4–11, 2026",
+  "url": "https://claude.ai/artifact/9syKSHEvUk6m9gVMoHhFhz",
+  "projectCount": 17,
+  "totalCost": 594.0,
+  "slices": [
+   {
+    "name": "Deadlock Street Brawl Helper",
+    "pct": 22.09,
+    "color": "#e5484d"
+   },
+   {
+    "name": "Worker Building",
+    "pct": 12.95,
+    "color": "#f0761f"
+   },
+   {
+    "name": "Evaluator Building",
+    "pct": 8.0,
+    "color": "#e3a008"
+   },
+   {
+    "name": "Helper Agent",
+    "pct": 7.96,
+    "color": "#c63d8a"
+   },
+   {
+    "name": "Pokémon Go GBL Team Generator",
+    "pct": 6.9,
+    "color": "#b25a2a"
+   },
+   {
+    "name": "Deadlock Optimal Build Finder",
+    "pct": 5.17,
+    "color": "#d4b000"
+   },
+   {
+    "name": "Open Picture Editor",
+    "pct": 5.03,
+    "color": "#e5484d"
+   },
+   {
+    "name": "Open Video Editor",
+    "pct": 3.96,
+    "color": "#f0761f"
+   },
+   {
+    "name": "claude-config",
+    "pct": 3.59,
+    "color": "#e3a008"
+   },
+   {
+    "name": "terminal-pet",
+    "pct": 2.07,
+    "color": "#c63d8a"
+   },
+   {
+    "name": "Replay",
+    "pct": 0.54,
+    "color": "#b25a2a"
+   },
+   {
+    "name": "First Project",
+    "pct": 0.43,
+    "color": "#d4b000"
+   },
+   {
+    "name": "Slideshow Maker",
+    "pct": 0.4,
+    "color": "#e5484d"
+   },
+   {
+    "name": "LLC Advisor",
+    "pct": 0.37,
+    "color": "#f0761f"
+   },
+   {
+    "name": "Tip Calculator",
+    "pct": 0.31,
+    "color": "#e3a008"
+   },
+   {
+    "name": "Planner Building",
+    "pct": 0.28,
+    "color": "#c63d8a"
+   },
+   {
+    "name": "Workout Visualizer",
+    "pct": 0.09,
+    "color": "#b25a2a"
+   },
+   {
+    "name": "Misc",
+    "pct": 7.88,
+    "color": "#b9a295"
+   },
+   {
+    "name": "Unused",
+    "pct": 12.0,
+    "color": "#666f7d"
+   }
+  ]
  }
 ]
