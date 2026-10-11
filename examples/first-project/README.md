@@ -4,7 +4,7 @@ A tiny web page: type a bill, pick a tip percent (15/18/20/25 or a custom one), 
 React + TypeScript + Vite + Tailwind + shadcn-style components, run with Bun.
 
 This folder is the finished result of one trip around the loop, kept as a worked example.
-Unlike a normal project, its `plans/` folder is committed here so you can read what each agent wrote:
+Unlike a normal project, its `plans/` folder is committed here so you can read what each agent wrote. A real project puts `plans/` in `.gitignore` (the planner adds that line); this example leaves it out of `.gitignore` on purpose so the files below are in the repo:
 
 - `plans/PLAN.md`: what the planner wrote (the spec and its acceptance criteria).
 - `plans/WORKER_NOTES.md`: what the worker wrote (how to launch it, what it checked, what it fixed on the rerun).
