@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Rewrite the `Last synced` stamp in wiki/Workflow.md with today's date and the current agent-file hashes.
+# Run after editing Workflow.md so workflow_status() reports stale: false.
+set -euo pipefail
+R="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WF="$R/wiki/Workflow.md"
+[ -f "$WF" ] || { echo "missing $WF"; exit 1; }
+h() { sha256sum "$1" | cut -c1-12; }
+stamp="<!-- Last synced: $(date +%F) | planner=$(h "$R/agents/planner.md"), worker=$(h "$R/agents/worker.md"), evaluator=$(h "$R/agents/evaluator.md"), USAGE=$(h "$R/agents/USAGE.txt") -->"
+if grep -q '^<!-- Last synced:' "$WF"; then
+  tmp="$(mktemp)"; awk -v s="$stamp" '/^<!-- Last synced:/ && !done {print s; done=1; next} {print}' "$WF" > "$tmp" && mv "$tmp" "$WF"
+else
+  printf '%s\n%s' "$stamp" "$(cat "$WF")" > "$WF"
+fi
+echo "$stamp"

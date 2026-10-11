@@ -11,7 +11,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "opus",
+  "model": "fable",
   "skillOverrides": {
     "anthropic-skills:chrome-browser": "off",
     "anthropic-skills:built-in-browser": "off",

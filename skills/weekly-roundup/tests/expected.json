@@ -1,0 +1,43 @@
+{
+ "window_start": "2026-10-04",
+ "token_window_start": "2026-10-04T22:00:00",
+ "cap_pct": {
+  "S1": 55,
+  "S2": 40,
+  "S3": 55
+ },
+ "machines": {
+  "root@machine-a": {
+   "sessions": 3,
+   "fe_tokens": 532000.0,
+   "cost": 5.32,
+   "misc_sessions": 1,
+   "misc_fe_tokens": 66000.0
+  },
+  "root@machine-b": {
+   "sessions": 3,
+   "fe_tokens": 723199.9999999999,
+   "cost": 7.231999999999999,
+   "misc_sessions": 2,
+   "misc_fe_tokens": 168200.0
+  }
+ },
+ "projects": {
+  "alpha-app": {
+   "device": "root@machine-a",
+   "commits": 3,
+   "fe_tokens": 466000.0,
+   "sessions": 2
+  },
+  "beta-tool": {
+   "device": "root@machine-b",
+   "commits": 2,
+   "fe_tokens": 554999.9999999999,
+   "sessions": 1
+  }
+ },
+ "person": {
+  "root@machine-a": "Jet",
+  "root@machine-b": "Jaxon"
+ }
+}

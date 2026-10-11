@@ -10,3 +10,6 @@ CLAUDE.local.md
 archive/
 # GitHub wiki clone (its own repo)
 /wiki/
+
+# The sample project keeps its plans/ files on purpose
+!examples/first-project/plans/

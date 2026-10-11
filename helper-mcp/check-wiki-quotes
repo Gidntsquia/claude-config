@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""Check that every blockquoted line in wiki/Workflow.md appears verbatim in the agent file its section names.
+Prints one line per quoted line: OK or MISSING, and exits 1 if any is missing."""
+import re, sys
+from pathlib import Path
+R = Path(__file__).resolve().parent.parent
+wf = (R / "wiki" / "Workflow.md").read_text().splitlines()
+files = {"planner": "planner.md", "worker": "worker.md", "evaluator": "evaluator.md", "USAGE": "USAGE.txt"}
+agent_text = {k: (R / "agents" / v).read_text() for k, v in files.items()}
+# normalise whitespace so a wrapped quote still matches
+norm = lambda s: re.sub(r"\s+", " ", s).strip()
+agent_norm = {k: norm(v) for k, v in agent_text.items()}
+current, missing, total = None, 0, 0
+for line in wf:
+    m = re.match(r"^## .*\(`agents/(\w+)\.(?:md|txt)`\)", line)
+    if m:
+        current = m.group(1)
+        continue
+    if line.startswith("> ") or line == ">":
+        q = norm(line[2:])
+        if not q or current is None:
+            continue
+        total += 1
+        ok = q in agent_norm[current]
+        missing += 0 if ok else 1
+        print(("OK      " if ok else "MISSING ") + f"[{current}] {q[:90]}")
+    # inline code quotes marked with backticks after "It only talks" etc. are not checked
+print(f"{total - missing}/{total} quoted lines found verbatim")
+sys.exit(1 if missing else 0)
