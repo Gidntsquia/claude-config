@@ -91,7 +91,8 @@ name; shared commits and sessions count once.
 
 It prints JSON for the pooled week: `people` (person, palette name, `color`, `accents`, devices,
 sessions, fe_tokens, cost, weekly_pct; in palette order), `pie_slices` (one per project x person
-plus Misc per person: label, pct, color; the projects pie, ready to draw), `devices` (label,
+plus Misc per person: label, pct, color; grouped by person, most-used person first, each
+person's projects by usage then their Misc; the projects pie, ready to draw), `devices` (label,
 person, collected_at), `projects` (name, path, remote_url, commits, screenshot path, token_rows
 per model, fe_total, cost_total, weekly_pct, `accent`, `lead_person`, `people` (per-person
 fe_tokens, weekly_pct, pct of the project, color), `sessions`), `misc` (with `people`),
@@ -171,8 +172,9 @@ replaces the `roundup-data` block; rerun it after any later edit that rewrites t
      card's `div.card`); `Link` goes to the external repo/app. Usage % is the project's FE tokens
      over the week's grand total FE tokens (see Token breakdown). Sort by usage % descending.
      Below the list, a pie chart (CSS `conic-gradient` circle + swatch legend): the output's
-     `pie_slices` in order (one slice per project x person in that person's colors, then Misc
-     per person in that person's gray; label and color as given), and a final "Unused" slice
+     `pie_slices` in order, never re-sorted (grouped by person: the person with the most usage
+     first with all their projects in their colors and then their Misc in their gray, then the
+     next person's; label and color as given), and a final "Unused" slice
      colored `var(--muted)`, computed against the actual weekly cap usage (see Token breakdown),
      not just 100%. Under its legend, the "Usage by person" row (see above).
      Below it, a second pie (same style) titled "Usage by model": one slice per entry of
@@ -338,7 +340,8 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
 - Who did what is visible when the pool has more than one person: person tags in the list and
   drawers, pie slices per project x person from `pie_slices`, the "Usage by person" row, and the
   Person column in Data sources; every person color comes from the script (warm vs cool schemes).
-- Project pie = `pie_slices` + Unused summing to 100%, against the weekly cap %. `p` is
+- Project pie = `pie_slices` + Unused summing to 100%, against the weekly cap %. Pie and legend
+  keep `pie_slices` order: one person's slices together (most-used person first), then the next. `p` is
   the real figure the user gave (100% for a week that hit the cap); never call it assumed or
   estimated on the page.
 - "Usage by model" pie sits above the total cost, which is last in the projects section; it is

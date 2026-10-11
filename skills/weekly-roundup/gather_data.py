@@ -592,7 +592,7 @@ def report(contributions, cap_pct, features_map, args, stored_people=()):
     # the dominant person's palette, and ready-made slices for the projects pie (one per
     # project x person, so each person's share is visible in their own colors).
     projects.sort(key=lambda pr: pr["weekly_pct"], reverse=True)
-    pie_slices = []
+    pie_slices = []  # filled below, grouped by person (most usage first)
     for i, proj in enumerate(projects):
         slot = i % len(PERSON_PALETTES[0]["accents"])
         proj["people"] = by_person(proj["sessions"].values(), order, implied_cap_fe,
@@ -601,17 +601,21 @@ def report(contributions, cap_pct, features_map, args, stored_people=()):
         proj["accent"] = palette_for(lead, order)["accents"][slot]
         proj["lead_person"] = lead
         for row in proj["people"]:
-            pie_slices.append({"project": proj["name"], "person": row["person"],
+            pie_slices.append({"project": proj["name"], "person": row["person"], "fe": row["fe_tokens"],
                                "label": f"{proj['name']} · {row['person']}" if len(order) > 1 else proj["name"],
                                "pct": row["weekly_pct"], "color": row["color"]})
     misc_people = by_person(misc_sessions.values(), order, implied_cap_fe,
                             lambda who: palette_for(who, order)["misc"])
     for row in misc_people:
-        pie_slices.append({"project": "Misc", "person": row["person"],
+        pie_slices.append({"project": "Misc", "person": row["person"], "fe": row["fe_tokens"],
                            "label": f"Misc · {row['person']}" if len(order) > 1 else "Misc",
                            "pct": row["weekly_pct"], "color": row["color"]})
     people_rows = by_person(all_sessions, order, implied_cap_fe, lambda who: palette_for(who, order)["main"])
     seen_people = {r["person"] for r in people_rows}
+    # Group the projects pie by person: the person with the most usage first, then the next;
+    # within a person, their projects by usage desc, then their Misc slice last.
+    rank = {r["person"]: i for i, r in enumerate(people_rows)}
+    pie_slices.sort(key=lambda sl: (rank.get(sl["person"], len(rank)), sl["project"] == "Misc", -sl.pop("fe")))
     for who in order:
         if who not in seen_people:
             people_rows.append({"person": who, "fe_tokens": 0, "cost": 0, "sessions": 0, "weekly_pct": 0,
