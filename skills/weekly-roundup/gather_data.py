@@ -18,10 +18,15 @@ Usage:
       --token-window-start "2026-09-06T22:00:00" \
       [--token-window-end "2026-09-13T22:00:00"] \
       [--cap-pct 90] --plan-cost 100 \
-      [--device jaxon@desktop] [--pool-in this-week.html] [--pool-out pool.json] \
+      [--device jaxon@desktop] --person Jaxon [--pool-in this-week.html] [--pool-out pool.json] \
       [--include-ai-sandbox] [--include-project yugioh-deck-optimizer]
+
+Who did what: --person names the owner of this machine's usage. Spellings pool fuzzily into the
+pool's / KNOWN_PEOPLE's names ("jet Lee", "Jett" -> Jet; "jax", "Jaxson" -> Jaxon). Each person gets a color scheme (first
+seen: warm, second: cool, ...), used for their projects' accents, pie slices and Misc.
 """
 import argparse
+import difflib
 import getpass
 import json
 import re
@@ -59,6 +64,58 @@ FAMILY_COLORS = {
     "Local":  ["#9bd9d4", "#66c2bb", "#37a79f", "#238079", "#14605a"],  # teal (local models)
 }
 FAMILY_ORDER = ["Sonnet", "Fable", "Opus", "Haiku", "Local"]
+
+# Who did the usage. Every machine's run names a person (--person); each person gets a color
+# scheme, assigned in order of first appearance in the pool (first person warm, second cool,
+# ...). "accents" color that person's projects (project i uses accents[i % 6], so one project's
+# slices keep the same slot across people); "misc" is that person's Misc gray.
+PERSON_PALETTES = [
+    {"name": "warm",  "main": "#e5484d", "misc": "#b9a295",
+     "accents": ["#e5484d", "#f0761f", "#e3a008", "#c63d8a", "#b25a2a", "#d4b000"]},
+    {"name": "cool",  "main": "#2f80ed", "misc": "#94a3b8",
+     "accents": ["#2f80ed", "#1fa39b", "#3fb950", "#7c5cd6", "#1b5fa8", "#45b8e0"]},
+    {"name": "berry", "main": "#a23bb6", "misc": "#ab9bb0",
+     "accents": ["#a23bb6", "#e05297", "#6c3fcf", "#c74b7d", "#8d5be0", "#d670b5"]},
+    {"name": "earth", "main": "#8b6b2e", "misc": "#a8a394",
+     "accents": ["#8b6b2e", "#5f7a3b", "#a0522d", "#6b8e7b", "#b08968", "#4e6b4c"]},
+]
+UNKNOWN_PERSON = "Unknown"  # contributions made before --person existed
+KNOWN_PEOPLE = ["Jaxon", "Jet"]  # the account's people; any fuzzy spelling of these pools into them
+FUZZY_MIN = 0.75  # difflib ratio at or above this counts as the same person
+
+
+def _words(name: str):
+    return [w for w in (re.sub(r"[^a-z0-9]", "", w.lower()) for w in (name or "").split()) if w]
+
+
+def person_score(name: str, known: str) -> float:
+    """How well any word of `name` matches `known` (0..1): exact 1.0, prefix either way (2+
+    chars) 0.95, else the best difflib ratio. "jet lee"/"Jett"/"JET" -> Jet; "jax"/"Jaxson" ->
+    Jaxon."""
+    k = _words(known)[0] if _words(known) else ""
+    best = 0.0
+    for w in _words(name):
+        if w == k:
+            return 1.0
+        if len(w) >= 2 and (k.startswith(w) or w.startswith(k)):
+            best = max(best, 0.95)
+        best = max(best, difflib.SequenceMatcher(None, w, k).ratio())
+    return best
+
+
+def canonical_person(name: str, known) -> str:
+    """The pool's spelling for this name: the closest known person (pool people, then
+    KNOWN_PEOPLE) at or above FUZZY_MIN wins, so "jet Lee", "jett", "JAXON." and "jaxson" pool
+    into "Jet" / "Jaxon"; otherwise the first word, capitalized."""
+    words = _words(name)
+    if not words:
+        return UNKNOWN_PERSON
+    cands = list(dict.fromkeys(list(known) + KNOWN_PEOPLE))
+    best = max(cands, key=lambda k: person_score(name, k), default=None)
+    if best is not None and person_score(name, best) >= FUZZY_MIN:
+        return best
+    word = re.sub(r"[^\w'-]", "", name.strip().split()[0])
+    return word[:1].upper() + word[1:]
 
 
 def family_for(model: str) -> str:
@@ -256,10 +313,10 @@ def scan_project_dir(dir_path: Path, window_start: datetime, window_end: datetim
     return sessions
 
 
-def collect(args, device):
+def collect(args, device, person):
     """This machine's contribution to the week: per-project sessions with raw token counts,
-    commits, remotes, plus Misc sessions. Pricing is applied later, so contributions from
-    several devices merge losslessly."""
+    commits, remotes, plus Misc sessions, all attributed to `person`. Pricing is applied later,
+    so contributions from several devices merge losslessly."""
     files_dir = Path(args.files_dir).expanduser()
     claude_projects = Path(args.claude_projects).expanduser()
     token_window_start = datetime.fromisoformat(args.token_window_start)
@@ -302,6 +359,7 @@ def collect(args, device):
 
     return {
         "device": device,
+        "person": person,
         "collected_at": datetime.now().isoformat(timespec="minutes"),
         "projects": projects,
         "misc_sessions": misc,
@@ -313,6 +371,7 @@ def public_contribution(c):
     screenshot paths (the page may be shared publicly; other devices can't use them anyway)."""
     return {
         "device": c["device"],
+        "person": c.get("person", UNKNOWN_PERSON),
         "collected_at": c["collected_at"],
         "projects": [
             {
@@ -348,7 +407,8 @@ def merge_projects(contributions):
             hashes = {x["hash"] for x in hit["commits"]}
             hit["commits"] += [x for x in p["commits"] if x["hash"] not in hashes]
             for sid, s in p["sessions"].items():
-                hit["sessions"][sid] = {"prompt": "", **s, "device": c["device"]}  # this machine (last) wins
+                hit["sessions"][sid] = {"prompt": "", **s, "device": c["device"],  # this machine (last) wins
+                                        "person": c.get("person", UNKNOWN_PERSON)}
     return merged
 
 
@@ -369,16 +429,57 @@ def priced(t, model):
     return cost, fe, sum(t[k] for k in TOKEN_KEYS)
 
 
-def report(contributions, cap_pct, features_map, args):
+def people_order(contributions, stored=()):
+    """Canonical people in palette order: the pool's stored order first, then new ones as they
+    appear. Each person keeps the same palette for the whole week."""
+    order = [p for p in stored if p]
+    for c in contributions:
+        p = c.get("person", UNKNOWN_PERSON)
+        if p not in order:
+            order.append(p)
+    return order
+
+
+def palette_for(person, order):
+    return PERSON_PALETTES[order.index(person) % len(PERSON_PALETTES)]
+
+
+def by_person(sessions, order, implied_cap_fe, color_of):
+    """[{person, fe_tokens, cost, sessions, weekly_pct, pct, color}] for a group of sessions,
+    sorted by fe desc. `color_of(person)` picks the swatch."""
+    tot = {}
+    for sess in sessions:
+        slot = tot.setdefault(sess["person"], [0.0, 0.0, 0])
+        for model, t in counts_by([sess], lambda m, e: m).items():
+            cost, fe, _r = priced(t, model)
+            slot[0] += fe
+            slot[1] += cost
+        slot[2] += 1
+    group_fe = sum(v[0] for v in tot.values())
+    rows = [
+        {"person": p, "fe_tokens": round(fe, 2), "cost": round(cost, 4), "sessions": n,
+         "weekly_pct": round(fe / implied_cap_fe * 100, 2) if implied_cap_fe else 0,
+         "pct": round(fe / group_fe * 100, 2) if group_fe else 0,
+         "color": color_of(p)}
+        for p, (fe, cost, n) in tot.items() if fe > 0
+    ]
+    rows.sort(key=lambda r: (-r["fe_tokens"], order.index(r["person"])))
+    return rows
+
+
+def report(contributions, cap_pct, features_map, args, stored_people=()):
     projects = merge_projects(contributions)
     misc_sessions = {}
     for c in contributions:
-        misc_sessions.update({sid: {**m, "device": c["device"]} for sid, m in c["misc_sessions"].items()})
+        misc_sessions.update({sid: {**m, "device": c["device"], "person": c.get("person", UNKNOWN_PERSON)}
+                              for sid, m in c["misc_sessions"].items()})
+    order = people_order(contributions, stored_people)
+    all_sessions = [s for p in projects for s in p["sessions"].values()] + list(misc_sessions.values())
 
     # Per-device totals for the page's "Data sources" drawer; each session counts once, toward
     # the device that reported it.
     dev_tot = {c["device"]: [0.0, 0.0, 0] for c in contributions}  # fe, cost, sessions
-    for sess in [s for p in projects for s in p["sessions"].values()] + list(misc_sessions.values()):
+    for sess in all_sessions:
         for model, t in counts_by([sess], lambda m, e: m).items():
             cost, fe, _r = priced(t, model)
             dev_tot[sess["device"]][0] += fe
@@ -487,6 +588,40 @@ def report(contributions, cap_pct, features_map, args):
     misc_weekly_pct = round((misc_fe / implied_cap_fe) * 100, 2) if implied_cap_fe else 0
     unused_pct = round(100 - p, 2)
 
+    # Who did what: per-person split of every project and of Misc, project accent colors from
+    # the dominant person's palette, and ready-made slices for the projects pie (one per
+    # project x person, so each person's share is visible in their own colors).
+    projects.sort(key=lambda pr: pr["weekly_pct"], reverse=True)
+    pie_slices = []
+    for i, proj in enumerate(projects):
+        slot = i % len(PERSON_PALETTES[0]["accents"])
+        proj["people"] = by_person(proj["sessions"].values(), order, implied_cap_fe,
+                                   lambda who, slot=slot: palette_for(who, order)["accents"][slot])
+        lead = proj["people"][0]["person"] if proj["people"] else order[0]
+        proj["accent"] = palette_for(lead, order)["accents"][slot]
+        proj["lead_person"] = lead
+        for row in proj["people"]:
+            pie_slices.append({"project": proj["name"], "person": row["person"],
+                               "label": f"{proj['name']} · {row['person']}" if len(order) > 1 else proj["name"],
+                               "pct": row["weekly_pct"], "color": row["color"]})
+    misc_people = by_person(misc_sessions.values(), order, implied_cap_fe,
+                            lambda who: palette_for(who, order)["misc"])
+    for row in misc_people:
+        pie_slices.append({"project": "Misc", "person": row["person"],
+                           "label": f"Misc · {row['person']}" if len(order) > 1 else "Misc",
+                           "pct": row["weekly_pct"], "color": row["color"]})
+    people_rows = by_person(all_sessions, order, implied_cap_fe, lambda who: palette_for(who, order)["main"])
+    seen_people = {r["person"] for r in people_rows}
+    for who in order:
+        if who not in seen_people:
+            people_rows.append({"person": who, "fe_tokens": 0, "cost": 0, "sessions": 0, "weekly_pct": 0,
+                                "pct": 0, "color": palette_for(who, order)["main"]})
+    for row in people_rows:
+        pal = palette_for(row["person"], order)
+        row["palette"] = pal["name"]
+        row["accents"] = pal["accents"]
+        row["devices"] = [c["device"] for c in contributions if c.get("person", UNKNOWN_PERSON) == row["person"]]
+
     def session_fe(sess):
         out = {}
         for model, t in counts_by([sess], lambda m, e: m).items():
@@ -507,6 +642,7 @@ def report(contributions, cap_pct, features_map, args):
                     "start": sessions[sid]["start"],
                     "prompt": sessions[sid].get("prompt", ""),
                     "device": sessions[sid]["device"],
+                    "person": sessions[sid]["person"],
                     "fe_tokens": round(sum(m.values()), 2),
                     "weekly_pct": round(sum(m.values()) / implied_cap_fe * 100, 2) if implied_cap_fe else 0,
                 }
@@ -530,10 +666,13 @@ def report(contributions, cap_pct, features_map, args):
         if unassigned:
             proj["unassigned_sessions"] = unassigned
         groups = {}  # feature -> {family: fe}
+        who = {}  # feature -> {person: fe}
         for sid, m in fe_by_sid.items():
             g = groups.setdefault(assigned.get(sid, "Other"), {})
+            w = who.setdefault(assigned.get(sid, "Other"), {})
             for model, fe in m.items():
                 g[family_for(model)] = g.get(family_for(model), 0.0) + fe
+                w[sessions[sid]["person"]] = w.get(sessions[sid]["person"], 0.0) + fe
         feats = []
         for feature, fams in groups.items():
             fe_sum = sum(fams.values())
@@ -547,13 +686,16 @@ def report(contributions, cap_pct, features_map, args):
                      "pct": round(fe / fe_sum * 100, 2)}
                     for fam, fe in sorted(fams.items(), key=lambda kv: kv[1], reverse=True)
                 ],
+                "people": [
+                    {"person": pr, "color": palette_for(pr, order)["main"], "fe_tokens": round(fe, 2),
+                     "pct": round(fe / fe_sum * 100, 2)}
+                    for pr, fe in sorted(who[feature].items(), key=lambda kv: kv[1], reverse=True)
+                ],
             })
         feats.sort(key=lambda f: (f["name"] == "Other", -f["fe_tokens"]))
         proj["features"] = feats
     for w in warnings:
         print(w, file=sys.stderr)
-
-    projects.sort(key=lambda pr: pr["weekly_pct"], reverse=True)
 
     return {
         "window_start": args.window_start,
@@ -562,9 +704,12 @@ def report(contributions, cap_pct, features_map, args):
         "token_window_end": args.token_window_end,
         "cap_pct": p,
         "plan_cost": args.plan_cost,
+        "people": people_rows,
+        "pie_slices": pie_slices,
         "devices": [
             {
                 "device": c["device"],
+                "person": c.get("person", UNKNOWN_PERSON),
                 "collected_at": c["collected_at"],
                 "sessions": dev_tot[c["device"]][2],
                 "fe_tokens": round(dev_tot[c["device"]][0], 2),
@@ -576,7 +721,8 @@ def report(contributions, cap_pct, features_map, args):
         "implied_cap_fe": round(implied_cap_fe, 2),
         "combined_cost": round(combined_cost, 4),
         "projects": projects,
-        "misc": {"fe_total": round(misc_fe, 2), "cost_total": round(misc_cost, 4), "weekly_pct": misc_weekly_pct},
+        "misc": {"fe_total": round(misc_fe, 2), "cost_total": round(misc_cost, 4), "weekly_pct": misc_weekly_pct,
+                 "people": misc_people},
         "unused_pct": unused_pct,
         "model_breakdown": model_breakdown,
         "model_effort_breakdown": model_effort_breakdown,
@@ -610,6 +756,7 @@ def main():
     ap.add_argument("--plan-cost", type=float, required=True, help="flat-rate plan cost, $/mo")
     ap.add_argument("--features-file", default=None, help="JSON {project: {feature: [session id or prefix, ...]}}; adds per-feature usage to each project. Default: the pool's saved features")
     ap.add_argument("--device", default=f"{getpass.getuser()}@{socket.gethostname()}", help="label for this machine's data in the pool")
+    ap.add_argument("--person", default=None, help="who this machine's usage belongs to (e.g. Jaxon). Spellings pool by first word, case-insensitive. Default: this device's stored person in the pool")
     ap.add_argument("--pool-in", default=None, help="this week's published roundup page (.html) or pool JSON; other devices' data is merged in, this device's is replaced")
     ap.add_argument("--pool-out", default=None, help="write the merged pool JSON here, for embed_pool.py")
     ap.add_argument("--include-ai-sandbox", action="store_true")
@@ -634,15 +781,25 @@ def main():
             print(f"warning: --cap-pct {args.cap_pct} is lower than the {pool['cap_pct']} entered at "
                   f"{pool.get('cap_pct_at')}; using {args.cap_pct} (newest entry)", file=sys.stderr)
 
-    mine = collect(args, args.device)
     others = [c for c in pool["devices"] if c["device"] != args.device]
+    stored_people = people_order(others, pool.get("people", []))
+    if args.person is None:
+        prev = next((c.get("person") for c in pool["devices"] if c["device"] == args.device), None)
+        if not prev:
+            sys.exit("--person is required (who does this machine's usage belong to?)")
+        args.person = prev
+    person = canonical_person(args.person, stored_people)
+    if person == UNKNOWN_PERSON:
+        sys.exit(f"--person {args.person!r}: no name in it")
+    mine = collect(args, args.device, person)
     contributions = others + [mine]
+    people = people_order(contributions, stored_people)
 
     features_map = pool.get("features", {})
     if args.features_file:
         features_map = json.loads(Path(args.features_file).expanduser().read_text())
 
-    out = report(contributions, args.cap_pct, features_map, args)
+    out = report(contributions, args.cap_pct, features_map, args, people)
 
     if args.pool_out:
         pool_out = {
@@ -654,6 +811,7 @@ def main():
             "cap_pct": args.cap_pct,
             "cap_pct_at": cap_pct_at,
             "features": features_map,
+            "people": people,
             "devices": others + [public_contribution(mine)],
         }
         Path(args.pool_out).expanduser().write_text(json.dumps(pool_out, separators=(",", ":")))

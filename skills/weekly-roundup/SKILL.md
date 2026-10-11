@@ -43,7 +43,8 @@ week, pass `--token-window-start` and `--token-window-end` as the Sunday 22:00 b
 side and `--window-end` as the closing Sunday's date. Never use `last_run` from `state.json` as the window start; it is only a
 record of when the skill last ran.
 
-Ask the user for `cap-pct` (% of the chosen week's cap consumed) every run. It is account-wide,
+Ask the user for `cap-pct` (% of the chosen week's cap consumed) every run, together with who
+the usage belongs to (below). It is account-wide,
 and the most recently entered figure always wins: if Jaxon ran at 60% and his brother later
 enters 70%, the page uses 70%, and the 70% stays when anyone reruns without entering a new one.
 On a joining run, show the pool's stored `cap_pct` and `cap_pct_at` in the question; if the user
@@ -51,6 +52,18 @@ keeps it (e.g. a past week whose final figure is already in), omit `--cap-pct` a
 reuses it. On a first run `--cap-pct` is required. `last_cap_usage_pct` in `state.json` only
 prefills the question on a first run; never reuse it silently. The script warns when a new
 figure is lower than the stored one (usage only rises within a week); confirm it with the user.
+
+Ask the user **who this machine's usage belongs to** every run, in the same question as
+`cap-pct` (one AskUserQuestion with both). Prefill with `person` from `state.json` when it exists
+(and, on a joining run, this device's `person` stored in the pool); the answer is passed as
+`--person "<answer>"` exactly as typed. The script matches it fuzzily (case, punctuation, extra
+words, typos and short forms all ignored) against the pool's people and the account's known
+people (`KNOWN_PEOPLE` in `gather_data.py`: Jaxon, Jet), so anything like "jet", "Jett", "jet
+Lee" pools into "Jet" and "jaxon.", "jax", "Jaxson" into "Jaxon"; a name that matches nobody
+starts a new person. Never normalize the answer yourself. Each person gets their own color
+scheme (first person seen in the week's pool: warm
+reds/oranges; second: cool blues/greens; then berry, earth), stable for the whole week. Store
+the answer as `person` in `state.json` (step 6).
 
 `plan-cost` ($/mo, flat-rate plan) is hardcoded at `100` below; update it here if the plan changes.
 
@@ -64,6 +77,7 @@ python3 "$SKILL_DIR/gather_data.py" \
   --token-window-start <most recent Sunday 22:00 local, ISO datetime> \
   --token-window-end <next Sunday 22:00 local, ISO datetime; omit for the current, unfinished week> \
   --cap-pct <p> \
+  --person "<who this machine's usage belongs to>" \
   --plan-cost 100 \
   --pool-out <scratch>/pool.json \
   [--pool-in <this-week page>]   # joining run only
@@ -75,13 +89,16 @@ If `~/files` doesn't exist on this machine, ask the user where their repos live 
 `--files-dir`. The same project on two machines merges by GitHub remote, else by repo folder
 name; shared commits and sessions count once.
 
-It prints JSON for the pooled week: `devices` (label, collected_at), `projects` (name, path,
-remote_url, commits, screenshot path, token_rows per model, fe_total, cost_total, weekly_pct,
-`sessions`), `misc`,
+It prints JSON for the pooled week: `people` (person, palette name, `color`, `accents`, devices,
+sessions, fe_tokens, cost, weekly_pct; in palette order), `pie_slices` (one per project x person
+plus Misc per person: label, pct, color; the projects pie, ready to draw), `devices` (label,
+person, collected_at), `projects` (name, path, remote_url, commits, screenshot path, token_rows
+per model, fe_total, cost_total, weekly_pct, `accent`, `lead_person`, `people` (per-person
+fe_tokens, weekly_pct, pct of the project, color), `sessions`), `misc` (with `people`),
 `unused_pct`, `implied_cap_fe`, `combined_cost`, `model_breakdown` (per model across all
 projects + Misc: model_display, raw_tokens, fe_tokens, cost, usage_pct), `model_effort_breakdown`
-(per family x effort: label, color, usage_pct), `unpriced_models`. Use its numbers directly; do not
-recompute them.
+(per family x effort: label, color, usage_pct), `unpriced_models`. Use its numbers and colors
+directly; do not recompute them.
 
 If a project's `remote_url` is empty, name it without a link. If it has no `screenshot`, omit the
 picture. Check each project's README yourself for a deployed-app URL (Vercel/Netlify/Pages/etc;
@@ -93,7 +110,7 @@ manually with a placeholder/zero token row if no matching Claude project directo
 
 ### Key features per project
 
-Each project's `sessions` list (id, start, first prompt, device, fe_tokens, weekly_pct; subagent
+Each project's `sessions` list (id, start, first prompt, device, person, fe_tokens, weekly_pct; subagent
 usage is already in its parent session) feeds the drawer's feature breakdown. For each project with
 sessions, pick roughly 2-6 key features (what was built or changed this week) and assign every
 session belonging to one, judging by first prompts, commit subjects and diffs. Write
@@ -103,7 +120,8 @@ the `features` map already in `<scratch>/pool.json` (the script applies it by de
 assign this machine's sessions (other machines' sessions have an empty prompt and are already
 assigned); add new features or reuse existing names. The file you pass replaces the stored map. Each project then gains `features`: name,
 fe_tokens, weekly_pct (same basis as the project's `weekly_pct`; features sum to it), sessions,
-and `models` (family, color, pct of that feature's tokens). Unassigned sessions land in an
+`models` (family, color, pct of that feature's tokens) and `people` (person, color, pct of that
+feature's tokens). Unassigned sessions land in an
 automatic "Other" feature; a session goes to exactly one feature. Fix any `no session matches`
 warnings on stderr. Use the rerun's output for everything downstream. A project with no sessions
 (artifact-only) gets no drawer.
@@ -114,10 +132,11 @@ messages, to inform the deep-dive paragraphs. Diffs only exist for repos on this
 ### Joining run: build on the existing page
 
 Start from `<this-week page>`, not from scratch. Keep every existing card's picture, paragraph,
-card-meta, accent color and link, and every "Things fixed" entry. Replace all numbers (project
-list, pies, total cost, token tables, drawers) with the new output, which already covers every
-machine. Add cards (and pie slices, list rows) for projects only this machine worked on, with new
-distinct accent colors. Rewrite an existing paragraph only when this machine's commits change
+card-meta and link, and every "Things fixed" entry. Replace all numbers and colors (project
+list, pies, person tags, total cost, token tables, drawers, Data sources) with the new output,
+which already covers every machine; accents come from the output's `accent` and can change when
+another person now leads a project. Add cards (and pie slices, list rows) for projects only
+this machine worked on. Rewrite an existing paragraph only when this machine's commits change
 what the project does. Add "Things fixed" entries from this machine's transcripts.
 
 ## 4. Write the artifact
@@ -130,9 +149,20 @@ replaces the `roundup-data` block; rerun it after any later edit that rewrites t
   Fonts), light/dark tokens (`--ground`, `--card`, `--ink`, `--muted`, `--line`, `--blue`,
   `--shadow`), section headers with a trailing `<div class="rule">`, cards with a colored top
   border, tabular-nums for numbers.
-- Give each project a distinct accent color (visually distinct hues, not `--blue`). Use it for the
-  project's name pill in the top list, the "Link" text in that row, and `--accent` on its deep-dive
-  card (top border, title color, token-table header rule).
+- Each project's accent color is the output's `accent` (a shade from the color scheme of the
+  person who did most of its usage, `lead_person`; warm for one person, cool for the other,
+  distinct per project). Use it for the project's name pill in the top list, the "Link" text in
+  that row, and `--accent` on its deep-dive card (top border, title color, token-table header
+  rule). Never invent accents.
+- **Who did what**: the output's `people` carries each person's `color` and palette. Whenever the
+  pool has more than one person, show the split: in the top list a small person tag after each
+  project's usage % (`<span class="who" style="--c:<color>">Jet 12%</span>` per `people` entry,
+  colored with the person's share color), the projects pie split per `pie_slices` (one slice per
+  project x person in that person's colors, legend labels as given, e.g. "alpha-app · Jet",
+  "Misc · Jaxon"), a "Usage by person" legend row under the project pie (swatch in `people[].color`,
+  name, weekly %), and a person tag on every drawer feature row carrying that feature's `people`
+  entries. Deep-dive card-meta ends with "· by <lead_person>" when the project has more than one
+  person. With one person in the pool, omit the tags and labels; the person's colors still apply.
 - Structure, top to bottom:
   1. Title + eyebrow with the date range covered.
   2. **Projects this week** — numbered list; each row: `<num>. <name pill>` on the left, then a
@@ -140,10 +170,11 @@ replaces the `roundup-data` block; rerun it after any later edit that rewrites t
      usage % on the right. The pill links to the project's deep-dive card (`#slug` id on the
      card's `div.card`); `Link` goes to the external repo/app. Usage % is the project's FE tokens
      over the week's grand total FE tokens (see Token breakdown). Sort by usage % descending.
-     Below the list, a pie chart (CSS `conic-gradient` circle + swatch legend): one slice per
-     project, a "Misc" slice (neutral gray, e.g. `#9aa2b1`) for untracked-project usage, and a
-     final "Unused" slice colored `var(--muted)`, computed against the actual weekly cap usage
-     (see Token breakdown), not just 100%.
+     Below the list, a pie chart (CSS `conic-gradient` circle + swatch legend): the output's
+     `pie_slices` in order (one slice per project x person in that person's colors, then Misc
+     per person in that person's gray; label and color as given), and a final "Unused" slice
+     colored `var(--muted)`, computed against the actual weekly cap usage (see Token breakdown),
+     not just 100%. Under its legend, the "Usage by person" row (see above).
      Below it, a second pie (same style) titled "Usage by model": one slice per entry of
      `model_effort_breakdown` (all projects + Misc; one entry per model family x effort), sized by
      `usage_pct` (FE-token weighted). Slices sum to 100% of used tokens; no "Unused" slice. Color
@@ -182,9 +213,10 @@ replaces the `roundup-data` block; rerun it after any later edit that rewrites t
   5. **Data sources** — last thing before the footer, collapsed so it takes one line: a
      `<details class="drawer sources">` (summary "Data sources", `--accent: var(--muted)`, no
      section header) opening to a small table with one row per entry of the output's `devices`:
-     Machine (`device`) / Collected (`collected_at`, as e.g. "Oct 9, 2:15 PM") / Sessions / Cost /
-     Weekly %, then one line under it: "Weekly cap usage: <p>% (entered <cap_pct_at>)". All other
-     pooled detail stays in the invisible `roundup-data` block.
+     Machine (`device`) / Person (`person`, with a swatch in that person's `color`) / Collected
+     (`collected_at`, as e.g. "Oct 9, 2:15 PM") / Sessions / Cost / Weekly %, then one line under
+     it: "Weekly cap usage: <p>% (entered <cap_pct_at>)". All other pooled detail stays in the
+     invisible `roundup-data` block.
 
 ### Desktop layout (screens 1000px and wider; phones unchanged)
 
@@ -303,7 +335,10 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
   evolutionary search"), never a raw repo URL or domain.
 - Token table Model column uses friendly names (`Sonnet 5`, `Fable 5.1`, `Opus 5`), never API
   slugs.
-- Project pie = project shares + Misc + Unused summing to 100%, against the weekly cap %. `p` is
+- Who did what is visible when the pool has more than one person: person tags in the list and
+  drawers, pie slices per project x person from `pie_slices`, the "Usage by person" row, and the
+  Person column in Data sources; every person color comes from the script (warm vs cool schemes).
+- Project pie = `pie_slices` + Unused summing to 100%, against the weekly cap %. `p` is
   the real figure the user gave (100% for a week that hit the cap); never call it assumed or
   estimated on the page.
 - "Usage by model" pie sits above the total cost, which is last in the projects section; it is
@@ -315,9 +350,9 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
   invented tokens, or reordered/renamed sections.
 - Desktop layout exactly as above: `section projects` / `section dives` classes, the
   `desktop-layout` style and `desktop-layout-js` script verbatim. Only classes beyond the base
-  ones: `projects`, `dives`, `sources`, and script-created `mgrid`, `mcol`.
-- The collapsed "Data sources" drawer is present, lists every entry of `devices`, and shows the
-  cap % used.
+  ones: `projects`, `dives`, `sources`, `who`, `people`, and script-created `mgrid`, `mcol`.
+- The collapsed "Data sources" drawer is present, lists every entry of `devices` with its
+  person, and shows the cap % used.
 - Rendered check (headless browser if available): at 1440px and 1920px content spans at least 80%
   of the window; `document.documentElement.scrollWidth <= innerWidth` at 360, 768, 1024, 1440,
   1920 and 2560px in light and dark; at 390px the page is a single column.
@@ -353,9 +388,9 @@ is organization-only, so public viewers would not see the weeks.
   "projectCount": <number of projects in the Projects list>,
   "totalCost": <the total-cost number, as a plain float>,
   "slices": [
-    {"name": "<project name>", "pct": <weekly %>, "color": "<project's accent color>"},
-    ...one entry per project, in the same order as the pie chart...,
-    {"name": "Misc (other sessions)", "pct": <misc %>, "color": "#9aa2b1"},
+    {"name": "<slice label>", "pct": <weekly %>, "color": "<slice color>"},
+    ...one entry per `pie_slices` entry, same order and colors as the pie chart
+       (e.g. "alpha-app · Jet", then "Misc · Jet")...,
     {"name": "Unused", "pct": <unused %>, "color": "#666f7d"}
   ]
 }
@@ -369,11 +404,12 @@ Omit the "Unused" slice if `unused_pct` is 0. Slices must sum to 100: when cap u
 Write `state.json` (when the chosen week is a past week, keep the existing `last_artifact_url` and
 `last_cap_usage_pct`): `{"last_run": "<today's date>", "last_artifact_url": "<published url>",
 "archive_url": "https://claude.ai/code/artifact/61e892af-ab44-48cb-9c9b-74ee690c6dad",
-"last_cap_usage_pct": <p>}`.
+"last_cap_usage_pct": <p>, "person": "<the person the user named this run, as the output's
+devices entry spells it>"}`.
 
 ## Notes
 
-- When reporting, list the machines in the output's `devices` with their `collected_at`. A
+- When reporting, list the machines in the output's `devices` with their `person` and `collected_at`. A
   machine whose data is days old makes the Unused slice look bigger than it is (its newer usage
   is in the cap % but not in the pool); say so.
 
