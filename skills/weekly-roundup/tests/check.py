@@ -158,6 +158,9 @@ else:
     check("S4: second-run log says it replaced this machine's earlier data",
           log2.exists() and "replaced this machine's earlier data" in log2.read_text(errors="ignore").replace("\u2019", "'").replace("’", "'"),
           "string not in S4/a-2.log")
+    check("S4: one Things-fixed entry on the page", len(ids) == 1, ids)
+    check("S4: second-run log shows the script's rewrite output",
+          log2.exists() and "replaced_collected_at" in re.sub(r"\x1b\[[0-9;?<>]*[a-zA-Z]", "", log2.read_text(errors="replace")), "no rewrite value (replaced_collected_at) in S4/a-2.log")
     arch = OUT / "S4" / "archive.html"
     if arch.exists():
         mw = re.search(r'id="weeks-data"[^>]*>(.*?)</script>', arch.read_text(), re.S)

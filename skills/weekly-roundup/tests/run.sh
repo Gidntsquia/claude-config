@@ -58,8 +58,9 @@ person_for() {  # person_for <machine> <run#>: A's usage is Jet, B's is Jaxon, s
 run_roundup() {  # run_roundup <scenario> <machine> <cap|keep>
   local s="$1" m="$2" cap="$3" capText u who
   if [ "$cap" = keep ]; then capText="No new cap-pct: keep the stored one (omit --cap-pct)."; else capText="cap-pct is $cap."; fi
-  who=$(person_for "$m" "$RUN")
-  u=$(cc "$m" "$OUT/$s/$m-$RUN.log" "$PREAMBLE Run /weekly-roundup for this week. $capText The usage on this machine belongs to: $who (pass exactly that text as --person). Assign features yourself. Publish the week page (a joining run if the archive already lists this week) and update the archive. Write your full report to the user (what you replaced or added, as SKILL.md says) BEFORE the final step; then print the week page URL as the very last line, nothing after it.")
+  who=$(person_for "$m" "$RUN"); EXTRA=""
+  [ "$s" = S4 ] && EXTRA=" Whatever the fixtures show, include exactly one \"Things fixed\" entry for this machine (first run: write one from the fixture commit history; rerun: rewrite it, replacing the old one listed in rewrite.fixed), with data-fixed-id on it. Quote the script's rewrite value verbatim in your report."
+  u=$(cc "$m" "$OUT/$s/$m-$RUN.log" "$PREAMBLE Run /weekly-roundup for this week. $capText The usage on this machine belongs to: $who (pass exactly that text as --person). Assign features yourself.${EXTRA:-} Publish the week page (a joining run if the archive already lists this week) and update the archive. Write your full report to the user (what you replaced or added, as SKILL.md says) BEFORE the final step; then print the week page URL as the very last line, nothing after it.")
   RUN=$((RUN+1))
   [ -n "$u" ] || { echo "$s/$m: no URL (see log)"; return 1; }
   WEEK="$u"
