@@ -37,13 +37,17 @@ from datetime import datetime
 from pathlib import Path
 
 # Per-million-token USD list prices (source: platform.claude.com/docs/en/about-claude/pricing,
-# checked 2026-10-04). Cache reads default to 0.1x input; override with "cache_read_mult".
+# checked 2026-10-11). Cache reads default to 0.1x input; override with "cache_read_mult".
 # Cache writes are 1.25x (5m) / 2x (1h) input. Update as pricing changes.
+# "long_over": requests whose prompt (input + cache reads + cache writes) is over this many
+# tokens are tallied under "<model>@long" and priced by that entry instead.
 PRICING = {
     "claude-sonnet-5-5":      {"in": 2.00,  "out": 10.00, "display": "Sonnet 5.5"},
     "claude-sonnet-5":        {"in": 2.00,  "out": 10.00, "display": "Sonnet 5"},
     "claude-opus-5-5":        {"in": 4.00,  "out": 20.00, "cache_read_mult": 0.05, "display": "Opus 5.5"},
     "claude-opus-5":          {"in": 5.00,  "out": 25.00, "display": "Opus 5"},
+    "claude-haiku-5-5":       {"in": 0.10,  "out": 0.50, "long_over": 100_000, "display": "Haiku 5.5"},
+    "claude-haiku-5-5@long":  {"in": 0.50,  "out": 2.50, "display": "Haiku 5.5"},
     "claude-haiku-4-5-20251001": {"in": 1.00, "out": 5.00, "display": "Haiku 4.5"},
     "claude-fable-5-1":       {"in": 10.00, "out": 50.00, "cache_read_mult": 0.025, "display": "Fable 5.1"},
     "claude-fable-5":         {"in": 10.00, "out": 50.00, "display": "Fable 5"},
@@ -145,6 +149,11 @@ MOVED_FROM = {
 }
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+
+
+def base_model(model: str) -> str:
+    """The model id without a pricing-tier suffix like "@long"."""
+    return model.split("@", 1)[0]
 
 
 def display_name(model: str) -> str:
@@ -262,6 +271,7 @@ def scan_project_dir(dir_path: Path, window_start: datetime, window_end: datetim
     if sessions is None:
         sessions = {}
     seen = {}  # msg_id -> output_tokens already counted, to add only deltas
+    seen_long = {}  # msg_id -> True if the request's prompt was over its model's "long_over"
     for jsonl in dir_path.rglob("*.jsonl"):
         # Subagent transcripts (<session>/subagents/agent-*.jsonl) count toward their parent session.
         sid = jsonl.parent.parent.name if jsonl.parent.name == "subagents" else jsonl.stem
@@ -318,7 +328,15 @@ def scan_project_dir(dir_path: Path, window_start: datetime, window_end: datetim
                 deltas = {"output": out_t - prev_out}
             if msg_id:
                 seen[key] = max(out_t, seen.get(key, 0))
-            slot = sess["usage"].setdefault(model, {}).setdefault(effort, _new_counts())
+            tier = model
+            long_over = PRICING.get(model, {}).get("long_over")
+            if long_over:
+                if "input" in deltas:  # first record of this request: it carries the full prompt
+                    prompt_t = sum(deltas[k] for k in ("input", "cache_read", "cache_5m", "cache_1h"))
+                    seen_long[key] = prompt_t > long_over
+                if seen_long.get(key):
+                    tier = model + "@long"
+            slot = sess["usage"].setdefault(tier, {}).setdefault(effort, _new_counts())
             for k, v in deltas.items():
                 slot[k] += v
     return sessions
@@ -532,7 +550,7 @@ def report(contributions, cap_pct, features_map, args, stored_people=()):
 
     for proj in projects:
         model_totals = counts_by(proj["sessions"].values(), lambda m, e: m)
-        token_rows = []
+        rows = {}  # base model -> [fe, cost, raw]; pricing tiers of one model share a row
         fe_total = cost_total = 0.0
         for model, t in model_totals.items():
             if model in PRICING and PRICING[model]["in"] == 0 and PRICING[model]["out"] == 0:
@@ -540,13 +558,15 @@ def report(contributions, cap_pct, features_map, args, stored_people=()):
             cost, fe, raw = priced(t, model)
             fe_total += fe
             cost_total += cost
-            token_rows.append({
-                "model": model,
-                "model_display": display_name(model),
-                "raw_tokens": raw,
-                "fe_tokens": round(fe, 2),
-                "cost": round(cost, 4),
-            })
+            r = rows.setdefault(base_model(model), [0.0, 0.0, 0])
+            r[0] += fe
+            r[1] += cost
+            r[2] += raw
+        token_rows = [
+            {"model": model, "model_display": display_name(model), "raw_tokens": raw,
+             "fe_tokens": round(fe, 2), "cost": round(cost, 4)}
+            for model, (fe, cost, raw) in rows.items()
+        ]
         token_rows.sort(key=lambda r: r["fe_tokens"], reverse=True)
         proj["token_rows"] = token_rows
         proj["fe_total"] = round(fe_total, 2)
@@ -558,7 +578,10 @@ def report(contributions, cap_pct, features_map, args, stored_people=()):
         cost, fe, raw = priced(t, model)
         misc_fe += fe
         misc_cost += cost
-        by_model[model] = [fe, cost, raw]
+        m = by_model.setdefault(base_model(model), [0.0, 0.0, 0])
+        m[0] += fe
+        m[1] += cost
+        m[2] += raw
 
     # Per-model usage across tracked projects + Misc, weighted by FE tokens
     # (cost-normalized), as a share of total used FE tokens (sums to 100%, no Unused).

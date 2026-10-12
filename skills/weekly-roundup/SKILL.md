@@ -311,7 +311,10 @@ Use as-is. Method, for reference:
   message id from the jsonl files under `~/.claude/projects/<slug>/`.
 - **Cost** = raw tokens priced per model (input/output; cache-read at 0.1x input, 0.025x on Fable
   5.1; cache-write at 1.25x or 2.0x input for 5m/1h) using the price table at the top of
-  `gather_data.py`. Keep that table current when Anthropic pricing changes.
+  `gather_data.py`. Keep that table current when Anthropic pricing changes. A model priced by
+  prompt length (Haiku 5.5: higher rates over 100,000 prompt tokens) has a `long_over` entry;
+  each request over it is tallied under `<model>@long` and priced at that entry's rates, and
+  both tiers show as one row on the page.
 - **FE tokens** ("Fable-equivalent") = cost normalized to Fable's $10/M input rate, making usage
   across models comparable.
 - **Misc** = FE tokens from every Claude Code project directory active in the window that isn't
