@@ -353,36 +353,36 @@
   "label": "Oct 4–11, 2026",
   "url": "https://claude.ai/artifact/9syKSHEvUk6m9gVMoHhFhz",
   "projectCount": 14,
-  "totalCost": 688.36,
+  "totalCost": 687.37,
   "slices": [
    {
     "name": "Deadlock Street Brawl Helper",
-    "pct": 23.69,
+    "pct": 23.73,
     "color": "#e5484d"
    },
    {
     "name": "Worker Building",
-    "pct": 13.07,
+    "pct": 13.09,
     "color": "#2f80ed"
    },
    {
     "name": "Helper Agent",
-    "pct": 11.41,
+    "pct": 11.43,
     "color": "#e8710a"
    },
    {
     "name": "Evaluator Building",
-    "pct": 8.09,
+    "pct": 8.11,
     "color": "#7c5cff"
    },
    {
     "name": "Pokémon Go GBL Team Generator",
-    "pct": 6.63,
+    "pct": 6.62,
     "color": "#2e9e6b"
    },
    {
     "name": "terminal-pet",
-    "pct": 6.5,
+    "pct": 6.51,
     "color": "#c2185b"
    },
    {
@@ -392,27 +392,27 @@
    },
    {
     "name": "Open Picture Editor",
-    "pct": 4.89,
+    "pct": 4.9,
     "color": "#b8860b"
    },
    {
     "name": "claude-config",
-    "pct": 3.88,
+    "pct": 3.89,
     "color": "#a13e85"
    },
    {
     "name": "Open Video Editor",
-    "pct": 3.8,
+    "pct": 3.81,
     "color": "#43a047"
    },
    {
     "name": "LLC Advisor",
-    "pct": 0.96,
+    "pct": 0.97,
     "color": "#ff8a65"
    },
    {
     "name": "Agent Eval Experiment",
-    "pct": 0.51,
+    "pct": 0.46,
     "color": "#6d4c41"
    },
    {
@@ -427,7 +427,7 @@
    },
    {
     "name": "Misc",
-    "pct": 8.93,
+    "pct": 8.87,
     "color": "#9aa3ad"
    },
    {
