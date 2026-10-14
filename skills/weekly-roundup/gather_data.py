@@ -33,7 +33,7 @@ import re
 import socket
 import subprocess
 import sys
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 # Per-million-token USD list prices (source: platform.claude.com/docs/en/about-claude/pricing,
@@ -71,13 +71,20 @@ FAMILY_ORDER = ["Sonnet", "Fable", "Opus", "Haiku", "Local"]
 
 # Who did the usage. Every machine's run names a person (--person); each person gets a color
 # scheme, assigned in order of first appearance in the pool (first person warm, second cool,
-# ...). "accents" color that person's projects (project i uses accents[i % 6], so one project's
-# slices keep the same slot across people); "misc" is that person's Misc gray.
+# ...). "accents" color that person's projects; which accent a project gets is kept stable
+# across weeks by project_colors.json (see assign_colors). "misc" is that person's Misc gray.
+# warm and cool each hold 12 accents from opposite halves of the color wheel (warm: hues
+# 305-360 and 0-57, i.e. magentas, pinks, reds, oranges, ambers, yellows, browns; cool: hues
+# 100-282, i.e. greens, teals, cyans, blues, indigos, violets), in three lightness tiers so no
+# two accents in a list have hue within 15 degrees and lightness within 10%.
 PERSON_PALETTES = [
     {"name": "warm",  "main": "#e5484d", "misc": "#b9a295",
-     "accents": ["#e5484d", "#f0761f", "#e3a008", "#c63d8a", "#b25a2a", "#d4b000"]},
+     "accents": ["#e5484d", "#f0690f", "#dd2c85", "#e59a06", "#b931ae", "#a33114",
+                 "#d7cd09", "#f7806e", "#a71b3e", "#f8b859", "#ea86cc", "#844e1f"]},
     {"name": "cool",  "main": "#2f80ed", "misc": "#94a3b8",
-     "accents": ["#2f80ed", "#1fa39b", "#3fb950", "#7c5cd6", "#1b5fa8", "#45b8e0"]},
+     "accents": ["#2f80ed", "#27a566", "#8f51d6", "#13a2ae", "#4e4ed0", "#2b822b",
+                 "#5fc6f2", "#13725a", "#7b319b", "#183795", "#81cc5c", "#ac97ed"]},
+    # Fallbacks for a third / fourth person.
     {"name": "berry", "main": "#a23bb6", "misc": "#ab9bb0",
      "accents": ["#a23bb6", "#e05297", "#6c3fcf", "#c74b7d", "#8d5be0", "#d670b5"]},
     {"name": "earth", "main": "#8b6b2e", "misc": "#a8a394",
@@ -89,6 +96,9 @@ PERSON_PALETTES = [
 SOLO_PALETTE = {"name": "full", "main": "#2f80ed", "misc": "#9aa3ad",
                 "accents": ["#e5484d", "#2f80ed", "#e8710a", "#7c5cff", "#2e9e6b", "#c2185b",
                             "#2bb4c9", "#b8860b", "#a13e85", "#43a047", "#ff8a65", "#6d4c41"]}
+HERE = Path(__file__).resolve().parent
+COLORS_FILE = HERE / "project_colors.json"  # "<person>|<project key>" -> accent, kept across weeks
+DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 UNKNOWN_PERSON = "Unknown"  # contributions made before --person existed
 KNOWN_PEOPLE = ["Jaxon", "Jet"]  # the account's people; any fuzzy spelling of these pools into them
 FUZZY_MIN = 0.75  # difflib ratio at or above this counts as the same person
@@ -264,10 +274,11 @@ def _new_counts():
 
 
 def scan_project_dir(dir_path: Path, window_start: datetime, window_end: datetime = None, sessions=None):
-    """Fill sessions[session_id] = {start, prompt, usage: {model: {effort: counts}}} for one
-    Claude-project jsonl directory, deduped by message id. One session per jsonl file; subagent
-    usage counts toward its parent session; prompt = first real user message in the window;
-    effort is "" when the record has none."""
+    """Fill sessions[session_id] = {start, prompt, usage: {model: {effort: counts}},
+    days: {YYYY-MM-DD: {model: counts}}} for one Claude-project jsonl directory, deduped by
+    message id. One session per jsonl file; subagent usage counts toward its parent session;
+    prompt = first real user message in the window; effort is "" when the record has none.
+    `days` splits the same usage by local calendar day of each record's timestamp."""
     if sessions is None:
         sessions = {}
     seen = {}  # msg_id -> output_tokens already counted, to add only deltas
@@ -275,7 +286,7 @@ def scan_project_dir(dir_path: Path, window_start: datetime, window_end: datetim
     for jsonl in dir_path.rglob("*.jsonl"):
         # Subagent transcripts (<session>/subagents/agent-*.jsonl) count toward their parent session.
         sid = jsonl.parent.parent.name if jsonl.parent.name == "subagents" else jsonl.stem
-        sess = sessions.setdefault(sid, {"start": None, "prompt": "", "usage": {}})
+        sess = sessions.setdefault(sid, {"start": None, "prompt": "", "usage": {}, "days": {}})
         try:
             lines = jsonl.read_text(errors="ignore").splitlines()
         except OSError:
@@ -337,8 +348,10 @@ def scan_project_dir(dir_path: Path, window_start: datetime, window_end: datetim
                 if seen_long.get(key):
                     tier = model + "@long"
             slot = sess["usage"].setdefault(tier, {}).setdefault(effort, _new_counts())
+            day = sess["days"].setdefault(t.date().isoformat() if t else "", {}).setdefault(tier, _new_counts())
             for k, v in deltas.items():
                 slot[k] += v
+                day[k] += v
     return sessions
 
 
@@ -393,7 +406,7 @@ def collect(args, device, person):
     for d in claude_projects.iterdir():
         if d.is_dir() and d.name not in matched_slugs:
             scan_project_dir(d, token_window_start, token_window_end, misc)
-    misc = {sid: {"usage": s["usage"]} for sid, s in misc.items() if s["usage"]}
+    misc = {sid: {"start": s["start"], "usage": s["usage"], "days": s["days"]} for sid, s in misc.items() if s["usage"]}
 
     return {
         "device": device,
@@ -434,7 +447,8 @@ def public_contribution(c):
                 "name": p["name"],
                 "remote_url": p["remote_url"],
                 "commits": p["commits"],
-                "sessions": {sid: {"start": s["start"], "usage": s["usage"]} for sid, s in p["sessions"].items()},
+                "sessions": {sid: {"start": s["start"], "usage": s["usage"], "days": s["days"]}
+                             for sid, s in p["sessions"].items()},
             }
             for p in c["projects"]
         ],
@@ -525,7 +539,117 @@ def by_person(sessions, order, implied_cap_fe, color_of):
     return rows
 
 
-def report(contributions, cap_pct, features_map, args, stored_people=()):
+def project_key(proj):
+    """Stable identity of a project across weeks and machines: its GitHub remote, else its folder name."""
+    return proj["remote_url"] or proj["name"]
+
+
+def assign_colors(projects, order, colormap):
+    """{(project name, person): accent} for every project x person this week (a project with no
+    usage gets its lead, order[0]). The accent comes from `colormap` ("<person>|<project key>",
+    or "solo|<project key>" when the pool has one person) when it is there and still in that
+    person's palette; otherwise it is the first accent of the person's palette that none of
+    their projects uses this week, then the accent least used in the map, and it is written to
+    `colormap`. `projects` is in usage order, so bigger new projects pick first."""
+    solo = len(order) == 1
+
+    def prefix(who):
+        return "solo|" if solo else f"{who}|"
+
+    pairs = [(proj, who) for proj in projects for who in ([r["person"] for r in proj["people"]] or [order[0]])]
+    colors, used, pending = {}, {}, []
+    for proj, who in pairs:
+        c = colormap.get(prefix(who) + project_key(proj))
+        if c in palette_for(who, order)["accents"]:
+            colors[(proj["name"], who)] = c
+            used.setdefault(who, set()).add(c)
+        else:
+            pending.append((proj, who))
+    for proj, who in pending:
+        acc = palette_for(who, order)["accents"]
+        mine = used.setdefault(who, set())
+        free = [a for a in acc if a not in mine]
+        if free:
+            c = free[0]
+        else:
+            n = {a: 0 for a in acc}
+            for k, v in colormap.items():
+                if k.startswith(prefix(who)) and v in n:
+                    n[v] += 1
+            c = min(acc, key=lambda a: n[a])  # ties: palette order, so it cycles
+        colors[(proj["name"], who)] = c
+        mine.add(c)
+        colormap[prefix(who) + project_key(proj)] = c
+    return colors
+
+
+def week_days(token_window_start):
+    """The 7 local calendar dates, Sunday to Saturday, of the week starting at this Sunday 22:00."""
+    ws = datetime.fromisoformat(token_window_start).date()
+    return [ws + timedelta(days=i) for i in range(7)]
+
+
+def session_day_fe(sess, ws, fallback):
+    """{day index 0..6: FE tokens} for one session. Index = local calendar day minus the opening
+    Sunday, so the 22:00-midnight sliver is Sunday (0). The closing Sunday (until 22:00) has no
+    column of its own in a Sunday-Saturday week and shares the Sunday column. Sessions stored
+    before per-day data existed count on their start day, else on `fallback` (YYYY-MM-DD)."""
+    days = sess.get("days")
+    if not days:
+        tot = {}
+        for model, efforts in sess["usage"].items():
+            slot = tot.setdefault(model, _new_counts())
+            for t in efforts.values():
+                for k in TOKEN_KEYS:
+                    slot[k] += t[k]
+        days = {(sess.get("start") or "")[:10]: tot}
+    out = {}
+    for d, models in days.items():
+        try:
+            idx = (date.fromisoformat(d) - ws).days
+        except ValueError:
+            idx = (date.fromisoformat(fallback) - ws).days
+        idx = 0 if idx == 7 else min(max(idx, 0), 6)
+        for model, t in models.items():
+            _c, fe, _r = priced(t, model)
+            out[idx] = out.get(idx, 0.0) + fe
+    return out
+
+
+def daily_usage(projects, misc_sessions, pie_slices, implied_cap_fe, token_window_start):
+    """The `days` output: 7 entries Sunday..Saturday, each with one segment per project x person
+    (and Misc per person) that used tokens that day, in weekly-cap % (same basis as the pie),
+    colored like that pie slice, largest first (pie order on ties)."""
+    dates = week_days(token_window_start)
+    ws = dates[0]
+    pie_at = {(sl["project"], sl["person"]): (i, sl["color"]) for i, sl in enumerate(pie_slices)}
+    groups = [(proj["name"], list(proj["sessions"].values())) for proj in projects] + [("Misc", list(misc_sessions.values()))]
+    starts = {}  # device -> earliest session day, the fallback for old entries with no start
+    for _n, sessions in groups:
+        for sess in sessions:
+            st = (sess.get("start") or "")[:10]
+            if st and (sess["device"] not in starts or st < starts[sess["device"]]):
+                starts[sess["device"]] = st
+    fe = {}  # (project, person) -> [fe per day]
+    for name, sessions in groups:
+        for sess in sessions:
+            row = fe.setdefault((name, sess["person"]), [0.0] * 7)
+            for idx, v in session_day_fe(sess, ws, starts.get(sess["device"], ws.isoformat())).items():
+                row[idx] += v
+    pct = lambda v: round(v / implied_cap_fe * 100, 2) if implied_cap_fe else 0
+    days = []
+    for i, d in enumerate(dates):
+        segs = []
+        for (name, who), row in fe.items():
+            if (name, who) in pie_at and pct(row[i]) > 0:
+                segs.append({"project": name, "person": who, "color": pie_at[(name, who)][1], "pct": pct(row[i])})
+        segs.sort(key=lambda sg: (-sg["pct"], pie_at[(sg["project"], sg["person"])][0]))
+        days.append({"date": d.isoformat(), "label": DAY_LABELS[i], "segments": segs,
+                     "total_pct": pct(sum(row[i] for row in fe.values()))})
+    return days
+
+
+def report(contributions, cap_pct, features_map, args, stored_people=(), colormap=None):
     projects = merge_projects(contributions)
     misc_sessions = {}
     for c in contributions:
@@ -655,14 +779,15 @@ def report(contributions, cap_pct, features_map, args, stored_people=()):
     # the dominant person's palette, and ready-made slices for the projects pie (one per
     # project x person, so each person's share is visible in their own colors).
     projects.sort(key=lambda pr: pr["weekly_pct"], reverse=True)
+    for proj in projects:
+        proj["people"] = by_person(proj["sessions"].values(), order, implied_cap_fe, lambda who: None)
+    colors = assign_colors(projects, order, colormap if colormap is not None else {})
     pie_slices = []  # filled below, grouped by person (most usage first)
-    for i, proj in enumerate(projects):
-        def accent(who, i=i):
-            acc = palette_for(who, order)["accents"]
-            return acc[i % len(acc)]
-        proj["people"] = by_person(proj["sessions"].values(), order, implied_cap_fe, accent)
+    for proj in projects:
+        for row in proj["people"]:
+            row["color"] = colors[(proj["name"], row["person"])]
         lead = proj["people"][0]["person"] if proj["people"] else order[0]
-        proj["accent"] = accent(lead)
+        proj["accent"] = colors[(proj["name"], lead)]
         proj["lead_person"] = lead
         for row in proj["people"]:
             pie_slices.append({"project": proj["name"], "person": row["person"], "fe": row["fe_tokens"],
@@ -689,6 +814,8 @@ def report(contributions, cap_pct, features_map, args, stored_people=()):
         row["palette"] = pal["name"]
         row["accents"] = pal["accents"]
         row["devices"] = [c["device"] for c in contributions if c.get("person", UNKNOWN_PERSON) == row["person"]]
+
+    days = daily_usage(projects, misc_sessions, pie_slices, implied_cap_fe, args.token_window_start)
 
     def session_fe(sess):
         out = {}
@@ -774,6 +901,7 @@ def report(contributions, cap_pct, features_map, args, stored_people=()):
         "plan_cost": args.plan_cost,
         "people": people_rows,
         "pie_slices": pie_slices,
+        "days": days,
         "devices": [
             {
                 "device": c["device"],
@@ -827,6 +955,7 @@ def main():
     ap.add_argument("--person", default=None, help="who this machine's usage belongs to (e.g. Jaxon). Spellings pool by first word, case-insensitive. Default: this device's stored person in the pool")
     ap.add_argument("--pool-in", default=None, help="this week's published roundup page (.html) or pool JSON; other devices' data is merged in, this device's is replaced")
     ap.add_argument("--pool-out", default=None, help="write the merged pool JSON here, for embed_pool.py")
+    ap.add_argument("--colors-file", default=str(COLORS_FILE), help="project color map, \"<person>|<project key>\" -> accent; read and updated every run (default: project_colors.json next to this script)")
     ap.add_argument("--include-ai-sandbox", action="store_true")
     ap.add_argument("--include-project", action="append", default=[], help="repo dir name to list even with no commits in the window (repeatable)")
     args = ap.parse_args()
@@ -899,7 +1028,12 @@ def main():
                 cleaned.setdefault(proj, {})[f] = keep
     features_map = cleaned
 
-    out = report(contributions, args.cap_pct, features_map, args, people)
+    colors_file = Path(args.colors_file).expanduser()
+    local_colors = json.loads(colors_file.read_text()) if colors_file.exists() else {}
+    colormap = {**local_colors, **pool.get("project_colors", {})}  # the page wins on conflict
+    out = report(contributions, args.cap_pct, features_map, args, people, colormap)
+    colormap = dict(sorted(colormap.items()))
+    colors_file.write_text(json.dumps(colormap, indent=1, ensure_ascii=False) + "\n")
 
     authored = pool.get("authored") or {"projects": {}, "fixed": {}}
     authored.setdefault("projects", {})
@@ -926,6 +1060,8 @@ def main():
             "features": features_map,
             "authored": authored,
             "people": people,
+            "project_colors": colormap,
+            "days": out["days"],
             "devices": others + [public_contribution(mine)],
         }
         Path(args.pool_out).expanduser().write_text(json.dumps(pool_out, separators=(",", ":")))

@@ -63,10 +63,24 @@ words, typos and short forms all ignored) against the pool's people and the acco
 people (`KNOWN_PEOPLE` in `gather_data.py`: Jaxon, Jet), so anything like "jet", "Jett", "jet
 Lee" pools into "Jet" and "jaxon.", "jax", "Jaxson" into "Jaxon"; a name that matches nobody
 starts a new person. Never normalize the answer yourself. Each person gets their own color
-scheme once the week's pool has two or more people (first person seen: warm reds/oranges;
-second: cool blues/greens; then berry, earth). With one person, projects use the whole color
-wheel (the script's `full` palette), as in the early roundups; a second person joining switches
-the week to the per-person schemes. Store
+scheme once the week's pool has two or more people (first person seen: `warm`, 12 accents in
+reds, oranges, pinks, magentas, golds and browns, hues 300-60°; second: `cool`, 12 accents in
+blues, greens, teals, indigos and violets, hues 90-290°; then berry and earth, 6 each). No two
+accents of one palette sit within 15° of hue and 10% of lightness of each other, and the warm and
+cool hue ranges do not overlap, so two people never share a hue. With one person, projects use
+the whole color wheel (the script's `full` palette), as in the early roundups; a second person
+joining switches the week to the per-person schemes.
+
+**Stable project colors.** `project_colors.json` (this skill's directory, committed) maps
+`<person>|<project key>` to an accent; the key is the project's GitHub remote URL, else its
+folder name, and a single-person week uses `solo|<key>`. A mapped project keeps its accent week
+after week (while that accent is still in the person's palette). A new project gets the first
+accent of its person's palette not yet used this week, else the accent used least in the map,
+then the palette cycles (a 13th project reuses one). The map travels in the page's
+`roundup-data` (`project_colors`); each run merges the page's map over the local file (the page
+wins on conflict), uses it, and writes the merged map back to both. A week that goes from one
+person to two gets fresh per-person colors (`solo|` entries stay for later solo weeks).
+`--colors-file` overrides the file path (tests only). Store
 the answer as `person` in `state.json` (step 6).
 
 `plan-cost` ($/mo, flat-rate plan) is hardcoded at `100` below; update it here if the plan changes.
@@ -104,7 +118,12 @@ person's projects by usage then their Misc; the projects pie, ready to draw), `d
 person, collected_at), `projects` (name, path, remote_url, commits, screenshot path, token_rows
 per model, fe_total, cost_total, weekly_pct, `accent`, `lead_person`, `people` (per-person
 fe_tokens, weekly_pct, pct of the project, color), `sessions`), `misc` (with `people`),
-`unused_pct`, `implied_cap_fe`, `combined_cost`, `model_breakdown` (per model across all
+`unused_pct`, `implied_cap_fe`, `combined_cost`, `days` (7 entries, Sunday through Saturday of the
+week, local calendar days: `date`, `label` "Sun".."Sat", `segments` [{project, person, color,
+pct}] largest first, `total_pct`; `pct` is weekly-cap %, the same basis as `weekly_pct`, so a
+project x person's days sum to its pie slice and all days sum to 100 - `unused_pct`; colors are
+the pie's; the opening Sunday's 22:00-midnight and the closing Sunday up to 22:00 both land in
+the Sunday column, since the week runs Sunday 22:00 to Sunday 22:00), `model_breakdown` (per model across all
 projects + Misc: model_display, raw_tokens, fe_tokens, cost, usage_pct), `model_effort_breakdown`
 (per family x effort: label, color, usage_pct), `unpriced_models`. Use its numbers and colors
 directly; do not recompute them.
@@ -212,6 +231,18 @@ replaces the `roundup-data` block; rerun it after any later edit that rewrites t
      projects plus Misc, formatted like `$942.02`, with a small caption underneath: "Equivalent
      pay-by-token API price; actually paid $100 / mo" (plan cost hardcoded; update here if it
      changes). The total cost is the last thing in this section, below both pies.
+     **Usage by day**, between the "Usage by model" pie and the total cost: a stacked bar chart
+     of the output's `days`, drawn by the bundled script, never by hand or by page JS:
+     `python3 "$SKILL_DIR/daychart.py" --data <output.json> --part html --names <names.json>`
+     prints the `<div class="barchart-wrap">` block (its own `<h2 class="sub">Usage by day</h2>`,
+     a y-axis with labels every 5% up to the tallest day rounded up to the next 5%, dashed
+     gridlines, 7 columns Sun..Sat, each a stack of segment divs largest at the bottom with
+     `title="<project> · <person> · <x.x>%"` (person omitted with one person), and the caption
+     "Colors match the projects pie above."; no legend). `--names` is a JSON file mapping the
+     output's project names to the names used on the page (`{"helper-agent-building": "Helper
+     Agent"}`) so hover titles match the pie. `--part css` prints its CSS: paste it verbatim in
+     `<style id="daychart">` right before the `desktop-layout` style. All heights are computed
+     by the script; the page does no percentage math.
   3. **Things fixed** — short section between the projects list and the deep dives, only for big,
      non-obvious issues the user hit and resolved that week: things that broke their environment, cost
      real time, or whose fix they'd want to remember (e.g. "leftover Ollama install was crashing
@@ -249,10 +280,11 @@ The base CSS is a single narrow column (`body` max-width 760px); nothing below a
 - Mark the two main sections `<div class="section projects">` ("Projects this week") and
   `<div class="section dives">` ("Project deep dives"). Children stay in order: in `.projects`,
   `h2`, `.rule`, `ul.plain`, first `.piechart-wrap`, `h2.sub`, second `.piechart-wrap`,
-  `.total-cost`; in `.dives`, `h2`, `.rule`, then the `.card`s. A "Things fixed" section, if
+  `.barchart-wrap`, `.total-cost`; in `.dives`, `h2`, `.rule`, then the `.card`s. A "Things fixed" section, if
   present, stays a plain `<div class="section">` in between, its list in 2 columns.
 - Body max-width 1680px, padding `36px 48px 72px`. Projects: two equal columns, 64px gap; left is
-  the numbered list, right is the project pie then "Usage by model" and its pie; total cost spans
+  the numbered list, right is the project pie then "Usage by model" and its pie, then "Usage by
+  day" (`.barchart-wrap`, grid row 6, under the second `.piechart-wrap`); total cost spans
   both underneath. Deep dives: cards in 2 columns from 1000px, 3 from 1500px, 32px gap; card
   images cropped to a 21:8 banner, body padding `22px 26px 24px`.
 - The script below puts each card, in order, into the currently shortest column so columns end at
@@ -274,6 +306,7 @@ header{margin-bottom:34px}
 .projects>.piechart-wrap{grid-column:2;grid-row:3;margin-top:0}
 .projects>h2.sub{grid-column:2;grid-row:4;margin-top:14px}
 .projects>h2.sub~.piechart-wrap{grid-row:5}
+.projects>.barchart-wrap{grid-column:2;grid-row:6;margin-top:22px}
 .projects>.total-cost{grid-column:1/-1;grid-row:7;margin-top:26px}
 .section:not(.projects):not(.dives)>ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:64px}
 .dives{grid-template-columns:repeat(2,minmax(0,1fr));gap:32px;align-items:stretch}
@@ -378,6 +411,8 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
   estimated on the page.
 - "Usage by model" pie sits above the total cost, which is last in the projects section; it is
   split by effort, uses the script's `color` values, sums to 100%, has no Unused slice.
+- "Usage by day" (`daychart.py` output, unedited) sits between the "Usage by model" pie and the
+  total cost: 7 labeled columns, 5% gridlines, segment colors equal to the pie's, the caption.
 - Each card with `features` has the collapsed drawer (name + weekly % + by-model pie per
   feature; feature %s sum to the project's weekly %).
 - Title includes the date range, matching the eyebrow.
@@ -385,7 +420,9 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
   invented tokens, or reordered/renamed sections.
 - Desktop layout exactly as above: `section projects` / `section dives` classes, the
   `desktop-layout` style and `desktop-layout-js` script verbatim. Only classes beyond the base
-  ones: `projects`, `dives`, `sources`, `who`, `people`, and script-created `mgrid`, `mcol`.
+  ones: `projects`, `dives`, `sources`, `who`, `people`, the `daychart.py` classes
+  (`barchart-wrap`, `bc`, `bc-y`, `bc-plot`, `bc-grid`, `bc-col`, `bc-bar`, `bc-seg`, `bc-x`,
+  `bc-cap`), and script-created `mgrid`, `mcol`.
 - The collapsed "Data sources" drawer is present, lists every entry of `devices` with its
   person, and shows the cap % used.
 - Rendered check (headless browser if available): at 1440px and 1920px content spans at least 80%
@@ -404,14 +441,19 @@ Re-read this checklist against the finished HTML immediately before publishing.
 
 **Roundup Archive** (`https://claude.ai/code/artifact/61e892af-ab44-48cb-9c9b-74ee690c6dad`,
 `archive_url` in `state.json`) is a gallery of every week: a thumbnail donut per week that expands
-to the full pie + legend on hover. Its weeks are written into the page itself (no `db`), so
+to the full pie + legend on hover. Above the gallery, a "Usage by day" chart runs continuously
+across every archive week: 7 columns per week, oldest left, the week label (e.g. "Oct 4–11")
+under each week, a thin rule between weeks, the same y-scale throughout, scrolled to the newest
+week on load. Weeks stored without `days` show as 7 empty columns with a faint "no daily data"
+marker. `build_archive.py` draws it with `daychart.py`. Its weeks are written into the page itself (no `db`), so
 anyone with the public link sees every week. The data lives in `archive_weeks.json` next to this
 file; `archive_template.html` is the page.
 
 After publishing the roundup, write the chosen week to a scratch JSON file, then run
 `python3 "$SKILL_DIR/build_archive.py" --base <archive file read in step 0> --add <file> --out
 <scratch>/archive.html` (it takes the weeks from the published archive, since other machines
-update it too, inserts or replaces this week by `weekStart`, saves them to
+update it too, inserts or replaces this week by `weekStart` (the added week must carry `days`; older entries are
+kept as they are), saves them to
 `archive_weeks.json` and builds the page) and republish the page with `Artifact`
 (`url: archive_url`; omit `capabilities`).
 Commit `archive_weeks.json` in `~/files/claude-config` if this machine has that repo. Never give the archive a `db`: a `db` page
@@ -429,7 +471,9 @@ is organization-only, so public viewers would not see the weeks.
     ...one entry per `pie_slices` entry, same order and colors as the pie chart
        (e.g. "alpha-app · Jet", then "Misc · Jet")...,
     {"name": "Unused", "pct": <unused %>, "color": "#666f7d"}
-  ]
+  ],
+  "days": <the output's `days`, with each segment's `project` swapped for the page's display
+           name (as passed to daychart.py --names)>
 }
 ```
 
