@@ -20,14 +20,14 @@ ap.add_argument("--add")
 ap.add_argument("--base")
 a = ap.parse_args()
 
-weeks = json.load(open(WEEKS))
+weeks = json.load(open(WEEKS, encoding="utf8"))
 if a.base:
-    m = re.search(r'<script type="application/json" id="weeks-data">(.*?)</script>', open(a.base).read(), re.S)
+    m = re.search(r'<script type="application/json" id="weeks-data">(.*?)</script>', open(a.base, encoding="utf8").read(), re.S)
     if not m:
         raise SystemExit(f"{a.base}: no weeks-data block")
     weeks = json.loads(m.group(1))
 if a.add:
-    new = json.load(open(a.add))
+    new = json.load(open(a.add, encoding="utf8"))
     missing = [k for k in KEYS if k not in new]
     if missing:
         raise SystemExit(f"week is missing {missing}")
@@ -35,12 +35,12 @@ if a.add:
     weeks.append({k: new[k] for k in KEYS})
     weeks.sort(key=lambda w: w["weekStart"])
 if a.add or a.base:
-    with open(WEEKS, "w") as f:
+    with open(WEEKS, "w", encoding="utf8") as f:
         json.dump(weeks, f, indent=1, ensure_ascii=False)
         f.write("\n")
 
 data = json.dumps(weeks, ensure_ascii=False).replace("</", "<\\/")
-html = open(TEMPLATE).read().replace("__WEEKS_JSON__", data)
-with open(a.out, "w") as f:
+html = open(TEMPLATE, encoding="utf8").read().replace("__WEEKS_JSON__", data)
+with open(a.out, "w", encoding="utf8") as f:
     f.write(html)
 print(f"{len(weeks)} weeks -> {a.out}")

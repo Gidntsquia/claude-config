@@ -16,7 +16,7 @@ ap.add_argument("--wrote-projects", default="", help="comma-separated project na
 ap.add_argument("--wrote-fixed", default="", help="comma-separated ids of the Things-fixed entries this run wrote")
 a = ap.parse_args()
 
-pool = json.load(open(a.pool))
+pool = json.load(open(a.pool, encoding="utf8"))
 auth = pool.setdefault("authored", {"projects": {}, "fixed": {}})
 auth.setdefault("projects", {}); auth.setdefault("fixed", {})
 if a.hostname:
@@ -26,7 +26,7 @@ if a.hostname:
         auth["fixed"][i.strip()] = a.hostname
 data = json.dumps(pool, separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
 block = f'<script type="application/json" id="roundup-data">{data}</script>'
-html = open(a.html).read()
+html = open(a.html, encoding="utf8").read()
 pat = re.compile(r'<script type="application/json" id="roundup-data">.*?</script>', re.S)
 if pat.search(html):
     html = pat.sub(lambda _: block, html)
@@ -34,5 +34,5 @@ elif "</body>" in html:
     html = html.replace("</body>", block + "\n</body>", 1)
 else:
     html += "\n" + block + "\n"
-open(a.html, "w").write(html)
+open(a.html, "w", encoding="utf8").write(html)
 print(f"embedded {len(data) // 1024} KB of pool data -> {a.html}")

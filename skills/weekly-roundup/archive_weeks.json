@@ -352,83 +352,98 @@
   "weekStart": "2026-10-04",
   "label": "Oct 4–11, 2026",
   "url": "https://claude.ai/artifact/9syKSHEvUk6m9gVMoHhFhz",
-  "projectCount": 14,
-  "totalCost": 687.37,
+  "projectCount": 15,
+  "totalCost": 697.63,
   "slices": [
    {
-    "name": "Deadlock Street Brawl Helper",
-    "pct": 23.73,
+    "name": "Deadlock Street Brawl Helper · Jaxon",
+    "pct": 23.38,
     "color": "#e5484d"
    },
    {
-    "name": "Worker Building",
-    "pct": 13.09,
-    "color": "#2f80ed"
+    "name": "Worker Building · Jaxon",
+    "pct": 12.9,
+    "color": "#f0761f"
    },
    {
-    "name": "Helper Agent",
-    "pct": 11.43,
-    "color": "#e8710a"
+    "name": "Helper Agent · Jaxon",
+    "pct": 11.26,
+    "color": "#e3a008"
    },
    {
-    "name": "Evaluator Building",
-    "pct": 8.11,
-    "color": "#7c5cff"
+    "name": "Evaluator Building · Jaxon",
+    "pct": 7.99,
+    "color": "#c63d8a"
    },
    {
-    "name": "Pokémon Go GBL Team Generator",
-    "pct": 6.62,
-    "color": "#2e9e6b"
+    "name": "Pokémon Go GBL Team Generator · Jaxon",
+    "pct": 6.52,
+    "color": "#b25a2a"
    },
    {
-    "name": "terminal-pet",
-    "pct": 6.51,
-    "color": "#c2185b"
+    "name": "terminal-pet · Jaxon",
+    "pct": 6.42,
+    "color": "#d4b000"
    },
    {
-    "name": "Deadlock Optimal Build Finder",
-    "pct": 4.97,
-    "color": "#2bb4c9"
-   },
-   {
-    "name": "Open Picture Editor",
+    "name": "Deadlock Optimal Build Finder · Jaxon",
     "pct": 4.9,
-    "color": "#b8860b"
-   },
-   {
-    "name": "claude-config",
-    "pct": 3.89,
-    "color": "#a13e85"
-   },
-   {
-    "name": "Open Video Editor",
-    "pct": 3.81,
-    "color": "#43a047"
-   },
-   {
-    "name": "LLC Advisor",
-    "pct": 0.97,
-    "color": "#ff8a65"
-   },
-   {
-    "name": "Agent Eval Experiment",
-    "pct": 0.46,
-    "color": "#6d4c41"
-   },
-   {
-    "name": "Slideshow Maker",
-    "pct": 0.39,
     "color": "#e5484d"
    },
    {
-    "name": "Planner Building",
-    "pct": 0.27,
-    "color": "#2f80ed"
+    "name": "Open Picture Editor · Jaxon",
+    "pct": 4.82,
+    "color": "#f0761f"
    },
    {
-    "name": "Misc",
-    "pct": 8.87,
-    "color": "#9aa3ad"
+    "name": "claude-config · Jaxon",
+    "pct": 3.83,
+    "color": "#e3a008"
+   },
+   {
+    "name": "Open Video Editor · Jaxon",
+    "pct": 3.75,
+    "color": "#c63d8a"
+   },
+   {
+    "name": "LLC Advisor · Jaxon",
+    "pct": 0.95,
+    "color": "#d4b000"
+   },
+   {
+    "name": "Agent Eval Experiment · Jaxon",
+    "pct": 0.45,
+    "color": "#e5484d"
+   },
+   {
+    "name": "Slideshow Maker · Jaxon",
+    "pct": 0.38,
+    "color": "#f0761f"
+   },
+   {
+    "name": "Planner Building · Jaxon",
+    "pct": 0.26,
+    "color": "#e3a008"
+   },
+   {
+    "name": "Misc · Jaxon",
+    "pct": 8.74,
+    "color": "#b9a295"
+   },
+   {
+    "name": "GCC-Wireless · Jet",
+    "pct": 1.13,
+    "color": "#1b5fa8"
+   },
+   {
+    "name": "claude-config · Jet",
+    "pct": 0.19,
+    "color": "#3fb950"
+   },
+   {
+    "name": "Misc · Jet",
+    "pct": 0.13,
+    "color": "#94a3b8"
    },
    {
     "name": "Unused",
