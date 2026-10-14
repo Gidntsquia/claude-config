@@ -298,15 +298,17 @@ The base CSS is a single narrow column (`body` max-width 760px); nothing below a
   present, stays a plain `<div class="section">` in between, its list in 2 columns.
 - Body max-width 1680px, padding `36px 48px 72px`. Projects: two equal columns, 64px gap; left is
   the numbered list, right is the project pie then "Usage by model" and its pie, then "Usage by
-  day" (`.barchart-wrap`, grid row 6, under the second `.piechart-wrap`); total cost spans
-  both underneath. Deep dives: cards in 2 columns from 1000px, 3 from 1500px, 32px gap; card
+  day" (`.barchart-wrap`) goes in whichever column leaves the two closest in height (the
+  `projects-layout-js` script below measures and moves it: usually the left column, under the
+  numbered list, since the pies' legends make the right column longer; grid row 6 of the right
+  column is only the no-script fallback); total cost spans both underneath. Deep dives: cards in 2 columns from 1000px, 3 from 1500px, 32px gap; card
   images cropped to a 21:8 banner, body padding `22px 26px 24px`.
 - The script below puts each card, in order, into the currently shortest column so columns end at
   similar heights. It wraps the cards in `div.mgrid` > `div.mcol` at run time; do not write those
   in the HTML. It re-flows on resize and font load, not on drawer open. Without it the CSS still
   works as a plain equal-height grid.
 - Paste the CSS and script verbatim, unchanged: CSS in `<style id="desktop-layout">` after the
-  base styles, script in `<script id="desktop-layout-js">` at the end of `<body>`. Mobile styles
+  base styles, script in `<script id="desktop-layout-js">` at the end of `<body>`, then the second script below in `<script id="projects-layout-js">` (it wraps the list, pies and chart in `div.pgrid` > `div.pcol` at run time; do not write those in the HTML). Mobile styles
   stay outside the media query and are never changed.
 
 ```css
@@ -327,6 +329,10 @@ header{margin-bottom:34px}
 .dives>.card{margin-bottom:0;display:flex;flex-direction:column}
 .dives>.card>.card-body{flex:1;display:flex;flex-direction:column}
 .dives>.card>.card-body>table.tokbreak{margin-top:auto}
+.projects.pg{display:block}
+.pgrid{display:flex;gap:64px;align-items:flex-start}
+.pcol{flex:1 1 0;min-width:0}
+.projects.pg>.total-cost{margin-top:26px}
 .mgrid{grid-column:1/-1;display:flex;gap:32px;align-items:flex-start}
 .mcol{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:32px}
 .mcol>.card{margin-bottom:0}
@@ -344,6 +350,15 @@ g=document.createElement('div');g.className='mgrid';var cols=[];
 for(var i=0;i<n;i++){var d=document.createElement('div');d.className='mcol';g.appendChild(d);cols.push(d)}
 s.appendChild(g);
 cards.forEach(function(c){var m=cols[0];cols.forEach(function(k){if(k.offsetHeight<m.offsetHeight)m=k});m.appendChild(c)})}
+var t;addEventListener('resize',function(){clearTimeout(t);t=setTimeout(lay,60)});
+addEventListener('load',lay);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(lay);lay()})();
+```
+
+```js
+(function(){var s=document.querySelector('.projects');if(!s)return;var ul=s.querySelector('ul.plain'),ch=s.querySelector('.barchart-wrap'),tc=s.querySelector('.total-cost');if(!ul||!ch||!tc)return;var mid=[].slice.call(s.children).filter(function(c){return c!==ul&&c!==ch&&/piechart-wrap|sub/.test(c.className)});var g=null;
+function undo(){if(!g)return;s.insertBefore(ul,tc);mid.forEach(function(c){s.insertBefore(c,tc)});s.insertBefore(ch,tc);g.remove();g=null;s.classList.remove('pg')}
+function lay(){undo();if(innerWidth<1000)return;s.classList.add('pg');g=document.createElement('div');g.className='pgrid';var L=document.createElement('div'),R=document.createElement('div');L.className=R.className='pcol';g.appendChild(L);g.appendChild(R);s.insertBefore(g,tc);L.appendChild(ul);mid.forEach(function(c){R.appendChild(c)});
+R.appendChild(ch);var a=Math.abs(L.offsetHeight-R.offsetHeight);L.appendChild(ch);var b=Math.abs(L.offsetHeight-R.offsetHeight);if(a<b)R.appendChild(ch)}
 var t;addEventListener('resize',function(){clearTimeout(t);t=setTimeout(lay,60)});
 addEventListener('load',lay);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(lay);lay()})();
 ```
@@ -438,7 +453,7 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
   `desktop-layout` style and `desktop-layout-js` script verbatim. Only classes beyond the base
   ones: `projects`, `dives`, `sources`, `who`, `people`, the `daychart.py` classes
   (`barchart-wrap`, `bc`, `bc-y`, `bc-plot`, `bc-grid`, `bc-col`, `bc-bar`, `bc-seg`, `bc-x`,
-  `bc-cap`), and script-created `mgrid`, `mcol`.
+  `bc-cap`), and script-created `mgrid`, `mcol`, `pgrid`, `pcol`, `pg`.
 - The collapsed "Data sources" drawer is present, lists every entry of `devices` with its
   person, and shows the cap % used.
 - Rendered check (headless browser if available): at 1440px and 1920px content spans at least 80%
