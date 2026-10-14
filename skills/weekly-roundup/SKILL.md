@@ -217,6 +217,20 @@ replaces the `roundup-data` block; rerun it after any later edit that rewrites t
      next person's; label and color as given), and a final "Unused" slice
      colored `var(--muted)`, computed against the actual weekly cap usage (see Token breakdown),
      not just 100%. Under its legend, the "Usage by person" row (see above).
+     Double-tapping (or double-clicking) a projects-pie slice or its legend label scrolls to that
+     project's deep-dive card; a single tap still only selects it. Paste this script verbatim in
+     `<script id="pie-jump-js">` right before `desktop-layout-js`. It matches the slice/legend
+     `data-name` (minus a trailing " · <person>") to a list row's pill text and jumps to the pill's
+     `#slug` card, so Misc, Unused and the model pie do nothing:
+     ```js
+(function(){var map={};document.querySelectorAll('.proj-btn[href^="#"]').forEach(function(a){map[a.textContent.trim()]=a.getAttribute('href').slice(1)});
+function card(n){if(!n)return null;var i=n.lastIndexOf(' · '),id=map[n]||(i>0?map[n.slice(0,i)]:null);return id?document.getElementById(id):null}
+var last=null,at=0;
+document.querySelectorAll('svg.pie,.piechart-legend').forEach(function(el){el.style.touchAction='manipulation'});
+document.querySelectorAll('svg.pie .pie-slice[data-name],.piechart-legend li[data-name]').forEach(function(el){el.addEventListener('click',function(){
+var n=el.dataset.name,t=Date.now(),c=card(n);if(!c)return;
+if(last===n&&t-at<450){last=null;c.scrollIntoView({behavior:'smooth',block:'start'})}else{last=n;at=t}})})})();
+     ```
      Below it, a second pie (same style) titled "Usage by model": one slice per entry of
      `model_effort_breakdown` (all projects + Misc; one entry per model family x effort), sized by
      `usage_pct` (FE-token weighted). Slices sum to 100% of used tokens; no "Unused" slice. Color
@@ -411,6 +425,8 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
   estimated on the page.
 - "Usage by model" pie sits above the total cost, which is last in the projects section; it is
   split by effort, uses the script's `color` values, sums to 100%, has no Unused slice.
+- `pie-jump-js` is present verbatim: double-tapping a project slice or legend label lands on its
+  deep-dive card.
 - "Usage by day" (`daychart.py` output, unedited) sits between the "Usage by model" pie and the
   total cost: 7 labeled columns, 5% gridlines, segment colors equal to the pie's, the caption.
 - Each card with `features` has the collapsed drawer (name + weekly % + by-model pie per
