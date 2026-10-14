@@ -26,6 +26,9 @@ claude --agent worker      # Builds what PLAN.md specifies
 claude --agent evaluator   # Launches the result, asks you if it works, writes plans/EVAL.md
 ```
 
+Inside a claude session in tmux, `/run-agent <agent> ["prompt"]` swaps that session for the chosen agent in the same pane
+(e.g. `/run-agent worker` after the planner finishes). It always shows the command and asks before replacing anything.
+
 ## Features 🔬
 
 - The planner asks a few questions and writes a spec with the requirements and acceptance criteria. It doesn't decide how to build anything.

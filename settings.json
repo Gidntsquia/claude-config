@@ -20,6 +20,7 @@
     "anthropic-skills:skill-creator": "user-invocable-only",
     "anthropic-skills:setup-writing-style": "user-invocable-only",
     "review-skill": "user-invocable-only",
+    "run-agent": "user-invocable-only",
     "anthropic-skills:morning": "off",
     "anthropic-skills:google-workspace": "off",
     "anthropic-skills:docx": "name-only",
