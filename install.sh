@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 # Symlink this repo's files into ~/.claude. Existing real files are moved to <name>.pre-link.
 set -euo pipefail
+# --theme plane: make the status line use the plane mascot (adds an export to your shell profile).
+THEME=""
+usage() { echo "usage: ./install.sh [--theme squid|plane]" >&2; exit 1; }
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --theme)   [ $# -ge 2 ] || usage; THEME="$2"; shift 2 ;;
+    --theme=*) THEME="${1#--theme=}"; shift ;;
+    *)         usage ;;
+  esac
+done
+case "$THEME" in ""|squid|plane) ;; *) usage ;; esac
 R="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 C="$HOME/.claude"
 mkdir -p "$C/skills"
@@ -12,6 +23,13 @@ link() {
 for i in agents CLAUDE.md settings.json statusline.sh; do link "$R/$i" "$C/$i"; done
 for s in "$R"/skills/*/; do s="${s%/}"; link "$s" "$C/skills/$(basename "$s")"; done
 echo "linked into $C"
+
+# Status line theme: squid is the default, so only plane needs a line in the shell profile.
+if [ "$THEME" = plane ]; then
+  if [ "$(uname)" = "Darwin" ]; then P="$HOME/.zshrc"; else P="$HOME/.bashrc"; fi
+  grep -qx 'export CLAUDE_STATUSLINE_THEME=plane' "$P" 2>/dev/null || echo 'export CLAUDE_STATUSLINE_THEME=plane' >> "$P"
+  echo "status line theme: plane (open a new terminal, or run: export CLAUDE_STATUSLINE_THEME=plane)"
+fi
 
 # iTerm2 (macOS only): read/write settings from iterm2/ in this repo, and link dynamic profiles.
 if [ "$(uname)" = "Darwin" ]; then

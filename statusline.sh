@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Claude Code statusline, gruvbox-dark themed to match ~/.config/starship.toml
-input=$(cat)
 
 ORANGE='48;2;214;93;14'
 YELLOW='48;2;215;153;33'
@@ -52,6 +51,355 @@ effort_icon() {
   esac
 }
 
+# easter eggs: one stable roll per session, weighted so ~93% of sessions
+# see nothing. roll is derived from session_id so it doesn't flicker
+# between prompts within the same session.
+
+# bumps a per-session, per-story counter file and echoes the new count
+saga_tick() {
+  f="${TMPDIR:-/tmp}/claude-statusline-$1-${session_id:-$$}.count"
+  n=0
+  [ -f "$f" ] && n=$(cat "$f" 2>/dev/null)
+  n=$((n + 1))
+  printf '%s' "$n" > "$f" 2>/dev/null
+  echo "$n"
+}
+
+# Roll bands shared by every theme: band i covers rolls below BAND_HI[i]
+# (and at or above BAND_HI[i-1]). Each theme fills the same band with its
+# own egg, so the odds and story lengths are the same whichever theme is on.
+BAND_HI=(2 15 30 55 85 110 135 160 185 215 245 275 355 455 575 725 755 785 815 845 880 915 945 1245 10000)
+# per-band name and counter file (empty = no story) for each theme
+SQUID_NAME=(golden dragon narwhal egg-hatch tortoise-hare seed-tree caterpillar ghost shark turtle-friend rabbit-friend twin crab bubbles octopus alligator humpty red-riding-hood bank-heist three-pigs pokemon-battle beanstalk cooking-meat food-snack plain)
+SQUID_CTR=("" "" "" hatch race tree butterfly "" "" "" "" "" "" "" "" "" humpty redhood heist pigs pokebattle beanstalk cookmeat food "")
+PLANE_NAME=(golden rocket unicorn-jet factory runway-race delay-board baggage-claim ghost-flight bird-strike bird-wingman airport-cat formation helicopter clouds prop-plane balloon humpty red-riding-hood flight three-pigs wright-brothers beanstalk apollo in-flight-meal plain)
+PLANE_CTR=("" "" "" plane-factory plane-race plane-board plane-baggage "" "" "" "" "" "" "" "" "" plane-humpty plane-redhood plane-flight plane-pigs plane-wright plane-beanstalk plane-apollo plane-meal "")
+
+# fairy tales told the same way in every theme ($1 band, $2 roll, $3 tick)
+pick_tale() {
+  case "$1" in
+    16)
+      # Humpty Dumpty
+      case "$3" in
+        1)       mascot="🥚🧱" ;;             # sitting on the wall
+        2)       mascot="🥚💥🧱" ;;           # the great fall
+        *)
+          if [ $(($2 % 2)) -eq 0 ]; then
+            mascot="🍳"        # couldn't be put together again
+          else
+            mascot="🥚✨"      # all the king's horses pulled it off
+          fi
+          ;;
+      esac ;;
+    17)
+      # Little Red Riding Hood
+      case "$3" in
+        1)       mascot="🧒🔴🌲" ;;           # walking through the woods
+        2)       mascot="🐺👀" ;;             # the wolf appears
+        *)
+          if [ $(($2 % 2)) -eq 0 ]; then
+            mascot="🪓🐺"      # the woodsman saves the day
+          else
+            mascot="😈🐺"      # the wolf wins
+          fi
+          ;;
+      esac ;;
+    19)
+      # the three little pigs
+      case "$3" in
+        1)       mascot="🐷🏠" ;;             # the straw house
+        2)       mascot="🐺💨🏠" ;;           # the wolf huffs and puffs
+        *)
+          if [ $(($2 % 2)) -eq 0 ]; then
+            mascot="🐺🍲" # the wolf ends up in the pot
+          else
+            mascot="🐷😱🐺" # the house comes down
+          fi
+          ;;
+      esac ;;
+    21)
+      # Jack and the beanstalk
+      case "$3" in
+        1)       mascot="🫘🌱" ;;             # plants the bean
+        2)       mascot="🌱🌿🌳" ;;           # it grows overnight
+        3)       mascot="🧍🪜🌳" ;;           # Jack climbs up
+        *)
+          if [ $(($2 % 2)) -eq 0 ]; then
+            mascot="🧍💰🪓🌳" # escapes with treasure, chops it down
+          else
+            mascot="🗿🌳" # the giant catches him
+          fi
+          ;;
+      esac ;;
+  esac
+}
+
+# squid theme (the default): sets mascot for band $1, roll $2, story tick $3
+pick_squid() {
+  local roll="$2" n="$3" food done_at dots
+  case "$1" in
+    0)  mascot="✨🦑✨" ;;    # golden squid, the rarest of all (0.02%)
+    1)  mascot="🐉" ;;       # legendary: dragon squid (0.13%)
+    2)  mascot="🦑🦄" ;;      # narwhal squid (0.15%)
+    3)
+      # the egg hatches after enough prompts in the same session
+      if [ "$n" -ge 6 ]; then
+        mascot="🦑🦑🦑"      # the egg hatched: squid triple
+      else
+        mascot="🦑🥚🦑"      # squid pair minding an egg (0.25%)
+      fi ;;
+    4)
+      # tortoise and hare: hare sprints out, stalls, tortoise grinds it out
+      case "$n" in
+        1)       mascot="🐇╌╌╌╌╌🐢╌╌🏁" ;;  # hare bolts to an early lead
+        2)       mascot="🐇╌╌╌╌🐢╌╌╌🏁" ;;
+        3)       mascot="🐇╌╌╌🐢╌╌╌╌🏁" ;;
+        4)       mascot="🐇╌╌🐢╌╌╌╌╌🏁" ;;
+        5)       mascot="🐇╌🐢╌╌╌╌╌╌🏁" ;;
+        6)       mascot="🐇🐢╌╌╌╌╌╌╌🏁" ;;  # tortoise finally catches up
+        7)       mascot="🐢🐇╌╌╌╌╌╌╌🏁" ;;  # and passes
+        *)       mascot="🏆🐢╌╌╌╌╌╌😴🐇" ;; # tortoise wins, hare's still napping (0.3%)
+      esac ;;
+    5)
+      # a seed slowly grows into a fruit-bearing tree
+      case "$n" in
+        1)       mascot="🌱" ;;
+        2)       mascot="🌿" ;;
+        3)       mascot="🌳" ;;
+        *)       mascot="🌳🍎" ;;            # bears fruit (0.25%)
+      esac ;;
+    6)
+      # a caterpillar becomes a butterfly
+      case "$n" in
+        1)       mascot="🐛" ;;
+        2)       mascot="🐛💤" ;;
+        3)       mascot="🟤" ;;
+        *)       mascot="🦋" ;;              # emerges (0.25%)
+      esac ;;
+    7)  mascot="👻🦑" ;;      # ghost squid (0.25%)
+    8)  mascot="🦈🦑" ;;      # shark on the chase (0.25%)
+    9)  mascot="🦑🐢" ;;      # squid + turtle friend (0.3%)
+    10) mascot="🦑🐇" ;;      # squid + rabbit friend (0.3%)
+    11) mascot="🦑🦑" ;;      # squid found its twin (0.3%)
+    12) mascot="🦀" ;;       # crabby impostor (0.8%)
+    13) mascot="🫧" ;;       # just bubbles, squid's hiding (1%)
+    14) mascot="🐙" ;;       # octopus impostor (1.2%)
+    15) mascot="🐊" ;;       # alligator swapped in (1.5%)
+    18)
+      # squid robs a bank
+      case "$n" in
+        1)       mascot="🦑🎭" ;;             # dons a mask
+        2)       mascot="🦑💰🏦" ;;           # inside the vault
+        *)
+          if [ $((roll % 2)) -eq 0 ]; then
+            mascot="🚔🦑" # caught red-handed
+          else
+            mascot="🦑💰🏝️" # gets away with it
+          fi ;;
+      esac ;;
+    20)
+      # pokemon battle, squid included
+      case "$n" in
+        1)       mascot="🦑⚡" ;;             # battle starts
+        2)       mascot="🦑💥" ;;             # attacks clash
+        *)
+          if [ $((roll % 2)) -eq 0 ]; then
+            mascot="🦑🏆" # squid wins
+          else
+            mascot="🦑😵" # squid faints
+          fi ;;
+      esac ;;
+    22)
+      # cooking meat
+      case "$n" in
+        1)       mascot="🥩" ;;               # raw
+        2)       mascot="🥩🔥" ;;             # on the fire
+        3)       mascot="🥩💨" ;;             # cooking through
+        *)
+          if [ $((roll % 2)) -eq 0 ]; then
+            mascot="🍖✅" # cooked to perfection
+          else
+            mascot="🔥🍖⚫" # burnt to a crisp
+          fi ;;
+      esac ;;
+    23)
+      # common class: squid slowly eats a parcel of food, snack size varies the wait
+      case $((roll % 4)) in
+        0) food="🍎"; done_at=3 ;;   # apple: quick snack
+        1) food="🍕"; done_at=5 ;;   # pizza: medium
+        2) food="🍰"; done_at=5 ;;   # cake: medium
+        *) food="🍗"; done_at=7 ;;   # turkey leg: slow feast
+      esac
+      if [ "$n" -gt "$done_at" ]; then
+        mascot="🦑"                  # back to normal, fully digested
+      elif [ "$n" -eq "$done_at" ]; then
+        mascot="🦑😌"                # finished eating
+      else
+        dots=$(printf '.%.0s' $(seq 1 "$n"))
+        mascot="🦑${food}${dots}"    # nibbling away
+      fi ;;
+    16|17|19|21) pick_tale "$1" "$roll" "$n" ;;
+    *)  mascot="🦑" ;;
+  esac
+}
+
+# plane theme (CLAUDE_STATUSLINE_THEME=plane): same bands, aviation eggs
+pick_plane() {
+  local roll="$2" n="$3" food done_at dots
+  case "$1" in
+    0)  mascot="✨✈️✨" ;;    # golden plane, the rarest of all (0.02%)
+    1)  mascot="🚀" ;;       # legendary: a rocket (0.13%)
+    2)  mascot="✈️🦄" ;;      # unicorn jet (0.15%)
+    3)
+      # a new plane rolls out of the factory after enough prompts
+      if [ "$n" -ge 6 ]; then
+        mascot="✈️✈️✈️"      # rolled out: a new plane joins the pair
+      else
+        mascot="✈️🏭✈️"      # two planes waiting by the factory (0.25%)
+      fi ;;
+    4)
+      # runway race: the fast prop plane sprints out, stalls, the airliner grinds it out
+      case "$n" in
+        1)       mascot="🛩️╌╌╌╌╌✈️╌╌🏁" ;;  # prop plane bolts to an early lead
+        2)       mascot="🛩️╌╌╌╌✈️╌╌╌🏁" ;;
+        3)       mascot="🛩️╌╌╌✈️╌╌╌╌🏁" ;;
+        4)       mascot="🛩️╌╌✈️╌╌╌╌╌🏁" ;;
+        5)       mascot="🛩️╌✈️╌╌╌╌╌╌🏁" ;;
+        6)       mascot="🛩️✈️╌╌╌╌╌╌╌🏁" ;;  # airliner finally catches up
+        7)       mascot="✈️🛩️╌╌╌╌╌╌╌🏁" ;;  # and passes
+        *)       mascot="🏆✈️╌╌╌╌╌╌😴🛩️" ;; # airliner wins, prop plane's pilot is napping (0.3%)
+      esac ;;
+    5)
+      # the departures board: delayed, delayed again, finally boarding
+      case "$n" in
+        1)       mascot="✈️🕐" ;;
+        2)       mascot="✈️🕑⏳" ;;
+        3)       mascot="✈️🕒⏳⏳" ;;
+        *)       mascot="🛫✅" ;;            # boarding at last (0.25%)
+      esac ;;
+    6)
+      # baggage claim: the carousel goes round until your bag shows up
+      case "$n" in
+        1)       mascot="🛄" ;;
+        2)       mascot="🛄💼" ;;
+        3)       mascot="🛄💼🎒" ;;
+        *)       mascot="🧳✅" ;;            # there it is (0.25%)
+      esac ;;
+    7)  mascot="👻✈️" ;;      # ghost flight (0.25%)
+    8)  mascot="🐦✈️" ;;      # bird strike incoming (0.25%)
+    9)  mascot="✈️🐦" ;;      # plane + bird wingman (0.3%)
+    10) mascot="✈️🐈" ;;      # plane + airport cat (0.3%)
+    11) mascot="✈️✈️" ;;      # flying in formation (0.3%)
+    12) mascot="🚁" ;;       # helicopter impostor (0.8%)
+    13) mascot="☁️" ;;       # just clouds, plane's lost in them (1%)
+    14) mascot="🛩️" ;;       # prop plane impostor (1.2%)
+    15) mascot="🎈" ;;       # a balloon drifted in (1.5%)
+    18)
+      # a flight: takeoff, cruise, then landed or diverted
+      case "$n" in
+        1)       mascot="🛫" ;;               # takeoff
+        2)       mascot="✈️☁️" ;;             # cruising
+        *)
+          if [ $((roll % 2)) -eq 0 ]; then
+            mascot="🛬✅" # landed on time
+          else
+            mascot="✈️🌩️" # storm ahead, diverted
+          fi ;;
+      esac ;;
+    20)
+      # the Wright Brothers at Kitty Hawk
+      case "$n" in
+        1)       mascot="🏖️🔧" ;;             # building the flyer on the dunes
+        2)       mascot="🏖️🛩️💨" ;;           # off the rail
+        *)
+          if [ $((roll % 2)) -eq 0 ]; then
+            mascot="🛩️🏆" # first powered flight
+          else
+            mascot="🛩️💥" # nose-dives into the sand, try again tomorrow
+          fi ;;
+      esac ;;
+    22)
+      # Apollo launch
+      case "$n" in
+        1)       mascot="🚀🔟" ;;             # countdown
+        2)       mascot="🚀🔥" ;;             # ignition
+        3)       mascot="🚀💨" ;;             # liftoff
+        *)
+          if [ $((roll % 2)) -eq 0 ]; then
+            mascot="🚀🌕" # on to the moon
+          else
+            mascot="🚀⚠️🌍" # Houston, we have a problem: back home
+          fi ;;
+      esac ;;
+    23)
+      # common class: the in-flight meal, snack size varies the wait
+      case $((roll % 4)) in
+        0) food="🥜"; done_at=3 ;;   # peanuts: quick snack
+        1) food="🥨"; done_at=5 ;;   # pretzels: medium
+        2) food="🥪"; done_at=5 ;;   # sandwich: medium
+        *) food="🍱"; done_at=7 ;;   # tray meal: slow feast
+      esac
+      if [ "$n" -gt "$done_at" ]; then
+        mascot="✈️"                  # back to normal, tray table up
+      elif [ "$n" -eq "$done_at" ]; then
+        mascot="✈️😌"                # finished eating
+      else
+        dots=$(printf '.%.0s' $(seq 1 "$n"))
+        mascot="✈️${food}${dots}"    # nibbling away
+      fi ;;
+    16|17|19|21) pick_tale "$1" "$roll" "$n" ;;
+    *)  mascot="✈️" ;;
+  esac
+}
+
+# index into BAND_HI for roll $1
+band_of() {
+  local i=0
+  while [ "$1" -ge "${BAND_HI[$i]}" ]; do i=$((i + 1)); done
+  echo "$i"
+}
+
+# --preview [squid|plane]: list every egg of a theme, one line each, then exit.
+# Calls the same pick_* code the bar uses, but never touches a counter file.
+preview() {
+  local t i lo hi r n ctr name steps s seen
+  for t in "$@"; do
+    lo=0
+    for i in "${!BAND_HI[@]}"; do
+      hi=${BAND_HI[$i]}
+      if [ "$t" = plane ]; then name=${PLANE_NAME[$i]}; ctr=${PLANE_CTR[$i]}
+      else name=${SQUID_NAME[$i]}; ctr=${SQUID_CTR[$i]}; fi
+      steps=(); seen="|"
+      # rolls lo..lo+3 cover both roll%2 endings and all four roll%4 snacks
+      for r in $(seq "$lo" $((lo + 3 < hi - 1 ? lo + 3 : hi - 1))); do
+        for n in 1 2 3 4 5 6 7 8 9; do
+          "pick_$t" "$i" "$r" "$n"
+          case "$seen" in *"|$mascot|"*) ;; *) steps+=("$mascot"); seen+="$mascot|" ;; esac
+          [ -z "$ctr" ] && break
+        done
+      done
+      s=$(printf ' | %s' "${steps[@]}")
+      printf '%s %s-%s %s %s: %s\n' "$t" "$lo" "$hi" "$name" "${ctr:--}" "${s:3}"
+      lo=$hi
+    done
+  done
+}
+
+theme=$(printf '%s' "${CLAUDE_STATUSLINE_THEME:-}" | tr '[:upper:]' '[:lower:]')
+[ "$theme" = plane ] || theme=squid
+
+if [ "${1:-}" = "--preview" ]; then
+  case "$(printf '%s' "${2:-}" | tr '[:upper:]' '[:lower:]')" in
+    "")    preview squid plane ;;
+    squid) preview squid ;;
+    plane) preview plane ;;
+    *)     echo "usage: statusline.sh --preview [squid|plane]" >&2; exit 1 ;;
+  esac
+  exit 0
+fi
+
+input=$(cat)
+
 if [ "${CLAUDE_STATUSLINE_NF:-0}" = "1" ]; then
   SEP=""
 else
@@ -80,193 +428,14 @@ fi
 short_cwd=$(basename "${project_dir:-$cwd}")
 [ -z "$short_cwd" ] && short_cwd="/"
 
-# easter eggs: one stable roll per session, weighted so ~93% of sessions
-# see nothing. roll is derived from session_id so it doesn't flicker
-# between prompts within the same session.
-
-# bumps a per-session, per-story counter file and echoes the new count
-saga_tick() {
-  f="${TMPDIR:-/tmp}/claude-statusline-$1-${session_id:-$$}.count"
-  n=0
-  [ -f "$f" ] && n=$(cat "$f" 2>/dev/null)
-  n=$((n + 1))
-  printf '%s' "$n" > "$f" 2>/dev/null
-  echo "$n"
-}
-
-squid="🦑"
+# the mascot: one stable roll per session picks a band, story bands tick a counter
 seed="${session_id:-$$-$cwd}"
 roll=$(printf '%s' "$seed" | cksum | awk '{print $1 % 10000}')
-if   [ "$roll" -lt 2 ];    then squid="✨🦑✨"     # golden squid, the rarest of all (0.02%)
-elif [ "$roll" -lt 15 ];   then squid="🐉"        # legendary: dragon squid (0.13%)
-elif [ "$roll" -lt 30 ];   then squid="🦑🦄"       # narwhal squid (0.15%)
-elif [ "$roll" -lt 55 ];   then
-  # the egg hatches after enough prompts in the same session
-  n=$(saga_tick hatch)
-  if [ "$n" -ge 6 ]; then
-    squid="🦑🦑🦑"      # the egg hatched: squid triple
-  else
-    squid="🦑🥚🦑"      # squid pair minding an egg (0.25%)
-  fi
-elif [ "$roll" -lt 85 ];   then
-  # tortoise and hare: hare sprints out, stalls, tortoise grinds it out
-  n=$(saga_tick race)
-  case "$n" in
-    1)       squid="🐇╌╌╌╌╌🐢╌╌🏁" ;;  # hare bolts to an early lead
-    2)       squid="🐇╌╌╌╌🐢╌╌╌🏁" ;;
-    3)       squid="🐇╌╌╌🐢╌╌╌╌🏁" ;;
-    4)       squid="🐇╌╌🐢╌╌╌╌╌🏁" ;;
-    5)       squid="🐇╌🐢╌╌╌╌╌╌🏁" ;;
-    6)       squid="🐇🐢╌╌╌╌╌╌╌🏁" ;;  # tortoise finally catches up
-    7)       squid="🐢🐇╌╌╌╌╌╌╌🏁" ;;  # and passes
-    *)       squid="🏆🐢╌╌╌╌╌╌😴🐇" ;; # tortoise wins, hare's still napping (0.3%)
-  esac
-elif [ "$roll" -lt 110 ];  then
-  # a seed slowly grows into a fruit-bearing tree
-  n=$(saga_tick tree)
-  case "$n" in
-    1)       squid="🌱" ;;
-    2)       squid="🌿" ;;
-    3)       squid="🌳" ;;
-    *)       squid="🌳🍎" ;;            # bears fruit (0.25%)
-  esac
-elif [ "$roll" -lt 135 ];  then
-  # a caterpillar becomes a butterfly
-  n=$(saga_tick butterfly)
-  case "$n" in
-    1)       squid="🐛" ;;
-    2)       squid="🐛💤" ;;
-    3)       squid="🟤" ;;
-    *)       squid="🦋" ;;              # emerges (0.25%)
-  esac
-elif [ "$roll" -lt 160 ];  then squid="👻🦑"       # ghost squid (0.25%)
-elif [ "$roll" -lt 185 ];  then squid="🦈🦑"       # shark on the chase (0.25%)
-elif [ "$roll" -lt 215 ];  then squid="🦑🐢"       # squid + turtle friend (0.3%)
-elif [ "$roll" -lt 245 ];  then squid="🦑🐇"       # squid + rabbit friend (0.3%)
-elif [ "$roll" -lt 275 ];  then squid="🦑🦑"       # squid found its twin (0.3%)
-elif [ "$roll" -lt 355 ];  then squid="🦀"        # crabby impostor (0.8%)
-elif [ "$roll" -lt 455 ];  then squid="🫧"        # just bubbles, squid's hiding (1%)
-elif [ "$roll" -lt 575 ];  then squid="🐙"        # octopus impostor (1.2%)
-elif [ "$roll" -lt 725 ];  then squid="🐊"        # alligator swapped in (1.5%)
-elif [ "$roll" -lt 755 ];  then
-  # Humpty Dumpty
-  n=$(saga_tick humpty)
-  case "$n" in
-    1)       squid="🥚🧱" ;;             # sitting on the wall
-    2)       squid="🥚💥🧱" ;;           # the great fall
-    *)
-      if [ $((roll % 2)) -eq 0 ]; then
-        squid="🍳"        # couldn't be put together again
-      else
-        squid="🥚✨"      # all the king's horses pulled it off
-      fi
-      ;;
-  esac
-elif [ "$roll" -lt 785 ];  then
-  # Little Red Riding Hood
-  n=$(saga_tick redhood)
-  case "$n" in
-    1)       squid="🧒🔴🌲" ;;           # walking through the woods
-    2)       squid="🐺👀" ;;             # the wolf appears
-    *)
-      if [ $((roll % 2)) -eq 0 ]; then
-        squid="🪓🐺"      # the woodsman saves the day
-      else
-        squid="😈🐺"      # the wolf wins
-      fi
-      ;;
-  esac
-elif [ "$roll" -lt 815 ];  then
-  # squid robs a bank
-  n=$(saga_tick heist)
-  case "$n" in
-    1)       squid="🦑🎭" ;;             # dons a mask
-    2)       squid="🦑💰🏦" ;;           # inside the vault
-    *)
-      if [ $((roll % 2)) -eq 0 ]; then
-        squid="🚔🦑" # caught red-handed
-      else
-        squid="🦑💰🏝️" # gets away with it
-      fi
-      ;;
-  esac
-elif [ "$roll" -lt 845 ];  then
-  # the three little pigs
-  n=$(saga_tick pigs)
-  case "$n" in
-    1)       squid="🐷🏠" ;;             # the straw house
-    2)       squid="🐺💨🏠" ;;           # the wolf huffs and puffs
-    *)
-      if [ $((roll % 2)) -eq 0 ]; then
-        squid="🐺🍲" # the wolf ends up in the pot
-      else
-        squid="🐷😱🐺" # the house comes down
-      fi
-      ;;
-  esac
-elif [ "$roll" -lt 880 ];  then
-  # pokemon battle, squid included
-  n=$(saga_tick pokebattle)
-  case "$n" in
-    1)       squid="🦑⚡" ;;             # battle starts
-    2)       squid="🦑💥" ;;             # attacks clash
-    *)
-      if [ $((roll % 2)) -eq 0 ]; then
-        squid="🦑🏆" # squid wins
-      else
-        squid="🦑😵" # squid faints
-      fi
-      ;;
-  esac
-elif [ "$roll" -lt 915 ];  then
-  # Jack and the beanstalk
-  n=$(saga_tick beanstalk)
-  case "$n" in
-    1)       squid="🫘🌱" ;;             # plants the bean
-    2)       squid="🌱🌿🌳" ;;           # it grows overnight
-    3)       squid="🧍🪜🌳" ;;           # Jack climbs up
-    *)
-      if [ $((roll % 2)) -eq 0 ]; then
-        squid="🧍💰🪓🌳" # escapes with treasure, chops it down
-      else
-        squid="🗿🌳" # the giant catches him
-      fi
-      ;;
-  esac
-elif [ "$roll" -lt 945 ];  then
-  # cooking meat
-  n=$(saga_tick cookmeat)
-  case "$n" in
-    1)       squid="🥩" ;;               # raw
-    2)       squid="🥩🔥" ;;             # on the fire
-    3)       squid="🥩💨" ;;             # cooking through
-    *)
-      if [ $((roll % 2)) -eq 0 ]; then
-        squid="🍖✅" # cooked to perfection
-      else
-        squid="🔥🍖⚫" # burnt to a crisp
-      fi
-      ;;
-  esac
-elif [ "$roll" -lt 1245 ]; then
-  # common class: squid slowly eats a parcel of food, snack size varies the wait
-  foodtype=$((roll % 4))
-  case "$foodtype" in
-    0) food="🍎"; done_at=3 ;;   # apple: quick snack
-    1) food="🍕"; done_at=5 ;;   # pizza: medium
-    2) food="🍰"; done_at=5 ;;   # cake: medium
-    *) food="🍗"; done_at=7 ;;   # turkey leg: slow feast
-  esac
-  n=$(saga_tick food)
-  if [ "$n" -gt "$done_at" ]; then
-    squid="🦑"                  # back to normal, fully digested
-  elif [ "$n" -eq "$done_at" ]; then
-    squid="🦑😌"                # finished eating
-  else
-    dots=$(printf '.%.0s' $(seq 1 "$n"))
-    squid="🦑${food}${dots}"    # nibbling away
-  fi
-fi
+band=$(band_of "$roll")
+if [ "$theme" = plane ]; then ctr=${PLANE_CTR[$band]}; else ctr=${SQUID_CTR[$band]}; fi
+n=0
+[ -n "$ctr" ] && n=$(saga_tick "$ctr")
+"pick_$theme" "$band" "$roll" "$n"
 
 branch=""
 if git -C "$cwd" --no-optional-locks rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -296,7 +465,7 @@ if [ -n "$five_pct" ] && [ "$five_pct" != "null" ] && awk "BEGIN{exit !($five_pc
 fi
 
 # directory (orange)
-out="$(esc "$ORANGE;$FG") $squid $short_cwd $(rst)"
+out="$(esc "$ORANGE;$FG") $mascot $short_cwd $(rst)"
 prev_fg='38;2;214;93;14'
 
 if [ -n "$branch" ]; then

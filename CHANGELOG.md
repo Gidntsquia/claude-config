@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Plane theme for the status line.** Set `CLAUDE_STATUSLINE_THEME=plane` and the squid becomes ✈️, with aviation easter eggs (runway race, delay board, baggage claim, Wright Brothers, Apollo launch, in-flight meal and more) at the same odds and story lengths as the squid ones. Unset, the squid status line is unchanged.
+- `bash statusline.sh --preview [squid|plane]` lists every easter egg of a theme with its roll band and every step.
+- `./install.sh --theme plane` adds `export CLAUDE_STATUSLINE_THEME=plane` to `~/.bashrc` (`~/.zshrc` on macOS) once.
+
 ## v1.1.0 — 2026-10-15
 
 Full release of all four agents, plus new skills and a leaner Claude Code setup. Everything since v1.0.0 (2026-10-09) is here, including the Windows fixes from @dotcomstar.

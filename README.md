@@ -42,7 +42,7 @@ command and asks before replacing anything, unless a force word (`force`, `-f`, 
 - `test-speedup` measures a slow test suite and sets up parallel runs, fast and slow tiers, and a CLAUDE.md table of which tests to run.
 - `weekly-roundup` builds an artifact of what I worked on in the past week from git activity. It runs on Windows too.
 - `write-readme` writes a README like this one and moves the detail into the wiki.
-- `statusline.sh` draws the status line in the gruvbox colors from my starship prompt, with a different color for each model.
+- `statusline.sh` draws the status line in the gruvbox colors from my starship prompt, with a different color for each model. Setting `CLAUDE_STATUSLINE_THEME=plane` (or running `./install.sh --theme plane`) switches the mascot and easter eggs to a plane theme.
 - On WSL, `install.sh` makes new Windows Terminal tabs open tmux with 4 equal panes in `~/files` (`wsl/tmux-quad`). On macOS it points iTerm2 at `iterm2/` instead.
 - On WSL, `install.sh` also sets up the starship prompt (`wsl/starship.toml`, gruvbox-rainbow) in bash and sets Windows Terminal to JetBrainsMono Nerd Font so its glyphs draw.
 - On WSL, `install.sh` also sets Windows Terminal to 18% in the Windows volume mixer each time WSL boots, since Windows resets it to 100% after a reboot (`wsl/terminal-volume.ps1`, run by `wsl/terminal-volume.service`).
