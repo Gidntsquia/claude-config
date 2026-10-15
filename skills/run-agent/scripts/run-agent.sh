@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# run-agent.sh: replace this tmux pane's claude session with `claude --agent <agent> "<prompt>" [flags]`.
+# run-agent.sh: replace this tmux pane's claude session with `claude --agent <agent> ["<prompt>"] [flags]`.
+# No prompt: worker/evaluator/helper get "."; planner and built-ins start with no prompt argument.
 # Usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [-- claude flags...] | --resolve <dir> | --list | --help
 # The new session is named `--name "<agent>: <folder>"` (plus ` (<model>)` when --model is given)
 # unless the flags already carry --name/-n. <folder> = basename of --cwd's dir when given, else of the git
@@ -106,10 +107,11 @@ if ! list_agents | grep -xF -- "$agent" >/dev/null; then  # no -q: grep -q + pip
   exit 2
 fi
 
+# Default prompt "." for worker/evaluator/helper; every other agent (planner, built-ins) starts with no
+# prompt argument when none is given (an empty input box).
 if [ -z "$prompt" ]; then
   case "$agent" in
     worker|evaluator|helper) prompt="." ;;
-    *) echo "$agent needs a prompt" >&2; exit 2 ;;
   esac
 fi
 
@@ -133,9 +135,10 @@ if [ "$has_name" = 0 ]; then
   flags+=(--name "$name")
 fi
 
-cmd=(claude --agent "$agent" "$prompt")
+cmd=(claude --agent "$agent")
+shown="claude --agent $agent"
+[ -n "$prompt" ] && { cmd+=("$prompt"); shown+=" \"$prompt\""; }
 [ ${#flags[@]} -gt 0 ] && cmd+=("${flags[@]}")
-shown="claude --agent $agent \"$prompt\""
 prev=""
 for f in "${flags[@]}"; do
   if [ "$prev" = "--name" ] || [ "$prev" = "-n" ]; then shown+=" \"$f\""; else shown+=" $f"; fi

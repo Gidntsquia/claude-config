@@ -4,7 +4,7 @@ description: Replace the current claude session with a new one running a chosen 
 argument-hint: <agent> ["prompt"] [in <dir>] [claude flags...] [force]
 ---
 
-# /run-agent — swap this session for `claude --agent <agent> "<prompt>"`
+# /run-agent — swap this session for `claude --agent <agent> ["<prompt>"]`
 
 Script: `~/.claude/skills/run-agent/scripts/run-agent.sh` (call it `S`). Nothing runs until step 5 says yes,
 unless a force word (step 1) was given: then step 5 is skipped and step 6 runs at once.
@@ -52,15 +52,14 @@ question text for "Other"). Then continue with step 4.
 
 ## 4. Prompt
 - Default `"."` for `worker`, `evaluator`, `helper` when no prompt was given.
-- `planner` and every built-in have no default: if no prompt, with force reply `<agent> needs a prompt` and stop
-  (nothing runs, this session stays alive); otherwise AskUserQuestion "What should <agent> work on?"
-  with one option "Type it under Other" (free text via Other). Empty or no answer -> reply
-  `<agent> needs a prompt` and stop; the current session stays alive.
+- `planner` and every built-in have no default: with no prompt they start with no prompt argument (an empty
+  input box). Do not ask for one; the command is `claude --agent <agent> <flags> --name ...` with no `"<prompt>"`.
 
 ## 5. Confirm (every path without a force word)
 With a force word: skip this step entirely, print nothing, go to step 6 (the script's `running:` line is the
 only output before the swap). Otherwise AskUserQuestion, header "Run?", question text exactly:
 `Replace this session with: claude --agent <agent> "<prompt>" <flags> --name "<agent>: <folder>[ (<model>)]"  (in <dir>[, will be created])?`
+- No prompt (planner, built-ins): leave the `"<prompt>"` part out: `claude --agent planner <flags> --name "planner: <folder>"`.
 - No directory given: `<dir>` is the cwd, and `<folder>` is the basename of `git rev-parse --show-toplevel`
   (or of the cwd outside a git repo).
 - Directory given: `<dir>` is the resolved absolute path from step 1, followed by `, will be created` when
@@ -74,7 +73,8 @@ Options: "Yes, replace this session" / "No". "No" -> reply exactly `nothing chan
 
 ## 6. Run
 Bash, with the prompt as one single-quoted argument (escape `'` as `'\''`) and flags after `--`:
-`S <agent> '<prompt>' -- <flags...>` (omit `--` when there are no flags). Force words are never passed.
+`S <agent> '<prompt>' -- <flags...>` (omit `--` when there are no flags; omit `'<prompt>'` when there is no prompt).
+Force words are never passed.
 With a directory: first, if `--resolve` said `missing`, run `mkdir -p '<dir>'` (only now, after Yes, or at once
 with a force word); then call `S <agent> '<prompt>' --cwd '<absolute dir>' -- <flags...>`. The script respawns the
 pane in that directory (shell and claude both start there) and exits 2 with `no such directory: <dir>` if it

@@ -60,7 +60,9 @@ check "c: a file -> not a directory" 2 "not a directory: $T/afile" worker --cwd 
 # (d) no dir: unchanged behaviour
 check "d: no dir, name from git root" 1 "claude --agent worker \".\" --name \"worker: repo\"" worker
 check "d: no dir, model" 1 "claude --agent planner \"x\" --model opus --name \"planner: repo (opus)\"" planner x -- --model opus
-check "d: planner without a prompt" 2 "planner needs a prompt" planner
+check "d: planner without a prompt -> no prompt argument" 1 "claude --agent planner --name \"planner: repo\"" planner
+check "d: planner without a prompt, with a dir" 1 \
+  "cd '$T/sibling' && claude --agent planner --name \"planner: sibling\"" planner --cwd "$T/sibling"
 LAST_USAGE="                         bare name found nowhere, or a path that is a file); creates nothing"
 check "d: extra word -> usage" 2 "$LAST_USAGE" worker . extra
 # (e) --name given
