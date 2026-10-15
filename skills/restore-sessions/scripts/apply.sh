@@ -6,6 +6,8 @@
 # for each new tmux session (brought to front with win.sh; "in the taskbar" if that fails).
 # Writes DIR/actions.log (every tmux/wt command, ET times), DIR/panes-final.tsv (key pane_id target) and
 # DIR/wt.tsv (session title hwnd status) and DIR/sent-<pane>.txt (the pane's shell screen right after the resume line). RS_TMUX_L=<name> uses tmux -L <name> (tests); RS_NO_WT=1 skips wt.exe.
+# New windows use the Windows Terminal profile $RS_WT_PROFILE (default Ubuntu) so they get its font and colors;
+# without -p, wt.exe gives a bare command line the base settings (no Nerd Font: icons show as blanks).
 set -uo pipefail
 dir="${1:?usage: apply.sh DIR}"
 ops="$dir/ops.tsv"; [ -f "$ops" ] || { echo "apply.sh: no $ops (run plan.sh first)" >&2; exit 2; }
@@ -13,6 +15,7 @@ log="$dir/actions.log"; : > "$log"
 L=(); [ -n "${RS_TMUX_L:-}" ] && L=(-L "$RS_TMUX_L")
 tm() { printf '%s tmux %s\n' "$(date '+%H:%M:%S %Z')" "${L[*]} $*" >> "$log"; tmux "${L[@]}" "$@"; }
 WIN="$HOME/.claude/local-tools/win.sh"
+WTP="${RS_WT_PROFILE:-Ubuntu}"
 WT="$(command -v wt.exe || echo /mnt/c/Users/Jaxon/AppData/Local/Microsoft/WindowsApps/wt.exe)"
 PET="$(command -v terminal-pet || echo "$HOME/.cargo/bin/terminal-pet")"
 declare -A key win   # plan key -> pane id; "S:W" -> window id
@@ -75,9 +78,9 @@ while IFS=$'\t' read -r op a b c d; do
       t="tmux $a (restored)"
       old_h=" $(hwnds "$t" | tr '\n' ' ') "   # windows with this title from an earlier run are not ours
       if [ -n "${RS_NO_WT:-}" ]; then printf '%s\t%s\t\tskipped (RS_NO_WT)\n' "$a" "$t" >> "$dir/wt.tsv"; continue; fi
-      printf '%s wt.exe -w new --title "%s" --suppressApplicationTitle wsl.exe -d %s -- tmux %s attach -t %s\n' \
-        "$(date '+%H:%M:%S %Z')" "$t" "${WSL_DISTRO_NAME:-Ubuntu}" "${L[*]}" "$a" >> "$log"
-      "$WT" -w new --title "$t" --suppressApplicationTitle \
+      printf '%s wt.exe -w new -p "%s" --title "%s" --suppressApplicationTitle wsl.exe -d %s -- tmux %s attach -t %s\n' \
+        "$(date '+%H:%M:%S %Z')" "$WTP" "$t" "${WSL_DISTRO_NAME:-Ubuntu}" "${L[*]}" "$a" >> "$log"
+      "$WT" -w new -p "$WTP" --title "$t" --suppressApplicationTitle \
         wsl.exe -d "${WSL_DISTRO_NAME:-Ubuntu}" -- tmux "${L[@]}" attach -t "=$a" >/dev/null 2>&1
       for _ in $(seq 1 30); do [ -n "$(tmux "${L[@]}" list-clients -t "=$a" 2>/dev/null)" ] && break; sleep 0.5; done
       attached=$([ -n "$(tmux "${L[@]}" list-clients -t "=$a" 2>/dev/null)" ] && echo yes || echo no)

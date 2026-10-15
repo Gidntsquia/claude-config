@@ -72,7 +72,7 @@ re-column or summarize it. No option gets a `preview` (the box is clipped to a f
 ## 5. Apply
 `"$S/apply.sh" "$D"`. It creates missing tmux sessions (`new-session -d`) and windows, splits new panes
 (tiled 2x2), puts a pet in the top-left pane of each target window (`cd ~ && terminal-pet[ --pet dog|cat]`, a
-different pet per window until all three are used), sends each resume line, and opens a Windows Terminal window for
+different pet per window until all three are used), sends each resume line, and opens an Ubuntu-profile Windows Terminal window for
 each new tmux session, brought to front with win.sh (else it says "in the taskbar"). Show its output, including
 any `WARNING:` line (for example terminal-pet missing: pets skipped, everything else goes on).
 
