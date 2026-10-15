@@ -584,15 +584,15 @@ def assign_colors(projects, order, colormap):
 
 
 def week_days(token_window_start):
-    """The 7 local calendar dates, Sunday to Saturday, of the week starting at this Sunday 22:00."""
+    """The 8 local calendar dates of the week starting at this Sunday 22:00: the opening Sunday
+    (22:00-24:00 only), Monday..Saturday, the closing Sunday (00:00-22:00)."""
     ws = datetime.fromisoformat(token_window_start).date()
-    return [ws + timedelta(days=i) for i in range(7)]
+    return [ws + timedelta(days=i) for i in range(8)]
 
 
 def session_day_fe(sess, ws, fallback):
-    """{day index 0..6: FE tokens} for one session. Index = local calendar day minus the opening
-    Sunday, so the 22:00-midnight sliver is Sunday (0). The closing Sunday (until 22:00) has no
-    column of its own in a Sunday-Saturday week and shares the Sunday column. Sessions stored
+    """{day index 0..7: FE tokens} for one session. Index = local calendar day minus the opening
+    Sunday: 0 is the opening Sunday's 22:00-midnight sliver, 7 the closing Sunday. Sessions stored
     before per-day data existed count on their start day, else on `fallback` (YYYY-MM-DD)."""
     days = sess.get("days")
     if not days:
@@ -609,7 +609,7 @@ def session_day_fe(sess, ws, fallback):
             idx = (date.fromisoformat(d) - ws).days
         except ValueError:
             idx = (date.fromisoformat(fallback) - ws).days
-        idx = 0 if idx == 7 else min(max(idx, 0), 6)
+        idx = min(max(idx, 0), 7)
         for model, t in models.items():
             _c, fe, _r = priced(t, model)
             out[idx] = out.get(idx, 0.0) + fe
@@ -617,7 +617,7 @@ def session_day_fe(sess, ws, fallback):
 
 
 def daily_usage(projects, misc_sessions, pie_slices, implied_cap_fe, token_window_start):
-    """The `days` output: 7 entries Sunday..Saturday, each with one segment per project x person
+    """The `days` output: 8 entries (opening Sunday, Mon..Sat, closing Sunday), each with one segment per project x person
     (and Misc per person) that used tokens that day, in weekly-cap % (same basis as the pie),
     colored like that pie slice, largest first (pie order on ties)."""
     dates = week_days(token_window_start)
@@ -633,7 +633,7 @@ def daily_usage(projects, misc_sessions, pie_slices, implied_cap_fe, token_windo
     fe = {}  # (project, person) -> [fe per day]
     for name, sessions in groups:
         for sess in sessions:
-            row = fe.setdefault((name, sess["person"]), [0.0] * 7)
+            row = fe.setdefault((name, sess["person"]), [0.0] * 8)
             for idx, v in session_day_fe(sess, ws, starts.get(sess["device"], ws.isoformat())).items():
                 row[idx] += v
     pct = lambda v: round(v / implied_cap_fe * 100, 2) if implied_cap_fe else 0
@@ -644,7 +644,7 @@ def daily_usage(projects, misc_sessions, pie_slices, implied_cap_fe, token_windo
             if (name, who) in pie_at and pct(row[i]) > 0:
                 segs.append({"project": name, "person": who, "color": pie_at[(name, who)][1], "pct": pct(row[i])})
         segs.sort(key=lambda sg: (-sg["pct"], pie_at[(sg["project"], sg["person"])][0]))
-        days.append({"date": d.isoformat(), "label": DAY_LABELS[i], "segments": segs,
+        days.append({"date": d.isoformat(), "label": DAY_LABELS[i % 7], "segments": segs,
                      "total_pct": pct(sum(row[i] for row in fe.values()))})
     return days
 

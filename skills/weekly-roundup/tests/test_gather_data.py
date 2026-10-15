@@ -213,8 +213,8 @@ def seg_pct(d, project, person=None):
 
 
 def check_days_invariants(out):
-    assert [d["label"] for d in out["days"]] == ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-    assert [d["date"] for d in out["days"]] == [f"2026-10-{k:02d}" for k in range(4, 11)]
+    assert [d["label"] for d in out["days"]] == ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    assert [d["date"] for d in out["days"]] == [f"2026-10-{k:02d}" for k in range(4, 12)]
     # R2: per project x person, the days sum to the pie slice; all days sum to the used share
     for sl in out["pie_slices"]:
         got = sum(seg_pct(d, sl["project"], sl["person"]) for d in out["days"])
@@ -240,7 +240,8 @@ def test_days_shape_sums_and_boundaries(world):
     sliver = 10_000 * 2.0 / 1e6 / 10 * 1e6 + 1_000 * 10.0 / 1e6 / 10 * 1e6  # sonnet-4-5 prices as sonnet-5: FE tokens
     cap = out["implied_cap_fe"]
     closing = (5_000 * 2.0 + 500 * 10.0) / 10
-    assert abs(seg_pct(day(out, "Sun"), "alpha-app") - round((sliver + closing) / cap * 100, 2)) <= 0.01
+    assert abs(seg_pct(out["days"][0], "alpha-app") - round(sliver / cap * 100, 2)) <= 0.01      # opening Sunday
+    assert abs(seg_pct(out["days"][7], "alpha-app") - round(closing / cap * 100, 2)) <= 0.01     # closing Sunday
     assert seg_pct(day(out, "Mon"), "alpha-app") > 0          # Mon 00:10 is Monday, not Sunday
     assert day(out, "Sat")["segments"] == [] and day(out, "Sat")["total_pct"] == 0  # empty day
     # midnight-crossing session: Tue 23:50 on Tuesday, Wed 00:20 on Wednesday

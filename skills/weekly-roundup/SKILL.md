@@ -118,12 +118,12 @@ person's projects by usage then their Misc; the projects pie, ready to draw), `d
 person, collected_at), `projects` (name, path, remote_url, commits, screenshot path, token_rows
 per model, fe_total, cost_total, weekly_pct, `accent`, `lead_person`, `people` (per-person
 fe_tokens, weekly_pct, pct of the project, color), `sessions`), `misc` (with `people`),
-`unused_pct`, `implied_cap_fe`, `combined_cost`, `days` (7 entries, Sunday through Saturday of the
-week, local calendar days: `date`, `label` "Sun".."Sat", `segments` [{project, person, color,
+`unused_pct`, `implied_cap_fe`, `combined_cost`, `days` (8 entries: the opening Sunday, Monday through Saturday,
+the closing Sunday; local calendar days: `date`, `label` "Sun".."Sat","Sun", `segments` [{project, person, color,
 pct}] largest first, `total_pct`; `pct` is weekly-cap %, the same basis as `weekly_pct`, so a
 project x person's days sum to its pie slice and all days sum to 100 - `unused_pct`; colors are
-the pie's; the opening Sunday's 22:00-midnight and the closing Sunday up to 22:00 both land in
-the Sunday column, since the week runs Sunday 22:00 to Sunday 22:00), `model_breakdown` (per model across all
+the pie's; the first column holds only the opening Sunday's 22:00-midnight, the last the closing
+Sunday's 00:00-22:00), `model_breakdown` (per model across all
 projects + Misc: model_display, raw_tokens, fe_tokens, cost, usage_pct), `model_effort_breakdown`
 (per family x effort: label, color, usage_pct), `unpriced_models`. Use its numbers and colors
 directly; do not recompute them.
@@ -250,7 +250,7 @@ if(last===n&&t-at<450){last=null;c.scrollIntoView({behavior:'smooth',block:'star
      `python3 "$SKILL_DIR/daychart.py" --data <output.json> --part html --names <names.json>`
      prints the `<div class="barchart-wrap">` block (its own `<h2 class="sub">Usage by day</h2>`,
      a y-axis with labels every 5% up to the tallest day rounded up to the next 5%, dashed
-     gridlines, 7 columns Sun..Sat, each a stack of segment divs largest at the bottom with
+     gridlines, 8 columns (opening Sunday, Mon..Sat, closing Sunday, each labeled with its date), each a stack of segment divs largest at the bottom with
      `title="<project> · <person> · <x.x>%"` (person omitted with one person), and the caption
      "Colors match the projects pie above."; no legend). `--names` is a JSON file mapping the
      output's project names to the names used on the page (`{"helper-agent-building": "Helper
@@ -443,7 +443,7 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
 - `pie-jump-js` is present verbatim: double-tapping a project slice or legend label lands on its
   deep-dive card.
 - "Usage by day" (`daychart.py` output, unedited) sits between the "Usage by model" pie and the
-  total cost: 7 labeled columns, 5% gridlines, segment colors equal to the pie's, the caption.
+  total cost: 8 labeled columns, 5% gridlines, segment colors equal to the pie's, the caption.
 - Each card with `features` has the collapsed drawer (name + weekly % + by-model pie per
   feature; feature %s sum to the project's weekly %).
 - Title includes the date range, matching the eyebrow.
@@ -473,9 +473,9 @@ Re-read this checklist against the finished HTML immediately before publishing.
 **Roundup Archive** (`https://claude.ai/code/artifact/61e892af-ab44-48cb-9c9b-74ee690c6dad`,
 `archive_url` in `state.json`) is a gallery of every week: a thumbnail donut per week that expands
 to the full pie + legend on hover. Above the gallery, a "Usage by day" chart runs continuously
-across every archive week: 7 columns per week, oldest left, the week label (e.g. "Oct 4–11")
+across every archive week: 8 columns per week, oldest left, the week label (e.g. "Oct 4–11")
 under each week, a thin rule between weeks, the same y-scale throughout, scrolled to the newest
-week on load. Weeks stored without `days` show as 7 empty columns with a faint "no daily data"
+week on load. Weeks stored without `days` show as 8 empty columns with a faint "no daily data"
 marker. `build_archive.py` draws it with `daychart.py`. Its weeks are written into the page itself (no `db`), so
 anyone with the public link sees every week. The data lives in `archive_weeks.json` next to this
 file; `archive_template.html` is the page.
