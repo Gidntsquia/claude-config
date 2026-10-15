@@ -51,6 +51,9 @@ if grep -qi microsoft /proc/version 2>/dev/null; then
   mkdir -p "$C/local-tools"
   for f in "$R"/wsl/local-tools/*; do link "$f" "$C/local-tools/$(basename "$f")"; done
 
+  # CLAUDE.local.md: WSL notes (opening files in Firefox/VS Code, window control, screen capture) that CLAUDE.md imports.
+  link "$R/wsl/CLAUDE.local.md" "$C/CLAUDE.local.md"
+
   # tmux: Gruvbox status bar matched to the Starship prompt.
   link "$R/wsl/tmux.conf" "$HOME/.tmux.conf"
 

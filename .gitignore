@@ -5,7 +5,6 @@ __pycache__/
 *.jsonl
 !skills/restore-sessions/evals/**/*.jsonl
 plans/
-CLAUDE.local.md
 
 # Old prompt versions, local only
 archive/
