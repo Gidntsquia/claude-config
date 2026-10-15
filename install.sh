@@ -46,9 +46,13 @@ if grep -qi microsoft /proc/version 2>/dev/null; then
   mkdir -p "$HOME/.local/bin"
   link "$R/wsl/tmux-quad" "$HOME/.local/bin/tmux-quad"
 
-  # term-open.sh: Claude opens terminal programs in their own Windows Terminal window (Ubuntu profile, Nerd Font).
+  # local-tools: Claude's Windows helpers (window control, screen capture, Windows Terminal windows for terminal
+  # programs). Each file is linked on its own; evshow.state/ (per-session state) stays a local folder.
   mkdir -p "$C/local-tools"
-  link "$R/wsl/term-open.sh" "$C/local-tools/term-open.sh"
+  for f in "$R"/wsl/local-tools/*; do link "$f" "$C/local-tools/$(basename "$f")"; done
+
+  # tmux: Gruvbox status bar matched to the Starship prompt.
+  link "$R/wsl/tmux.conf" "$HOME/.tmux.conf"
 
   # Starship prompt (gruvbox-rainbow preset) in bash. Windows Terminal needs a Nerd Font for the glyphs.
   [ -x "$HOME/.local/bin/starship" ] || curl -sS "https://starship.rs/install.sh" | sh -s -- -y -b "$HOME/.local/bin"

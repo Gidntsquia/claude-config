@@ -23,6 +23,7 @@
 # Geometry: terminal 0 0 1020 1400, item 1030 0 1530 1400 (EVSHOW_TERM="X Y W H" EVSHOW_ITEM="X Y W H" override);
 # EVSHOW_TRANSCRIPTS=<dir> takes the newest *.jsonl there as the transcript (eval harness); EVSHOW_BEHIND=1 = windows
 # go to the very bottom of the z-order (see win.sh). EVSHOW_TERMHWND=<HWND> uses that window as the terminal (tests).
+grep -qi microsoft /proc/version 2>/dev/null || { echo "evshow.sh: WSL only (this is $(uname))" >&2; exit 1; }
 set -u
 . "$HOME/.claude/local-tools/evsession.sh"
 W="$HOME/.claude/local-tools/win.sh"
