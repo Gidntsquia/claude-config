@@ -27,7 +27,8 @@ claude --agent evaluator   # Launches the result, asks you if it works, writes p
 ```
 
 Inside a claude session in tmux, `/run-agent <agent> ["prompt"]` swaps that session for the chosen agent in the same pane
-(e.g. `/run-agent worker` after the planner finishes). It always shows the command and asks before replacing anything.
+(e.g. `/run-agent worker` after the planner finishes), naming the new session `<agent>: <repo folder>`. It shows the
+command and asks before replacing anything, unless a force word (`force`, `-f`, `now`, `go`, `worker!`) skips the question.
 
 ## Features 🔬
 
