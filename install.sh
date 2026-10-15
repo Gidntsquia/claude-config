@@ -46,6 +46,10 @@ if grep -qi microsoft /proc/version 2>/dev/null; then
   mkdir -p "$HOME/.local/bin"
   link "$R/wsl/tmux-quad" "$HOME/.local/bin/tmux-quad"
 
+  # term-open.sh: Claude opens terminal programs in their own Windows Terminal window (Ubuntu profile, Nerd Font).
+  mkdir -p "$C/local-tools"
+  link "$R/wsl/term-open.sh" "$C/local-tools/term-open.sh"
+
   # Starship prompt (gruvbox-rainbow preset) in bash. Windows Terminal needs a Nerd Font for the glyphs.
   [ -x "$HOME/.local/bin/starship" ] || curl -sS "https://starship.rs/install.sh" | sh -s -- -y -b "$HOME/.local/bin"
   mkdir -p "$HOME/.config"
