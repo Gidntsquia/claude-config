@@ -4,7 +4,7 @@
   <img alt="The status line showing the project name, git branch, model, and 5-hour usage" src="https://raw.githubusercontent.com/wiki/Gidntsquia/claude-config/statusline.png">
 </p>
 
-My [Claude Code](https://claude.com/claude-code) setup: three agents, a few skills, a hook, a custom statusline, and my global `CLAUDE.md` and `settings.json`. The files live in this repo and `~/.claude` holds symlinks to them, so edits made from either place end up here.
+My [Claude Code](https://claude.com/claude-code) setup: four agents, a few skills, a hook, a custom statusline, and my global `CLAUDE.md` and `settings.json`. The files live in this repo and `~/.claude` holds symlinks to them, so edits made from either place end up here.
 
 ## Quickstart 🚀
 
@@ -18,12 +18,13 @@ cd claude-config
 
 IMPORTANT: never add `.credentials.json`, `history.jsonl`, `projects/`, or any other session data. `~/.claude/skills/synced` is managed by Claude and stays out of the repo.
 
-Running the three agents, from a project root:
+Running the agents, from a project root:
 
 ```
 claude --agent planner     # Turns what you ask for into plans/PLAN.md
 claude --agent worker      # Builds what PLAN.md specifies
 claude --agent evaluator   # Launches the result, asks you if it works, writes plans/EVAL.md
+claude --agent helper      # Guides a beginner through the planner, worker and evaluator
 ```
 
 Inside a claude session in tmux, `/run-agent <agent> ["prompt"]` swaps that session for the chosen agent in the same pane
@@ -32,13 +33,14 @@ command and asks before replacing anything, unless a force word (`force`, `-f`, 
 
 ## Features 🔬
 
+- The helper asks where you are in the workflow, then helps one step at a time. It answers only from the agent files, the wiki and the Claude Code docs.
 - The planner asks a few questions and writes a spec with the requirements and acceptance criteria. It doesn't decide how to build anything.
 - The worker builds the spec and follows what you tell it over what the plan says.
 - The evaluator runs the app and asks you whether it works. Small changes you ask for are added to the spec, and big ones are sent back to the planner. It never edits code.
 - `/restore-sessions` reopens the Claude Code sessions a Windows Update restart or WSL stop killed. It shows a tmux layout to approve, resumes each session in its pane, and puts a terminal pet in the top-left pane of every window.
 - `review-skill` audits a SKILL.md for correctness, edge cases, and token use.
 - `test-speedup` measures a slow test suite and sets up parallel runs, fast and slow tiers, and a CLAUDE.md table of which tests to run.
-- `weekly-roundup` builds an artifact of what I worked on in the past week from git activity.
+- `weekly-roundup` builds an artifact of what I worked on in the past week from git activity. It runs on Windows too.
 - `write-readme` writes a README like this one and moves the detail into the wiki.
 - `statusline.sh` draws the status line in the gruvbox colors from my starship prompt, with a different color for each model.
 - On WSL, `install.sh` makes new Windows Terminal tabs open tmux with 4 equal panes in `~/files` (`wsl/tmux-quad`). On macOS it points iTerm2 at `iterm2/` instead.
@@ -71,7 +73,7 @@ I also wanted Agent and Artifact to load only when needed, but Claude Code has n
 
 ## Documentation 📚
 
-How the three agents hand work to each other is in `agents/USAGE.txt`.
+How the agents hand work to each other is in `agents/USAGE.txt`.
 
 ## License 📄
 

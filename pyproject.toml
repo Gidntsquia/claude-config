@@ -1,6 +1,6 @@
 [project]
 name = "claude-config"
-version = "0"
+version = "1.1.0"
 requires-python = ">=3.9"
 
 [dependency-groups]
