@@ -41,7 +41,8 @@ One line per session the stop killed: `id cwd agent model mode mid-task mtime-ET
 when its transcript was written in the 60 minutes before the stop (`recent`), or when Claude's process file
 `~/.claude/sessions/<pid>.json` for it is still there from the stopped boot (`open at stop`: Claude deletes that file
 on a clean exit, so a leftover one means the session was open, even if idle for hours). cwd is where the session was
-started, so the resume continues the same conversation. If the file is empty, say "No Claude sessions were open at
+started, so the resume continues the same conversation. A session whose last prompt was `/exit` (or `/quit`) was
+closed on purpose and is never listed; every other one that matches is. If the file is empty, say "No Claude sessions were open at
 <STOP>; nothing to restore." and stop.
 
 ## 3. Plan

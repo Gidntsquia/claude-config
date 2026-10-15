@@ -6,6 +6,7 @@
 #      [since, stop + 5 s] ("open at stop"). since = --since (the stopped boot's start), else stop - 24 h.
 # projects-dir defaults to $RS_PROJECTS or ~/.claude/projects. sessions-dir is $RS_SESSIONS, else ~/.claude/sessions
 # unless a projects dir was given (tests): then (b) is off. Ignores <id>/subagents/ and memory/.
+# A session whose last prompt was /exit (or /quit) was closed on purpose and is never listed.
 # Prints one TSV line per candidate, oldest mtime first:
 #   session-id  cwd  agent  model  permission-mode  mid-task(yes/no)  mtime-ET  transcript-path  why(recent|open at stop)
 # cwd is the directory the session was started in (its project folder), not where it last cd'ed: resuming
@@ -16,11 +17,11 @@ pos=() since=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --since) since="$2"; shift 2 ;;
-    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) pos+=("$1"); shift ;;
   esac
 done
-[ ${#pos[@]} -ge 1 ] || { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+[ ${#pos[@]} -ge 1 ] || { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 stop=$(date -d "${pos[0]}" +%s) || { echo "find-sessions: cannot read stop time: ${pos[0]}" >&2; exit 2; }
 if [ -n "$since" ]; then
   since=$(date -d "$since" +%s) || { echo "find-sessions: cannot read --since time" >&2; exit 2; }
@@ -46,6 +47,7 @@ def parts(msg):
 
 def scan(path):
     cwd = agent = model = mode = ""
+    exited = False                             # last prompt was /exit or /quit
     last = None                                # last conversation entry (user/assistant/system)
     with open(path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
@@ -68,6 +70,11 @@ def scan(path):
                     model = m
             if t in CONV:
                 last = d
+                c = (d.get("message") or {}).get("content")
+                if t == "user" and isinstance(c, str) and ("<command-name>/exit</command-name>" in c or "<command-name>/quit</command-name>" in c):
+                    exited = True
+                elif t == "assistant" or (t == "user" and not (isinstance(c, str) and c.lstrip().startswith("<local-command-"))):
+                    exited = False             # the session went on after the /exit (e.g. resumed)
     mid = "no"
     if last is not None:
         t = last.get("type")
@@ -78,7 +85,7 @@ def scan(path):
             mid = "yes"
         elif t == "system" and last.get("subtype") in END_SUBTYPES_MIDTASK:
             mid = "yes"
-    return cwd, agent, model, mode, mid
+    return cwd, agent, model, mode, mid, exited
 
 rows = {}
 for proj in sorted(os.listdir(root)):
@@ -115,7 +122,9 @@ if sessdir and os.path.isdir(sessdir):
             rows[sid] = (os.stat(hits[0]).st_mtime, hits[0], "open at stop")
 
 for sid, (mt, p, why) in sorted(rows.items(), key=lambda kv: kv[1][0]):
-    cwd, agent, model, mode, mid = scan(p)
+    cwd, agent, model, mode, mid, exited = scan(p)
+    if exited:
+        continue
     stamp = time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(mt))
     print("\t".join([sid, cwd, agent, model, mode, mid, stamp, p, why]))
 PY
