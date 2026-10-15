@@ -8,7 +8,7 @@ Full release of all four agents, plus new skills and a leaner Claude Code setup.
 
 - **Helper agent added.** `claude --agent helper` guides beginners through the planner, worker and evaluator workflow.
 - **`/run-agent` added.** Swap your current tmux session for any agent without leaving the pane.
-- **Overall improvements to Helper / Worker / Evaluator.** Workers finish the plan, evaluators show results faster, and the helper walks you through setup.
+- **Overall improvements to Worker / Evaluator / Planner.** Workers finish the plan, evaluators show results faster, and the planner now suggests the exact `claude --agent <name> "."` command to start the next session.
 
 ### Helper 🧭
 
