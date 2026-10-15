@@ -39,6 +39,10 @@ Full release of all four agents, plus new skills and a leaner Claude Code setup.
 - Workflow tool denied, `skillOverrides` hide unused skills, and claude.ai MCP servers are off, to save context.
 - The tag `pre-trim-2026-10-08` is the way back to the config before the trimming.
 
+## Updating from an earlier version 🔄
+
+Tell your Claude: "update my claude-config to the latest release, following https://github.com/Gidntsquia/claude-config/blob/main/UPDATING.md". It finds the clone behind `~/.claude`, stashes your local edits, moves to the latest release tag, restores your edits, reruns `./install.sh` and checks the links. Nothing you wrote is deleted.
+
 ## Known issues
 
 - None known: the weekly-roundup tests (18) and run-agent tests all pass at this tag. PR #2 reported `test_shared_project_keeps_other_machine` failing on its own; it passes after the merge.

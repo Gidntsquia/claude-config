@@ -47,6 +47,10 @@ command and asks before replacing anything, unless a force word (`force`, `-f`, 
 - On WSL, `install.sh` also sets up the starship prompt (`wsl/starship.toml`, gruvbox-rainbow) in bash and sets Windows Terminal to JetBrainsMono Nerd Font so its glyphs draw.
 - On WSL, `install.sh` also sets Windows Terminal to 18% in the Windows volume mixer each time WSL boots, since Windows resets it to 100% after a reboot (`wsl/terminal-volume.ps1`, run by `wsl/terminal-volume.service`).
 
+## Updating 🔄
+
+Tell Claude: "update my claude-config to the latest release, following https://github.com/Gidntsquia/claude-config/blob/main/UPDATING.md". The steps keep your own edits and relink everything.
+
 ## Context trimming ✂️
 
 On 2026-10-08 I turned off the Workflow tool to save context. `settings.json` has `"permissions": {"deny": ["Workflow"]}` and `"enableWorkflows": false`, so the tool's definition never loads. To bring it back, remove both.
