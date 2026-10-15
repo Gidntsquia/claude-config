@@ -4,7 +4,6 @@
 # Reads find-sessions.sh output and the live tmux panes / claude processes, and proposes where each session goes.
 # Writes DIR/plan.tsv (one row per pane: target role how key id cwd agent model mode midtask pet),
 #        DIR/skipped.tsv (id cwd reason), DIR/ops.tsv (what apply.sh runs), DIR/before.txt (tmux list-panes -a),
-# DIR/preview.txt (the same plan as fixed-width text for the question's preview box),
 # and prints the plan as markdown: the table, then skipped sessions, idle panes reused, new sessions/windows.
 # Never changes tmux. RS_TMUX_L=<name> uses a private tmux server (tmux -L <name>), for tests. RS_SEED fixes the pets.
 # Corrections (--fix, any number, applied in order):
@@ -95,7 +94,7 @@ for r in rows:
         live.append(r)
 
 # Sessions that ended earlier in the stopped boot: newest top-level transcript per project, last written
-# between that boot's start and the 10-minute window.
+# between that boot's start and the 60-minute window, with no surviving process file (find-sessions.sh adds those).
 ended = []
 if prev and stop and os.path.isdir(projects):
     cand_ids = {r["id"] for r in rows}
@@ -107,7 +106,7 @@ if prev and stop and os.path.isdir(projects):
             p = os.path.join(pdir, n)
             if not n.endswith(".jsonl") or not os.path.isfile(p): continue
             mt = os.stat(p).st_mtime
-            if prev <= mt < stop - 600 and n[:-6] not in cand_ids and (best is None or mt > best[0]):
+            if prev <= mt < stop - 3600 and n[:-6] not in cand_ids and (best is None or mt > best[0]):
                 best = (mt, n[:-6], p)
         if best:
             cwd = ""
@@ -115,7 +114,7 @@ if prev and stop and os.path.isdir(projects):
                 for l in fh:
                     m = re.search(r'"cwd":"((?:[^"\\]|\\.)*)"', l)
                     if m: cwd = m.group(1)
-            ended.append((best[1], cwd, "ended earlier: last write %s, more than 10 min before the stop" % et(best[0])))
+            ended.append((best[1], cwd, "ended earlier: last write %s, more than 60 min before the stop" % et(best[0])))
 
 # ---- corrections ------------------------------------------------------------------------------------------
 fixes = [l.strip() for l in open(fixes_f, encoding="utf-8") if l.strip()]
@@ -287,21 +286,6 @@ w("ops.tsv", ops)
 
 def short(m): return m.replace("claude-", "") if m else ""
 def tilde(c): return (c or "").replace(os.path.expanduser("~"), "~")
-# Fixed-width copy for the AskUserQuestion preview box (monospace): all seven columns, 8-char ids.
-prev_rows = [("pane", "session", "cwd", "agent", "model", "mode", "mid-task")]
-for t in plan:
-    if t[1] == "pet": prev_rows.append((t[0], "pet: " + t[10], "~", "", "", "", ""))
-    else: prev_rows.append((t[0], t[4][:8], tilde(t[5]), t[6] or "(none)", short(t[7]) or "?", t[8] or "?", t[9]))
-wd = [max(len(r[i]) for r in prev_rows) for i in range(7)]
-with open(os.path.join(out, "preview.txt"), "w", encoding="utf-8") as f:
-    if stop_s: f.write("stop at %s\n\n" % stop_s)
-    for r in prev_rows: f.write("  ".join(c.ljust(wd[i]) for i, c in enumerate(r)).rstrip() + "\n")
-    if skipped or ended: f.write("\nNot reopened:\n")
-    for r, why in skipped: f.write("  %s %s: %s\n" % (r["id"][:8], tilde(r["cwd"]), why))
-    for sid, cwd, why in ended: f.write("  %s %s: %s\n" % (sid[:8], tilde(cwd), why))
-    ns = [x for x in new_sessions]
-    if ns: f.write("\nNew tmux sessions (new Windows Terminal window each): %s\n" % ", ".join(ns))
-    if new_windows: f.write("New tmux windows: %s\n" % ", ".join(new_windows))
 print("| tmux session:window.pane | session id | cwd | agent | model | mode | mid-task |")
 print("|---|---|---|---|---|---|---|")
 for t in plan:

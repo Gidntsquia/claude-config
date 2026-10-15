@@ -13,7 +13,8 @@ show the user what it prints. Every clock time you write is US Eastern with its 
 
 Test hooks (only when the user's environment already has them set; never set them yourself):
 `RS_TMUX_L=<name>` makes every script use the private tmux server `tmux -L <name>`;
-`RS_PROJECTS=<dir>` replaces `~/.claude/projects`. The scripts read both themselves; pass nothing extra.
+`RS_PROJECTS=<dir>` replaces `~/.claude/projects` (and turns off the `~/.claude/sessions` check unless
+`RS_SESSIONS=<dir>` is also set). The scripts read these themselves; pass nothing extra.
 
 ## Rules (all steps)
 - Never end a tmux server, session, window or pane (no tmux kill command of any kind), never move an existing pane
@@ -35,9 +36,13 @@ Test hooks (only when the user's environment already has them set; never set the
 - Print exactly `stop at <STOP>` (e.g. `stop at Thu 2026-10-15 04:56:11 EDT`) as its own line of your reply, before running step 2.
 
 ## 2. Candidates
-`"$S/find-sessions.sh" "<STOP>" > "$D/candidates.tsv"`. One line per session the stop
-killed: `id cwd agent model mode mid-task mtime-ET transcript`. If the file is empty, say
-"No Claude sessions were written in the 10 minutes before <STOP>; nothing to restore." and stop.
+`"$S/find-sessions.sh" "<STOP>" [--since "<PREV>"] > "$D/candidates.tsv"` (`--since` only when PREV is known).
+One line per session the stop killed: `id cwd agent model mode mid-task mtime-ET transcript why`. A session counts
+when its transcript was written in the 60 minutes before the stop (`recent`), or when Claude's process file
+`~/.claude/sessions/<pid>.json` for it is still there from the stopped boot (`open at stop`: Claude deletes that file
+on a clean exit, so a leftover one means the session was open, even if idle for hours). cwd is where the session was
+started, so the resume continues the same conversation. If the file is empty, say "No Claude sessions were open at
+<STOP>; nothing to restore." and stop.
 
 ## 3. Plan
 `"$S/plan.sh" --candidates "$D/candidates.tsv" --out "$D" --stop "<STOP>" [--boot "<BOOT>" --prev "<PREV>"]` (one `--fix "<correction>"` per correction collected in step 4, in order).
@@ -50,10 +55,10 @@ If the table has no Claude rows, show the skipped list, say there is nothing to 
 ## 4. Ask (one AskUserQuestion, before anything opens)
 Before calling AskUserQuestion, write a reply whose text contains `stop at <STOP>` and plan.sh's markdown output
 copied verbatim (the seven-column table with full ids and cwds, the skipped list, the notes). Do not shorten,
-re-column or summarize it. `cat "$D/preview.txt"` for the preview: the same plan as fixed-width text.
+re-column or summarize it. No option gets a `preview` (the box is clipped to a few lines in a tmux pane).
 - question: `Stop at <STOP>. Reopen these <N> sessions as shown in the table above?`
 - header `Restore`; options, in this order:
-  1. `Yes, reopen them` — preview: the exact contents of `$D/preview.txt`, character for character.
+  1. `Yes, reopen them` — description: `Reopen the sessions in the panes shown in the table above`.
   2. `Change something` — description: `Press n and type corrections, e.g. "drop 6883cb51" or "9da9d4aa -> 1:2"`.
   3. `No, cancel`.
 - Corrections come from the notes on any option, an Other/typed answer, or a chat reply (any number, comma or
