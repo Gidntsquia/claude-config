@@ -257,8 +257,9 @@ def repo_commits(repo: Path, start: str, end: str):
 
 
 def slug_for(path: Path) -> str:
-    # Claude Code maps every non-alphanumeric character (/, _, ., space) to "-"
-    return "-" + re.sub(r"[^A-Za-z0-9-]", "-", str(path).strip("/"))
+    # Claude Code maps every non-alphanumeric character (/, \, :, _, ., space) to "-":
+    # /home/x/repo -> -home-x-repo, C:\Users\x\repo -> C--Users-x-repo
+    return re.sub(r"[^A-Za-z0-9-]", "-", str(path).rstrip("/\\"))
 
 
 def _prompt_text(msg):
