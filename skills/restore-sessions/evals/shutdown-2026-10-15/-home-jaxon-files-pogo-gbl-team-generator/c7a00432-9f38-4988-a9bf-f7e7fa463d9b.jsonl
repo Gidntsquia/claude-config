@@ -1,0 +1,8 @@
+{"type":"mode","sessionId":"c7a00432-9f38-4988-a9bf-f7e7fa463d9b"}
+{"type":"bridge-session","sessionId":"c7a00432-9f38-4988-a9bf-f7e7fa463d9b"}
+{"type":"file-history-snapshot"}
+{"type":"user","sessionId":"c7a00432-9f38-4988-a9bf-f7e7fa463d9b","timestamp":"2026-10-15T04:50:17.084Z","cwd":"/home/jaxon/files/pogo-gbl-team-generator","uuid":"56362a52-e956-4890-ad39-3e75ead4f353","parentUuid":null,"isSidechain":false,"userType":"external","version":"2.1.300","gitBranch":"main","entrypoint":"cli","message":{"role":"user","content":"[trimmed]"}}
+{"type":"user","sessionId":"c7a00432-9f38-4988-a9bf-f7e7fa463d9b","timestamp":"2026-10-15T04:50:17.058Z","cwd":"/home/jaxon/files/pogo-gbl-team-generator","uuid":"dce85ba2-e1b8-424e-b7f0-4a88b311eefe","parentUuid":"56362a52-e956-4890-ad39-3e75ead4f353","isSidechain":false,"userType":"external","version":"2.1.300","gitBranch":"main","entrypoint":"cli","message":{"role":"user","content":"[trimmed]"}}
+{"type":"system","subtype":"local_command","sessionId":"c7a00432-9f38-4988-a9bf-f7e7fa463d9b","timestamp":"2026-10-15T04:50:17.077Z","cwd":"/home/jaxon/files/pogo-gbl-team-generator","uuid":"720ebfb7-7f7e-48cf-9c7e-b63c06d9b40d","parentUuid":"dce85ba2-e1b8-424e-b7f0-4a88b311eefe","isSidechain":false,"userType":"external","version":"2.1.300","gitBranch":"main","entrypoint":"cli"}
+{"type":"last-prompt","sessionId":"c7a00432-9f38-4988-a9bf-f7e7fa463d9b"}
+{"type":"cost-state","sessionId":"c7a00432-9f38-4988-a9bf-f7e7fa463d9b"}

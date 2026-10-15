@@ -35,6 +35,7 @@ command and asks before replacing anything, unless a force word (`force`, `-f`, 
 - The planner asks a few questions and writes a spec with the requirements and acceptance criteria. It doesn't decide how to build anything.
 - The worker builds the spec and follows what you tell it over what the plan says.
 - The evaluator runs the app and asks you whether it works. Small changes you ask for are added to the spec, and big ones are sent back to the planner. It never edits code.
+- `/restore-sessions` reopens the Claude Code sessions a Windows Update restart or WSL stop killed. It shows a tmux layout to approve, resumes each session in its pane, and puts a terminal pet in the top-left pane of every window.
 - `review-skill` audits a SKILL.md for correctness, edge cases, and token use.
 - `test-speedup` measures a slow test suite and sets up parallel runs, fast and slow tiers, and a CLAUDE.md table of which tests to run.
 - `weekly-roundup` builds an artifact of what I worked on in the past week from git activity.

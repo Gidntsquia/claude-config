@@ -3,6 +3,7 @@ __pycache__/
 .env
 .credentials.json
 *.jsonl
+!skills/restore-sessions/evals/**/*.jsonl
 plans/
 CLAUDE.local.md
 
