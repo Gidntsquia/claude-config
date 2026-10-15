@@ -301,9 +301,9 @@ def _hsl(c):
 def test_person_palettes_separated():
     warm, cool = PERSON_PALETTES[0], PERSON_PALETTES[1]
     assert (warm["name"], cool["name"]) == ("warm", "cool")
-    assert len(warm["accents"]) == len(cool["accents"]) == 12
+    assert len(warm["accents"]) == len(cool["accents"]) == 20
     for pal in (warm, cool):
-        assert len(set(pal["accents"])) == 12
+        assert len(set(pal["accents"])) == 20
         for a, b in itertools.combinations(pal["accents"], 2):
             (ha, _sa, la), (hb, _sb, lb) = _hsl(a), _hsl(b)
             dh = min(abs(ha - hb), 360 - abs(ha - hb))
@@ -381,9 +381,9 @@ def test_thirteen_projects_cycle(tmp_path):
     out = json.loads(r.stdout)
     jet = [p["accent"] for p in out["projects"] if p["lead_person"] == "Jet"]
     jet_pal = next(r for r in out["people"] if r["person"] == "Jet")
-    assert jet_pal["palette"] == "cool" and len(jet_pal["accents"]) == 12  # Jaxon was seen first
+    assert jet_pal["palette"] == "cool" and len(jet_pal["accents"]) == 20  # Jaxon was seen first
     assert len(jet) == 13 and all(a in PERSON_PALETTES[1]["accents"] for a in jet)
-    assert len(set(jet)) == 12  # 12 distinct, the 13th reuses one
+    assert len(set(jet)) == 13  # all distinct
     check_days_invariants(out)
     again = json.loads(run(root, A, "Jet", pool_in=tmp_path / "p1.json", colors=tmp_path / "ca.json").stdout)
     assert [p["accent"] for p in again["projects"]] == [p["accent"] for p in out["projects"]]

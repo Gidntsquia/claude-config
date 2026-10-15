@@ -80,10 +80,14 @@ FAMILY_ORDER = ["Sonnet", "Fable", "Opus", "Haiku", "Local"]
 PERSON_PALETTES = [
     {"name": "warm",  "main": "#e5484d", "misc": "#b9a295",
      "accents": ["#e5484d", "#f0690f", "#dd2c85", "#e59a06", "#b931ae", "#a33114",
-                 "#d7cd09", "#f7806e", "#a71b3e", "#f8b859", "#ea86cc", "#844e1f"]},
+                 "#d7cd09", "#f7806e", "#a71b3e", "#f8b859", "#ea86cc", "#844e1f",
+                 "#6d2655", "#f5ee84", "#dd9dae", "#76651e", "#c964b6", "#c9bb64",
+                 "#761e72", "#e495e1"]},
     {"name": "cool",  "main": "#2f80ed", "misc": "#94a3b8",
      "accents": ["#2f80ed", "#27a566", "#8f51d6", "#13a2ae", "#4e4ed0", "#2b822b",
-                 "#5fc6f2", "#13725a", "#7b319b", "#183795", "#81cc5c", "#ac97ed"]},
+                 "#5fc6f2", "#13725a", "#7b319b", "#183795", "#81cc5c", "#ac97ed",
+                 "#9dddab", "#4cfac9", "#39266d", "#7e9bfc", "#cd8dec", "#26ed3d",
+                 "#26536d", "#3e6d26"]},
     # Fallbacks for a third / fourth person.
     {"name": "berry", "main": "#a23bb6", "misc": "#ab9bb0",
      "accents": ["#a23bb6", "#e05297", "#6c3fcf", "#c74b7d", "#8d5be0", "#d670b5"]},

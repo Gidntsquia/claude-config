@@ -63,8 +63,8 @@ words, typos and short forms all ignored) against the pool's people and the acco
 people (`KNOWN_PEOPLE` in `gather_data.py`: Jaxon, Jet), so anything like "jet", "Jett", "jet
 Lee" pools into "Jet" and "jaxon.", "jax", "Jaxson" into "Jaxon"; a name that matches nobody
 starts a new person. Never normalize the answer yourself. Each person gets their own color
-scheme once the week's pool has two or more people (first person seen: `warm`, 12 accents in
-reds, oranges, pinks, magentas, golds and browns, hues 300-60°; second: `cool`, 12 accents in
+scheme once the week's pool has two or more people (first person seen: `warm`, 20 accents in
+reds, oranges, pinks, magentas, golds and browns, hues 300-60°; second: `cool`, 20 accents in
 blues, greens, teals, indigos and violets, hues 90-290°; then berry and earth, 6 each). No two
 accents of one palette sit within 15° of hue and 10% of lightness of each other, and the warm and
 cool hue ranges do not overlap, so two people never share a hue. With one person, projects use

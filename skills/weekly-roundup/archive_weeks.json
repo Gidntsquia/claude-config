@@ -418,17 +418,17 @@
    {
     "name": "Slideshow Maker · Jaxon",
     "pct": 0.38,
-    "color": "#e5484d"
+    "color": "#f5ee84"
    },
    {
     "name": "Planner Building · Jaxon",
     "pct": 0.26,
-    "color": "#f0690f"
+    "color": "#76651e"
    },
    {
     "name": "Workout Visualizer · Jaxon",
     "pct": 0.09,
-    "color": "#dd2c85"
+    "color": "#c964b6"
    },
    {
     "name": "Misc · Jaxon",
@@ -476,13 +476,13 @@
      {
       "project": "slideshow-maker",
       "person": "Jaxon",
-      "color": "#e5484d",
+      "color": "#f5ee84",
       "pct": 0.16
      },
      {
       "project": "planner-building",
       "person": "Jaxon",
-      "color": "#f0690f",
+      "color": "#76651e",
       "pct": 0.16
      },
      {
@@ -494,7 +494,7 @@
      {
       "project": "workout-visualizer",
       "person": "Jaxon",
-      "color": "#dd2c85",
+      "color": "#c964b6",
       "pct": 0.09
      }
     ],
@@ -519,7 +519,7 @@
      {
       "project": "slideshow-maker",
       "person": "Jaxon",
-      "color": "#e5484d",
+      "color": "#f5ee84",
       "pct": 0.1
      },
      {
@@ -575,7 +575,7 @@
      {
       "project": "planner-building",
       "person": "Jaxon",
-      "color": "#f0690f",
+      "color": "#76651e",
       "pct": 0.1
      }
     ],
@@ -636,7 +636,7 @@
      {
       "project": "slideshow-maker",
       "person": "Jaxon",
-      "color": "#e5484d",
+      "color": "#f5ee84",
       "pct": 0.12
      }
     ],
