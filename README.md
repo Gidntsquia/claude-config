@@ -4,7 +4,9 @@
   <img alt="The status line showing the project name, git branch, model, and 5-hour usage" src="https://raw.githubusercontent.com/wiki/Gidntsquia/claude-config/statusline.png">
 </p>
 
-My [Claude Code](https://claude.com/claude-code) setup: four agents, a few skills, a hook, a custom statusline, and my global `CLAUDE.md` and `settings.json`. The files live in this repo and `~/.claude` holds symlinks to them, so edits made from either place end up here.
+My [Claude Code](https://claude.com/claude-code) setup: four agents, six skills, a custom status line, and my global `CLAUDE.md` and `settings.json`. The files live in this repo and `~/.claude` holds symlinks to them, so edits made from either place end up here.
+
+The agents split a project into planning, building and checking. The [wiki](https://github.com/Gidntsquia/claude-config/wiki) is a beginner's guide to that workflow, starting from a fresh Windows or Mac install.
 
 ## Quickstart 🚀
 
@@ -18,7 +20,7 @@ cd claude-config
 
 IMPORTANT: never add `.credentials.json`, `history.jsonl`, `projects/`, or any other session data. `~/.claude/skills/synced` is managed by Claude and stays out of the repo.
 
-Running the agents, from a project root:
+Run the agents from a project root:
 
 ```
 claude --agent planner     # Turns what you ask for into plans/PLAN.md
@@ -27,57 +29,43 @@ claude --agent evaluator   # Launches the result, asks you if it works, writes p
 claude --agent helper      # Guides a beginner through the planner, worker and evaluator
 ```
 
-Inside a claude session in tmux, `/run-agent <agent> ["prompt"]` swaps that session for the chosen agent in the same pane
-(e.g. `/run-agent worker` after the planner finishes), naming the new session `<agent>: <repo folder>`; `in <dir>` starts it in another folder (e.g. `in ~/files/curling_simulator`), created if missing. It shows the
-command and asks before replacing anything, unless a force word (`force`, `-f`, `now`, `go`, `worker!`) skips the question.
+Other commands:
+
+```
+./install.sh --theme plane                   # Plane mascot and easter eggs in the status line
+bash ~/.claude/statusline.sh --preview plane # Shows every plane easter egg
+```
+
+To update, tell Claude: "update my claude-config to the latest release, following https://github.com/Gidntsquia/claude-config/blob/main/UPDATING.md". The steps keep your own edits and relink everything.
 
 ## Features 🔬
 
-- The helper asks where you are in the workflow, then helps one step at a time. It answers only from the agent files, the wiki and the Claude Code docs.
 - The planner asks a few questions and writes a spec with the requirements and acceptance criteria. It doesn't decide how to build anything.
 - The worker builds the spec and follows what you tell it over what the plan says.
 - The evaluator runs the app and asks you whether it works. Small changes you ask for are added to the spec, and big ones are sent back to the planner. It never edits code.
-- `/restore-sessions` reopens the Claude Code sessions a Windows Update restart or WSL stop killed. It shows a tmux layout to approve, resumes each session in its pane, and puts a terminal pet in the top-left pane of every window.
-- `review-skill` audits a SKILL.md for correctness, edge cases, and token use.
-- `test-speedup` measures a slow test suite and sets up parallel runs, fast and slow tiers, and a CLAUDE.md table of which tests to run.
-- `weekly-roundup` builds an artifact of what I worked on in the past week from git activity. It runs on Windows too.
-- `write-readme` writes a README like this one and moves the detail into the wiki.
-- `statusline.sh` draws the status line in the gruvbox colors from my starship prompt, with a different color for each model. Setting `CLAUDE_STATUSLINE_THEME=plane` (or running `./install.sh --theme plane`) switches the mascot and easter eggs to a plane theme.
-- On WSL, `install.sh` makes new Windows Terminal tabs open tmux with 4 equal panes in `~/files` (`wsl/tmux-quad`). On macOS it points iTerm2 at `iterm2/` instead.
-- On WSL, `install.sh` also sets up the starship prompt (`wsl/starship.toml`, gruvbox-rainbow) in bash and sets Windows Terminal to JetBrainsMono Nerd Font so its glyphs draw.
-- On WSL, `install.sh` also sets Windows Terminal to 18% in the Windows volume mixer each time WSL boots, since Windows resets it to 100% after a reboot (`wsl/terminal-volume.ps1`, run by `wsl/terminal-volume.service`).
-
-## Updating 🔄
-
-Tell Claude: "update my claude-config to the latest release, following https://github.com/Gidntsquia/claude-config/blob/main/UPDATING.md". The steps keep your own edits and relink everything.
-
-## Context trimming ✂️
-
-On 2026-10-08 I turned off the Workflow tool to save context. `settings.json` has `"permissions": {"deny": ["Workflow"]}` and `"enableWorkflows": false`, so the tool's definition never loads. To bring it back, remove both.
-
-The same night I also:
-
-- Set `"env": {"ENABLE_CLAUDEAI_MCP_SERVERS": "false"}` so claude.ai connectors (Claude Docs) don't load into Claude Code. Remove it to get them back.
-- Added `SendFeedback`, `ScheduleWakeup`, and `ReportFindings` to `permissions.deny` (about 2k tokens). ScheduleWakeup only works with `/loop` and ReportFindings only with `code-review`, both of which are off. Remove them from the list to get them back.
-- Set `"workflowKeywordTriggerEnabled": false`.
-- Added `skillOverrides`, which also works on built-in skills. Each skill takes one of four values:
-  - `"on"` (the default): listed with its description.
-  - `"name-only"`: listed by name only, a few tokens each. Claude or I (`/name`) can still invoke it. I use this for `pdf`, `pptx`, `xlsx`, and `docx`: I rarely need them, and their names say what they do.
-  - `"user-invocable-only"`: hidden from Claude, but `/name` still works. I use this for my own skills and for `schedule`, `init`, `simplify`, and `security-review`.
-  - `"off"`: hidden from both. I use this for everything else I don't use, such as `loop`, `code-review`, the browser and computer-use skills, and `deep-research`.
-
-  This cut the skill listing from 17 full entries to 6 (about 2.6k tokens down to 1.2k). Change a skill in `/skills` or in `settings.json`. The overrides used to live in ai-sandbox's `.claude/settings.local.json`. I moved them here so they apply everywhere.
-- Removed the `CLAUDE.md` rule "Re-read a file immediately before Edit if a previous Edit failed on string match." The Edit tool already reports a mismatch, so the rule cost tokens without changing behavior.
-- Shortened the descriptions in my auto-memory index (`~/.claude/projects/*/memory/MEMORY.md`, not in this repo) to about 8 words each, since the full detail is in each memory file. `CLAUDE.local.md` stays a separate file because it holds per-machine notes and is gitignored.
-- Emptied the ai-sandbox auto-memory, which loaded in every session there. I deleted two stale memories (orchestration reports, the second-device week). I moved the agent memories into agent-eval-experiment's project memory and the config memories into this repo's project memory. `CLAUDE.md` now has a one-line pointer to this repo instead.
-
-**Restore point:** the git tag `pre-trim-2026-10-08` marks the config before any of this trimming. If something breaks, run `git checkout pre-trim-2026-10-08 -- settings.json` (or the whole tree) and restart Claude Code.
-
-I also wanted Agent and Artifact to load only when needed, but Claude Code has no setting for that. On-demand loading (ToolSearch) only covers MCP tools and the built-ins Claude Code picks itself, so both still load in every session. Revisit if a setting appears.
+- The helper asks where you are in the workflow, then helps one step at a time. It answers only from the agent files, the wiki and the Claude Code docs, through a small MCP server in `helper-mcp/`.
+- `/run-agent <agent>` swaps a tmux pane's Claude session for the chosen agent, e.g. `/run-agent worker` after the planner finishes. It asks before replacing anything unless you add `force`.
+- `/restore-sessions` reopens the Claude Code sessions a Windows Update restart or WSL stop killed, each in its own tmux pane.
+- `review-skill` audits a SKILL.md for correctness, edge cases, and token use. `test-speedup` sets up parallel runs and fast/slow tiers for a slow test suite.
+- `weekly-roundup` builds an artifact of what I worked on in the past week from git activity. `write-readme` writes a README like this one and moves the detail into the wiki.
+- `statusline.sh` draws the status line in the gruvbox colors from my starship prompt, with a different color for each model.
+- On WSL, `install.sh` makes new Windows Terminal tabs open tmux with 4 panes in `~/files`, sets up the starship prompt with JetBrainsMono Nerd Font, and keeps Windows Terminal at 18% volume after reboots. On macOS it points iTerm2 at `iterm2/` instead.
+- On WSL it also links `wsl/local-tools/`, scripts Claude uses to open, place, screenshot and close Windows windows.
 
 ## Documentation 📚
 
-How the agents hand work to each other is in `agents/USAGE.txt`.
+More details in the
+[wiki](https://github.com/Gidntsquia/claude-config/wiki):
+
+- [Setting Up WSL](https://github.com/Gidntsquia/claude-config/wiki/Setting-Up-WSL) — Windows first-time setup
+- [Setting Up Claude Code](https://github.com/Gidntsquia/claude-config/wiki/Setting-Up-Claude-Code) — install, sign in, this repo
+- [Getting Started](https://github.com/Gidntsquia/claude-config/wiki/Getting-Started) — a first project step by step
+- [Workflow](https://github.com/Gidntsquia/claude-config/wiki/Workflow) — what each agent does
+- [Cheat Sheet](https://github.com/Gidntsquia/claude-config/wiki/Cheat-Sheet) — commands and common pitfalls
+- [Glossary and FAQ](https://github.com/Gidntsquia/claude-config/wiki/Glossary-and-FAQ) — terms and beginner questions
+- [Context Trimming](https://github.com/Gidntsquia/claude-config/wiki/Context-Trimming) — settings that shrink every session's context
+
+`examples/first-project/` is the finished app from Getting Started, and `agents/USAGE.txt` has the hand-off rules between agents.
 
 ## License 📄
 
