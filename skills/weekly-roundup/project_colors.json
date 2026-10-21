@@ -17,5 +17,20 @@
  "Jaxon|worker-building": "#f0690f",
  "Jaxon|workout-visualizer": "#c964b6",
  "Jet|https://github.com/Gidntsquia/claude-config": "#2f80ed",
- "Jet|https://github.com/dotcomstar/GCC-Wireless": "#27a566"
+ "Jet|https://github.com/dotcomstar/GCC-Wireless": "#27a566",
+ "solo|curling_simulator": "#2bb4c9",
+ "solo|evaluator-building": "#ff8a65",
+ "solo|helper-agent-building": "#b8860b",
+ "solo|https://github.com/Gidntsquia/agent-eval-experiment": "#c2185b",
+ "solo|https://github.com/Gidntsquia/archery_simulator": "#2e9e6b",
+ "solo|https://github.com/Gidntsquia/claude-config": "#2f80ed",
+ "solo|https://github.com/Gidntsquia/deadlock-optimal-build-finder": "#6d4c41",
+ "solo|https://github.com/Gidntsquia/deadlock-street-brawl-helper": "#e8710a",
+ "solo|https://github.com/Gidntsquia/open-video-editor": "#e8710a",
+ "solo|https://github.com/Gidntsquia/pogo-gbl-team-generator": "#e5484d",
+ "solo|https://github.com/Gidntsquia/terminal-pet": "#7c5cff",
+ "solo|llc-advisor": "#e5484d",
+ "solo|open-picture-editor": "#2f80ed",
+ "solo|substitute_teacher_simulator": "#a13e85",
+ "solo|worker-building": "#43a047"
 }
