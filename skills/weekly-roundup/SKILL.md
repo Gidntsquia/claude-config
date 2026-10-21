@@ -371,7 +371,7 @@ Use as-is. Method, for reference:
 
 - **Raw tokens** = input + output + cache-read + cache-creation (5m/1h), per model, deduped by
   message id from the jsonl files under `~/.claude/projects/<slug>/`.
-- **Cost** = raw tokens priced per model (input/output; cache-read at 0.1x input, 0.025x on Fable
+- **Cost** = raw tokens priced per model (input/output; cache-read at 0.1x input, 0.05x on Sonnet 5.5 and Opus 5.5, 0.025x on Fable
   5.1; cache-write at 1.25x or 2.0x input for 5m/1h) using the price table at the top of
   `gather_data.py`. Keep that table current when Anthropic pricing changes. A model priced by
   prompt length (Haiku 5.5: higher rates over 100,000 prompt tokens) has a `long_over` entry;
