@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # run-agent.sh: replace this tmux pane's claude session with `claude --agent <agent> ["<prompt>"] [flags]`.
 # No prompt: worker/evaluator/helper get "."; planner and built-ins start with no prompt argument.
-# Usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [-- claude flags...] | --resolve <dir> | --list | --help
+# Usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--at <epoch> [--at-text <text>] [--window] [--until <epoch>]]
+#        [-- claude flags...] | --parse '<raw $ARGUMENTS>' | --dry-run <same as a run> | --jobs | --cancel [id]
+#        | --resolve <dir> | --list | --help
+# --parse hands the raw argument string to parse.py (loose phone typing -> one JSON block). --at schedules:
+# a job file under ~/.claude/run-agent/jobs/ and a detached runner (runner.sh) that respawns this pane into
+# the command at that time (pane gone -> new window; server gone -> new session). --jobs / --cancel manage them.
 # The new session is named `--name "<agent>: <folder>"` (plus ` (<model>)` when --model is given)
 # unless the flags already carry --name/-n. <folder> = basename of --cwd's dir when given, else of the git
 # root, else of $PWD. With --cwd the pane (shell and claude) restarts in <dir>; the dir must already exist
@@ -10,14 +15,24 @@
 # (outside a repo: of $PWD). `.`/`..` segments are collapsed; symlinks are left as given.
 set -euo pipefail
 
-USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [-- claude flags...] | --resolve <dir> | --list | --help
+USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--at <epoch> [--at-text <text>] [--window] [--until <epoch>]] [-- claude flags...]
+       run-agent.sh --parse '\''<raw arguments>'\'' | --dry-run <run args> | --jobs | --cancel [id] | --resolve <dir> | --list | --help
   adds --name "<agent>: <folder> (<model>)" to the claude command unless --name/-n is among the flags
+  --parse <raw>          parse a loosely typed /run-agent argument string into one JSON block (parse.py)
+  --at <epoch>           do not run now: write ~/.claude/run-agent/jobs/<id>.json and start a detached runner
+                         that respawns this pane into the command at that time; --at-text keeps the words typed,
+                         --window marks a usage-window run (re-fetched at fire time), --until <epoch> skips the
+                         run when the window reset is later than that
+  --dry-run ...          print the command, directory and run time; run and schedule nothing
+  --jobs, --cancel [id]  list pending scheduled runs / cancel one (the only one when no id is given)
   --cwd <dir>, -C <dir>  start the new session in <dir> (must exist; <folder> = its basename);
                          outside tmux the printed command starts with cd '\''<dir>'\'' &&
   --resolve <dir>        print "<absolute dir><TAB>exists|missing" by the --cwd rules (exit 2 on a
                          bare name found nowhere, or a path that is a file); creates nothing'
 # Built-in subagents that `claude --agent` accepts (checked 2026-10-14; Bash and claude-code-guide are refused).
 BUILTINS=(claude general-purpose Explore Plan statusline-setup)
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATE="${RUN_AGENT_HOME:-$HOME/.claude/run-agent}"
 
 # Collapse `.`/`..` and repeated slashes in an absolute path, textually (no symlink lookups).
 normalize() {
@@ -71,16 +86,27 @@ case "${1:-}" in
   --list) list_agents | awk '!seen[$0]++'; exit 0 ;;
   --resolve) [ $# -eq 2 ] || { echo "$USAGE" >&2; exit 2; }
     resolve "$2"; printf '%s\t%s\n' "$RESOLVED" "$RES_STATE"; exit 0 ;;
+  --parse) shift; exec python3 "$HERE/parse.py" "$@" ;;
+  --jobs) exec python3 "$HERE/jobs.py" list ;;
+  --cancel) shift; exec python3 "$HERE/jobs.py" cancel "$@" ;;
+  --dry-run) shift; dry=1 ;;
   ""|--*) echo "$USAGE" >&2; exit 2 ;;
 esac
+dry="${dry:-0}"
 
 agent="$1"; shift
 
 # Arguments after the agent: [prompt] and [--cwd|-C <dir>] in any order, then [-- flags...].
-prompt=""; have_prompt=0; dir=""; have_dir=0
+prompt=""; have_prompt=0; dir=""; have_dir=0; at=""; at_text=""; window=0; until_at=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --) shift; break ;;
+    --at|--at-text|--until)
+      [ $# -ge 2 ] || { echo "$USAGE" >&2; exit 2; }
+      case "$1" in --at) at="$2" ;; --at-text) at_text="$2" ;; --until) until_at="$2" ;; esac
+      shift 2 ;;
+    --window) window=1; shift ;;
+    --dry-run) dry=1; shift ;;
     --cwd|-C|--cwd=*)
       [ "$have_dir" = 0 ] || { echo "$USAGE" >&2; exit 2; }
       if [ "$1" = "--cwd" ] || [ "$1" = "-C" ]; then
@@ -126,10 +152,10 @@ while [ $i -lt ${#flags[@]} ]; do
   esac
   i=$((i+1))
 done
+if [ -n "$dir" ]; then folder=$(basename "$dir")
+else folder=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")")
+fi
 if [ "$has_name" = 0 ]; then
-  if [ -n "$dir" ]; then folder=$(basename "$dir")
-  else folder=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")")
-  fi
   name="$agent: $folder"
   [ -n "$model" ] && name="$name ($model)"
   flags+=(--name "$name")
@@ -146,6 +172,53 @@ for f in "${flags[@]}"; do
 done
 # With a directory, the shown command starts with cd '<dir>' && (single quotes escaped as '\'').
 [ -n "$dir" ] && shown="cd '${dir//\'/\'\\\'\'}' && $shown"
+
+fmt() { python3 "$HERE/parse.py" --fmt "$1"; }
+in_from_now() {  # "in 3h 12m"
+  local m=$(( ($1 - $(date +%s) + 30) / 60 )); [ "$m" -lt 0 ] && m=0
+  if [ $((m / 60)) -gt 0 ]; then echo "in $((m / 60))h $((m % 60))m"; else echo "in ${m}m"; fi
+}
+
+if [ "$dry" = 1 ]; then
+  echo "command: $shown"
+  echo "dir: ${dir:-$PWD}"
+  if [ -n "$at" ]; then
+    echo "run at: $(fmt "$at") (${at_text:-at $(fmt "$at")}, $(in_from_now "$at"))"
+    [ -n "$until_at" ] && echo "until: $(fmt "$until_at")"
+  else
+    echo "run at: now"
+  fi
+  if reset=$(python3 "$HERE/parse.py" --reset 2>&1); then echo "usage reset: $(fmt "$reset")"
+  else echo "usage reset: unavailable ($reset)"; fi
+  echo "dry run: nothing scheduled, nothing replaced"
+  exit 0
+fi
+
+if [ -n "$at" ]; then
+  [ -n "$at_text" ] || at_text="at $(fmt "$at")"
+  if [ "$window" = 1 ]; then
+    if ! reset=$(python3 "$HERE/parse.py" --reset 2>&1); then
+      echo "at_error: usage API: ${reset#error: }; open any claude session to refresh the token" >&2; exit 2
+    fi
+    [ "$reset" -gt "$at" ] && at="$reset"
+    if [ -n "$until_at" ] && [ "$reset" -gt "$until_at" ]; then
+      line="skipped: reset $(fmt "$reset") is after until $(fmt "$until_at")"
+      echo "$line"
+      mkdir -p "$STATE"; printf '%s  #-  %s  %s\n' "$(date '+%Y-%m-%d %I:%M %p ET')" "$line" "$shown" >> "$STATE/jobs.log"
+      exit 0
+    fi
+  fi
+  pane="${TMUX_PANE:-}"; session=""; socket=""
+  if [ -n "${TMUX:-}" ]; then socket="${TMUX%%,*}"; session=$(tmux display -p '#{session_name}' 2>/dev/null || true); fi
+  mkdir -p "$STATE"
+  IFS=$'\t' read -r id jobfile < <(python3 "$HERE/jobs.py" write --run-at "$at" --at-text "$at_text" --window "$window" \
+    ${until_at:+--until "$until_at"} --cwd "${dir:-$PWD}" --pane "$pane" --session "$session" --socket "$socket" \
+    --shown "$shown" --agent "$agent" --folder "$folder" -- "${cmd[@]}")
+  setsid nohup bash "$HERE/runner.sh" "$id" >> "$STATE/runner.log" 2>&1 < /dev/null &
+  disown
+  echo "scheduled #$id: $shown at $(fmt "$at") ($at_text, $(in_from_now "$at"))"
+  exit 0
+fi
 
 if [ -z "${TMUX:-}" ] || [ -z "${TMUX_PANE:-}" ]; then
   echo "not inside tmux; run:"
