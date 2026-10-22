@@ -7,11 +7,16 @@
       "Workflow",
       "SendFeedback",
       "ScheduleWakeup",
-      "ReportFindings"
+      "ReportFindings",
+      "Agent(evaluator)",
+      "Agent(helper)",
+      "Agent(planner)",
+      "Agent(worker)",
+      "Agent(report-writer-archived-2026-10-21)"
     ],
     "defaultMode": "auto"
   },
-  "model": "sonnet",
+  "model": "opus",
   "skillOverrides": {
     "anthropic-skills:chrome-browser": "off",
     "anthropic-skills:built-in-browser": "off",
@@ -94,6 +99,7 @@
   },
   "autoCompactWindow": 200000,
   "tui": "fullscreen",
+  "skipDangerousModePermissionPrompt": true,
   "theme": "auto",
   "remoteControlAtStartup": true,
   "inputNeededNotifEnabled": true,
@@ -125,6 +131,5 @@
       "**Org-specific CLIs**: None configured",
       "routine actions scoped to this repo's working tree and its origin remote only"
     ]
-  },
-  "skipDangerousModePermissionPrompt": true
+  }
 }
