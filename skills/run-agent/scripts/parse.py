@@ -117,7 +117,9 @@ def list_agents():
 
 
 # ---------------------------------------------------------------- tokenizer
-OPEN_Q = {'"': '"', "'": "'", "“": "”", "‘": "’"}
+# Phone keyboards mix straight and curly quotes ("I'm on my phone” was logged), so any double quote closes
+# any double quote and any single quote closes any single quote.
+OPEN_Q = {'"': '"”“', "'": "'’‘", "“": '”"“', "‘": "’'‘"}
 
 
 def tokenize(raw):
@@ -132,7 +134,7 @@ def tokenize(raw):
         if c in OPEN_Q:
             close = OPEN_Q[c]
             j = i + 1
-            while j < n and raw[j] != close and not (close == "'" and raw[j] == "’"):
+            while j < n and raw[j] not in close:
                 j += 1
             toks.append((raw[i + 1:j], True))
             i = j + 1

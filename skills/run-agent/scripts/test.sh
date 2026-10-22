@@ -122,6 +122,32 @@ pcheck "log: curly quotes, force" 'evaluator “I’m on my phone” force' '{"a
 pcheck "log: claude --agent evaluator \".\"" 'claude --agent evaluator "."' '{"agent":"evaluator","command":"claude --agent evaluator \".\" --name \"evaluator: repo\"","run":"S evaluator ."}'
 pcheck "log: newline inside the prompt" 'planner "line one
 line two" --model opus' '{"agent":"planner","prompt":"line one\nline two","flags":"--model opus","command":"claude --agent planner \"line one\nline two\" --model opus --name \"planner: repo (opus)\"","run":"S planner '"'"'line one\nline two'"'"' -- --model opus"}'
+AT9_FLOW='"at":1792717200,"at_text":"at 9pm","at_shown":"9:00 PM ET (at 9pm, in 3h 0m)","run":"S worker . --at 1792717200 --at-text '"'"'at 9pm'"'"' -- --model fable --effort low"'
+# every /run-agent argument string from the session transcripts (~/.claude/projects/*/*.jsonl); the first five
+# are the ones Haiku got wrong (usage error, dropped effort, "could not parse")
+EVP='"agent":"evaluator","prompt":"I’m on my phone","command":"claude --agent evaluator \"I’m on my phone\" --name \"evaluator: repo\"","run":"S evaluator '"'"'I’m on my phone'"'"'"'
+pcheck "sessions: haiku usage error on 'model=fable effort =medium'" 'worker model=fable effort =medium' "{$FL}"
+pcheck "sessions: haiku usage error on em-dash flags" 'worker —model fable —effort low' "{$FLOW}"
+pcheck "sessions: haiku 'not run' on single-dash flags" 'worker -model fable -effort low' "{$FLOW}"
+pcheck "sessions: haiku dropped 'low effort'" 'worker fable low effort' "{$FLOW}"
+pcheck "sessions: haiku 'could not parse' bare model + em-dash effort" 'worker fable —effort low' "{$FLOW}"
+pcheck "sessions: haiku dry run" 'worker fable low effort at 9pm dry' "{\"flags\":\"--model fable --effort low\",\"command\":\"claude --agent worker \\\".\\\" --model fable --effort low --name \\\"worker: repo (fable)\\\"\",\"dry\":1,$AT9_FLOW,$RESET}"
+pcheck "sessions: full claude command with em-dash flags" 'claude --agent worker "." —model fable —effort medium' "{$FL}"
+pcheck "sessions: full claude command, capital Force" 'claude --agent evaluator "." Force' '{"agent":"evaluator","force":1,"command":"claude --agent evaluator \".\" --name \"evaluator: repo\"","run":"S evaluator ."}'
+pcheck "sessions: full claude command, trailing dot" 'claude --agent evaluator ".".' '{"agent":"evaluator","command":"claude --agent evaluator \".\" --name \"evaluator: repo\"","run":"S evaluator ."}'
+pcheck "sessions: straight open quote, curly close" 'claude --agent evaluator "I’m on my phone”' "{$EVP}"
+pcheck "sessions: planner prompt, straight open, curly close" 'claude --agent planner "Replan based on plans/EVAL.md”' '{"agent":"planner","prompt":"Replan based on plans/EVAL.md","command":"claude --agent planner \"Replan based on plans/EVAL.md\" --name \"planner: repo\"","run":"S planner '"'"'Replan based on plans/EVAL.md'"'"'"}'
+pcheck "sessions: force before the curly prompt" 'evaluator force “I’m on my phone”' "{$EVP,\"force\":1}"
+pcheck "sessions: force after the curly prompt" 'evaluator “I’m on my phone” force' "{$EVP,\"force\":1}"
+pcheck "sessions: newline inside a curly prompt" 'evaluator “I’m on my
+Phone”' '{"agent":"evaluator","prompt":"I’m on my\nPhone","command":"claude --agent evaluator \"I’m on my\nPhone\" --name \"evaluator: repo\"","run":"S evaluator '"'"'I’m on my\nPhone'"'"'"}'
+pcheck "sessions: 'model fable, effort medium' words" 'worker, model fable, effort medium, force' "{$FL,\"force\":1}"
+pcheck "sessions: model=opus, effort=medium" 'worker model=opus, effort=medium' '{"flags":"--model opus --effort medium","command":"claude --agent worker \".\" --model opus --effort medium --name \"worker: repo (opus)\"","run":"S worker . -- --model opus --effort medium"}'
+pcheck "sessions: 'using opus'" 'worker "." using opus' '{"flags":"--model opus","command":"claude --agent worker \".\" --model opus --name \"worker: repo (opus)\"","run":"S worker . -- --model opus"}'
+pcheck "sessions: flag before the agent" '--model opus worker "."' '{"flags":"--model opus","command":"claude --agent worker \".\" --model opus --name \"worker: repo (opus)\"","run":"S worker . -- --model opus"}'
+pcheck "sessions: stray words -> unsure" 'worker . extra words' '{"unsure":["extra","words"]}'
+pcheck "sessions: yolo force" 'worker yolo force' '{"flags":"--dangerously-skip-permissions","force":1,"command":"claude --agent worker \".\" --dangerously-skip-permissions --name \"worker: repo\"","run":"S worker . -- --dangerously-skip-permissions"}'
+pcheck "sessions: bare agent 'planner' (no default prompt)" 'planner' '{"agent":"planner","prompt":"","command":"claude --agent planner --name \"planner: repo\"","run":"S planner"}'
 # time strings (12+)
 AT9='"at":1792717200,"at_text":"at 9pm","at_shown":"9:00 PM ET (at 9pm, in 3h 0m)","run":"S worker . --at 1792717200 --at-text '"'"'at 9pm'"'"'"'
 pcheck "time: at 9pm" 'worker at 9pm' "{$AT9,$RESET}"
