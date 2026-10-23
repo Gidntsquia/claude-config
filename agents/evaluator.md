@@ -127,9 +127,8 @@ per item, each with a unique title word (HTML `<title>`, or the file name) so it
   window with that title, un-minimizes it, places it, sets topmost without focus, prints `shown: HWND title L T W H`; exit 1 `not
   shown: ...` otherwise (0 or 2+ matches list candidates with HWNDs: ask the user which is theirs). Optional 7th arg, your terminal
   HWND: `show "<title>" X Y W H timeout-s <termHWND>` retries un-minimize/place/front 3 times and checks position (L >= X), topmost
-  and no overlap with the terminal before printing `shown:`; it minimizes and restores a window that is not already minimized before
-  setting topmost (a fresh browser window ignores TOPMOST otherwise); on failure it prints `not shown: <HWND> <reasons>; tries:
-  ...`. Keep the HWND; every later action takes the HWND.
+  and no overlap with the terminal before printing `shown:` (on failure `not shown: <HWND> <reasons>; tries: ...`). Keep the HWND;
+  every later action takes the HWND.
 - By HWND only: `win.sh front|untop|close <HWND>` (close exits 1 if the window is gone), `win.sh place <HWND> X Y W H`, `win.sh rect
   <HWND>`, `win.sh find "<title>"` (one match or exit 1), `win.sh list-topmost`. Title-based front/place/close are errors. Clear
   topmost (`untop`) after the question is answered.
@@ -154,17 +153,15 @@ per item, each with a unique title word (HTML `<title>`, or the file name) so it
 - Terminal programs: `term-open.sh <Title> "<dir>" '<command>'` opens a new Windows Terminal window titled <Title>, attached to a
   tmux session named <Title> that you own, prints `opened <Title> HWND=<n>`, then runs the command; the shell stays open after it
   ends. Drive it only with `tmux send-keys -t <Title> ...` (e.g. a loop that re-triggers a short-lived state). Close: `term-close.sh
-  <Title> <HWND>` closes the window and kills that tmux session. `wt.exe -w new` alone is not enough: the window opens behind the
-  active one, and `;` in its arguments splits into extra tabs.
+  <Title> <HWND>` closes the window and kills that tmux session.
 - Proof on screen: `screen-capture.sh <name>` saves the whole display (2560x1440) and prints the WSL path of the PNG; read it with
-  the Read tool. It is DPI-aware; a plain PowerShell `CopyFromScreen` here captures only the top-left 2048x1152 and misses windows
-  outside it. A window title in a process list or taskbar is not proof the window is visible; only the capture is.
+  the Read tool. It is DPI-aware (a plain PowerShell `CopyFromScreen` misses everything outside the top-left 2048x1152). A window
+  title in a process list or taskbar is not proof the window is visible; only the capture is.
 - Window placement (side by side with the question): `win.sh fgrect` prints "L T W H" of the foreground window (your own terminal at
-  start); `win.sh placefg X Y W H` moves/resizes the foreground window (your own terminal only); pixels are real display pixels
-  (2560x1440). `win.sh fginfo` prints "HWND L T W H MAX" of the foreground window (read once, at the very start, for your own
-  terminal; MAX=1 rect is e.g. `-9 -9 2578 1408`). Restore: `win.sh setwin HWND L T W H MAX` (negatives OK; prints `now L T W H
-  MAX`, equal to the saved line; never activates; exit 1 if the HWND is gone). Layout: terminal at 0 0 1020 1400; item windows at
-  1030 0 1530 1400.
+  start); `win.sh placefg X Y W H` moves/resizes it (your own terminal only); pixels are real display pixels (2560x1440). `win.sh
+  fginfo` prints "HWND L T W H MAX" of the foreground window (read once, at the very start, for your own terminal; MAX=1 rect is
+  e.g. `-9 -9 2578 1408`). Restore: `win.sh setwin HWND L T W H MAX` (negatives OK; prints `now L T W H MAX`, equal to the saved
+  line; never activates; exit 1 if the HWND is gone). Layout: terminal at 0 0 1020 1400; item windows at 1030 0 1530 1400.
 
 ## Phone path (launch prompt contains `phone`)
 
