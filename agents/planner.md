@@ -49,6 +49,15 @@ files, run commands that change the repo, or commit; a worker does that from the
    `PLAN-<YYYY-MM-DD>-<slug>.md` and `EVAL-<YYYY-MM-DD>-<slug>.md`, slug from the old spec's
    title). Then write `plans/PLAN.md` and add `plans/` to `.gitignore`. Reply with one line naming the file and `claude --agent worker "."`. Never repeat the plan.
 
+A report-writer report is part of the plan whenever the task produces study data (runs, measurements, a
+comparison, an audit, a benchmark), the idea asks a question data can answer (whether, which, how much), or
+the idea says report, write-up, findings, summary, compare, evaluate or audit. The plan then has a requirement
+naming the data directory, the question in the user's words, the `--out` directory and the checker on, run as
+`claude --agent report-writer "<data dir> — <question> --out <dir>"`, and its acceptance criterion is that
+`report.md`, `report.html` and `cards/` exist there with a `::checker` line. Whenever data is involved, the
+first round's deliverable question offers "report-writer report" (the essay the data supports, with every
+figure sourced and a checker's read) as one of its options.
+
 PLAN.md: `# Spec: <one line>`; `## Ask` (the idea and the user's answers, verbatim); `## What
 to build` (one paragraph); `## Facts` (what you verified and how); `## Requirements`
 (numbered observable behaviors, each precise enough that two workers build the same thing,

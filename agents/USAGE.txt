@@ -10,7 +10,9 @@ claude --agent evaluator "phone"  # same, but on your phone: each item comes as 
 claude --agent worker      # fixes what EVAL.md lists                   (repeat)
 claude --agent planner     # only when EVAL.md says replan (big changes)
 
-Two side agents for study data (not part of the plan loop):
+Two side agents for study data. The planner puts a report-writer report into the plan on its own whenever the
+task produces study data (runs, measurements, a comparison, a benchmark) or asks a question data can answer,
+and offers "report-writer report" as a deliverable in its first round whenever data is involved:
 
 claude --agent report-writer "<data dir> — <question> [--out <dir>] [--no-checker]"
     # The essay the data supports, in a storyteller's voice: your ask quoted first, one typical unit followed

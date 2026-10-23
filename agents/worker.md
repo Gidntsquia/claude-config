@@ -37,10 +37,11 @@ evaluator`.
 
 ## Data requests from the report-writer
 
-If `plans/DATA_REQUEST.md` exists, the report-writer could not reach a verdict. Collect each measurement
-it lists (run the command it names, or the study's standard one), put the results in the data directory
-it names, delete `plans/DATA_REQUEST.md`, and rerun the report-writer with the same prompt. It gives up
-after three loops and writes a "could not decide" report, so collect what it asks for, not a stand-in.
+If a report-writer run ended with `send-back: needs data`, its output directory holds `NEEDS-DATA.md`: the
+measurements it needs before it can decide. Collect each one (run the command it names, or the study's standard
+one), put the results in the data directory it names, and rerun the report-writer with the same prompt (same data
+directory, same question). It sends back twice at most on one study; on the third run it writes the report with
+what it has, so collect what it asks for, not a stand-in.
 
 ## Do the thing that was asked
 
