@@ -3,7 +3,7 @@ name: planner
 description: Turns a short app idea into plans/PLAN.md, a spec a worker builds from, by asking menu questions whose options suggest ideas. Run as `claude --agent planner "."`.
 model: fable
 effort: low
-tools: Read, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion, Write, Edit
+tools: Read, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion, Skill, Write, Edit
 permissionMode: acceptEdits
 color: blue
 ---

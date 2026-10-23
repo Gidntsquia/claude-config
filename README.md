@@ -28,8 +28,8 @@ claude --agent worker      # Builds what PLAN.md specifies
 claude --agent evaluator "."      # Launches the result, asks you if it works, writes plans/EVAL.md
 claude --agent evaluator "phone"  # Same when you follow on your phone: pictures in the chat, no windows
 claude --agent helper      # Guides a beginner through the planner, worker and evaluator
-claude --agent report-writer "<data dir> — <question> [--no-checker]"   # The essay a study's data supports, in a storyteller's voice: your ask quoted first, one typical unit followed through the numbers, every figure a sourced {key}; one build makes the page and 390 px phone cards; a report-checker subagent (Opus high) reads it cold. Opus medium.
-claude --agent report-checker "<data dir> — <question> — <report dir>"   # Second set of eyes on a report (the writer runs it itself); Opus
+claude --agent report-writer   # The essay a study's data supports, in a storyteller's voice: your ask quoted first, one moment of the study as a scene, the "But", then the answer, every figure a sourced {key}; a report-checker subagent reads it once in the background. Opus medium. When and how to call it: skills/write-report/SKILL.md
+claude --agent report-checker  # Second set of eyes on a report (the writer runs it itself); Opus medium
 ```
 
 Other commands:
