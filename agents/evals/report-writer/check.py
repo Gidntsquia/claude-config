@@ -5,8 +5,8 @@
     python3 -I check.py <outdir> --prose [--data …] [--traps …] [--expected expected.json]
         the essay form (report-writer since 2026-10-21; golden r5): figures resolve, numbers, traps-in-body, most_runs, cards,
         card1 (quote + who + [note] + microcosm + "But" with two means and n on one screen), voice, voice_prose, prose_shape,
-        no_summary_sections, ending (names the microcosm again), terms_once, ai_tells (every regex-checkable tell of
-        docs/ai-tells.md), checker_line (last line: loops/raised/fixed/open/tokens/wall or "checker: off"), expected
+        no_summary_sections, ending (names the microcosm again), terms_once, style (golden r5/B's essence: thread, voice,
+        turn, rhythm, headings, shared sentences), ai_tells (every regex-checkable tell of docs/ai-tells.md), checker_line (last line: loops/raised/fixed/open/tokens/wall or "checker: off"), expected
 
 <outdir> holds numbers.json, report.html and cards/measure.json (from render.py). --data is the directory that
 numbers.json's "file" paths are relative to (default: the fixture's data dir next to this script). Prints one line per
@@ -1342,6 +1342,217 @@ def check_microcosm_thread(page):
         ok("microcosm_thread", f"the microcosm's unit ({marks[0]!r}) returns in {len(hit)} of {len(mid)} middle sections")
 
 
+# ---------- --prose: style, the golden's essence in loose terms (2026-10-23) ------------------------------------------------
+STOP = set("the a an of to in on and or for with that this it its is was were be as at by from than then so but if any one "
+           "two three per each every all some no not what which who when where how into over under about after before".split())
+EMOJI_RE = re.compile(r"[\U0001F300-\U0001FAFF☀-➿⬀-⯿⌀-⏿]")
+GOLDEN_MD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden", "r5", "B", "report.md")
+GOLDEN_HTML = os.path.join(os.path.dirname(GOLDEN_MD), "report.html")
+
+
+def arm_names():
+    """candidate arms from question.txt's "Candidates:" clause, each as a set of lowercase words (name words plus any alias in
+    parentheses, split on commas, '=' and '/')"""
+    m = re.search(r"candidates?\s*:\s*(.*?)(?:\.\s|\n|$)", QUESTION, re.I | re.S)
+    if not m:
+        return []
+    txt = m.group(1)
+    txt = re.sub(r"^.*?(?: — |: |—)", "", txt, count=1) if " — " in txt[:120] else txt
+    txt = re.split(r"\b(?:judged|decide|decided|measured) by\b", txt, flags=re.I)[0]
+    parts = re.split(r",(?![^()]*\))|\band\b|\bor\b|\bvs\.?\b|\bversus\b", txt)
+    arms = []
+    for p in parts:
+        p = p.strip(" .;")
+        if not p:
+            continue
+        alias = " ".join(re.sub(r"^[^=]*=", "", a) for a in re.findall(r"\(([^)]*)\)", p))   # POGO_GPU_STUDY=stack → stack
+        name = re.sub(r"\([^)]*\)", " ", p)
+        name = re.sub(r"^(?:every|each|the)\s+\w+(?:\s+\w+)*?\s+(?:that|which|in|for)\b.*$", "", name)
+        name = re.split(r"\s(?:for each|for the|measured|judged|in the|of the|across)\b", name)[0]
+        words = {w for w in re.findall(r"[a-z][a-z0-9'-]*", (name + " " + re.sub(r"[=,/]", " ", alias)).lower()) if w not in STOP and len(w) > 1}
+        if words:
+            arms.append(words)
+    return arms
+
+
+def body_paragraphs_text(page):
+    """body paragraphs (text) after the who line: label line, microcosm, But, sections; not the quote, who, sources or checker line"""
+    out = []
+    for t, h in prose_paragraphs(page):
+        t = t.strip()
+        if not t or t.startswith("📚") or t.startswith("checker:") or t.startswith("::checker"):
+            continue
+        out.append((t, h))
+    return out
+
+
+def words_of(t):
+    return set(re.findall(r"[a-z][a-z0-9'-]*", t.lower()))
+
+
+def check_style(page, outdir, N=None):
+    """the golden's essence in loose, reported terms: thread (share of body paragraphs that name the ask's subject; longest run
+    of sentences about another arm), voice (you/your and I sentence counts), turn (the first body block after the who line and
+    label is a scene, no answer line under the title, the first figure sentence outside a section comes after the But), rhythm
+    (sentence-length SD, share ≤8 and ≥30 words, paragraphs closed by a short sentence), headings (emoji on every ##, all but the
+    last a question), shared (no sentence of eight or more words copied from golden r5/B). FAIL only on thread < 60% or another arm
+    ≥ 4 sentences in a row, zero you/your or zero I, a failed turn, or a shared sentence; the rest are reported beside the golden."""
+    probs = []
+    cards = card_sections(page)
+    if not cards:
+        bad("style", "no cards")
+        return
+    c1 = cards[0]
+    # --- the subject: the arm(s) the user's quote names; else the arm that card 1 names most; plus the label line's words
+    arms = arm_names()
+    q = re.search(r'<q class="ask">(.*?)</q>', c1, re.S)
+    qt = visible_text(q.group(1)) if q else ""
+    qwords = words_of(re.sub(r"\[[^\]]*\]", " ", qt))      # the note in brackets is the writer's, not the user's
+    note = " ".join(re.findall(r"\[([^\]]*)\]", qt))
+    after_who = c1.split('class="who"', 1)[-1]
+    lab = re.search(r"<p[^>]*>(.*?)</p>", after_who, re.S)
+    lab_html = lab.group(1) if lab else ""
+    lab_t = visible_text(lab_html).strip()
+    has_label = bool(lab_t) and len(lab_t.split()) <= 12 and 'class="n"' not in lab_html
+    c1_text = visible_text(re.sub(r'<q class="ask">.*?</q>', " ", c1, flags=re.S)).lower()
+    subject_arms = [a for a in arms if a & qwords]
+    multi = len(subject_arms) > 1
+    if not subject_arms and arms:
+        scored = sorted(arms, key=lambda a: -sum(c1_text.count(w) for w in a))
+        if sum(c1_text.count(w) for w in scored[0]):
+            subject_arms = [scored[0]]
+    subj = set().union(*subject_arms) if subject_arms else set()
+    subj |= {w for w in words_of(note + " " + (lab_t if has_label else "")) if w not in STOP and len(w) > 2}
+    subj |= {w for w in re.findall(r"[a-z]+", " ".join(visible_text(i) for i in re.findall(r'<span class="id">(.*?)</span>', c1))) if len(w) > 2}
+    subj |= {"fix", "change", "ask", "option"} if not multi else set()
+    others = [a - subj for a in arms if a not in subject_arms]
+    others = [a for a in others if a]
+    body = body_paragraphs_text(page)
+    body_t = [t for t, _ in body]
+    if has_label and body_t and body_t[0] == lab_t:
+        body_t_nolabel = body_t[1:]
+    else:
+        body_t_nolabel = body_t
+    def names(t, vocab):
+        ws = words_of(NUM_RE.sub(" ", t))
+        return bool(ws & vocab)
+    named = [t for t in body_t_nolabel if names(t, subj)]
+    thread_share = len(named) / max(1, len(body_t_nolabel))
+    # longest run of consecutive sentences that name another arm and not the subject
+    run = best = 0
+    for t in body_t_nolabel:
+        for s in sentences(t):
+            if any(names(s, o) for o in others) and not names(s, subj):
+                run += 1; best = max(best, run)
+            else:
+                run = 0
+    if thread_share < 0.6:
+        probs.append(f"thread: {thread_share:.0%} of body paragraphs name the ask's subject ({sorted(subj)[:6]}…), under 60%")
+    if best >= 4:
+        probs.append(f"thread: another arm runs {best} sentences in a row")
+    # --- voice
+    all_s = [s for t in body_t_nolabel for s in sentences(t)]
+    you = sum(1 for s in all_s if re.search(r"\b(you|your|yours)\b", s, re.I))
+    me = sum(1 for s in all_s if re.search(r"\bI\b(?!\.e)", s))
+    if you == 0:
+        probs.append("voice: no sentence says you/your to the asker")
+    if me == 0:
+        probs.append("voice: no sentence says I (the writer's judgment or what it does not know)")
+    # --- turn
+    blocks = first_card_blocks(page)
+    bq = next((i for i, (tag, _) in enumerate(blocks) if tag == "blockquote"), None)
+    turn_probs = []
+    if bq is None:
+        turn_probs.append("card 1 has no quote")
+    else:
+        pre = [(tag, h) for tag, h in blocks[:bq] if visible_text(h).strip()]
+        if pre:
+            turn_probs.append(f"a line sits between the title and the quote (an answer line): {visible_text(pre[0][1]).strip()[:60]!r}")
+        post = [h for tag, h in blocks[bq + 1:] if tag == "p" and 'class="who"' not in h and visible_text(h).strip()]
+        if post and has_label and visible_text(post[0]).strip() == lab_t:
+            post = post[1:]
+        if not post:
+            turn_probs.append("no body block after the who line")
+        else:
+            first = post[0]
+            ft = visible_text(first).strip()
+            scene = bool(re.search(r"\b\d\d?:\d\d\b|\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening|noon|night)\b|\b20\d\d-\d\d-\d\d\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d{1,2}\b", ft, re.I) or 'class="id"' in first)
+            if not scene:
+                turn_probs.append(f"first body block is not a scene (no clock time, date or [[identifier]]): {ft[:60]!r}")
+            keys = re.findall(r'data-key="([^"]+)"', first)
+            if N:
+                means = [k for k in keys if "|mean" in str(N.get(k, {}).get("field", "")) or N.get(k, {}).get("derived", {}).get("op") == "mean"]
+                if means:
+                    turn_probs.append(f"first body block carries a mean ({means[0]}), the answer before the scene")
+            if re.search(r"\bn\s*=", ft):
+                turn_probs.append("first body block states n")
+            if any(names(ft, o) for o in others):
+                turn_probs.append("first body block names a second arm")
+        # the first figure-bearing paragraph outside a section comes after the But
+        c1_ps = [h for tag, h in blocks if tag == "p" and 'class="who"' not in h and visible_text(h).strip()]
+        but_i = next((i for i, h in enumerate(c1_ps) if re.match(r"^But\b", visible_text(h).strip())), None)
+        if but_i is None:
+            turn_probs.append("no But paragraph on card 1")
+    if turn_probs:
+        probs.append("turn: " + "; ".join(turn_probs))
+    # --- rhythm (reported)
+    lens = [len(s.split()) for s in all_s]
+    sd = (sum((x - sum(lens) / len(lens)) ** 2 for x in lens) / (len(lens) - 1)) ** 0.5 if len(lens) > 1 else 0.0
+    short = sum(1 for x in lens if x <= 8) / max(1, len(lens))
+    long_ = sum(1 for x in lens if x >= 30) / max(1, len(lens))
+    closers = sum(1 for t in body_t_nolabel if sentences(t) and len(sentences(t)[-1].split()) <= 8)
+    # --- headings (reported)
+    heads = [visible_text(h).strip() for h in re.findall(r"<h2[^>]*>(.*?)</h2>", page, re.S)]
+    emoji = sum(1 for h in heads if EMOJI_RE.search(h))
+    qs = sum(1 for h in heads[:-1] if h.endswith("?"))
+    # --- shared sentences with the golden
+    shared = []
+    md_path = os.path.join(outdir, "report.md")
+    if os.path.exists(GOLDEN_MD) and os.path.exists(md_path) and os.path.realpath(md_path) != os.path.realpath(GOLDEN_MD):
+        def norm_sents(path):
+            txt = open(path, encoding="utf-8").read()
+            txt = re.sub(r"^(#|>|~|::|📚).*$", " ", txt, flags=re.M)
+            txt = re.sub(r"\{[^}]*\}", "K", txt)
+            txt = re.sub(r"\[\[([^\]]*)\]\]", r"\1", txt)
+            return {re.sub(r"[^a-z0-9 ]", "", s.lower()).strip() for s in sentences(txt) if len(s.split()) >= 8}
+        g, r = norm_sents(GOLDEN_MD), norm_sents(md_path)
+        shared = sorted(g & r)
+        if shared:
+            probs.append(f"shared: {len(shared)} sentence(s) of eight or more words copied from golden r5/B: {shared[0][:60]!r}")
+    gv = GOLDEN_VALUES or {}
+    def g_(k, f="{}"):
+        return f" (golden {f.format(gv[k])})" if k in gv else ""
+    report = (f"thread {thread_share:.0%}{g_('thread', '{:.0%}')} of {len(body_t_nolabel)} paragraphs, other-arm run {best}{g_('run')}; "
+              f"voice you {you}{g_('you')} I {me}{g_('me')}; turn {'scene first' if not turn_probs else 'FAIL'}; "
+              f"rhythm SD {sd:.1f}{g_('sd', '{:.1f}')} ≤8w {short:.0%}{g_('short', '{:.0%}')} ≥30w {long_:.0%}{g_('long', '{:.0%}')} short-closers {closers}{g_('closers')}; "
+              f"headings emoji {emoji}/{len(heads)} questions {qs}/{max(0, len(heads) - 1)}; shared {len(shared)}")
+    STYLE_VALUES.update(thread=thread_share, run=best, you=you, me=me, sd=sd, short=short, long=long_, closers=closers, emoji=emoji, heads=len(heads), qs=qs)
+    if probs:
+        bad("style", "; ".join(probs) + f" [{report}]")
+    else:
+        ok("style", report)
+
+
+STYLE_VALUES = {}
+GOLDEN_VALUES = None
+
+
+def golden_values():
+    """the golden's style sub-measures, computed once from golden/r5/B so the report line can show them beside the run's"""
+    global GOLDEN_VALUES, out_lines, fails
+    if not os.path.exists(GOLDEN_HTML):
+        GOLDEN_VALUES = {}
+        return
+    saved = (list(out_lines), list(fails))
+    gp = open(GOLDEN_HTML, encoding="utf-8").read()
+    gn = json.load(open(os.path.join(os.path.dirname(GOLDEN_MD), "numbers.json")))
+    STYLE_VALUES.clear()
+    GOLDEN_VALUES = {}
+    check_style(gp, os.path.dirname(GOLDEN_MD), gn)
+    GOLDEN_VALUES = dict(STYLE_VALUES)
+    out_lines[:], fails[:] = saved
+
+
 def check_checker_line_prose(page, outdir, no_checker_ok=True):
     """last line prints 'checker: N loops, N raised, N fixed, N open; checker tokens N, wall N s' or 'checker: off'"""
     m = re.search(r'<p[^>]*id="checked"[^>]*>(.*?)</p>', page, re.S)
@@ -1510,6 +1721,8 @@ def main():
         check_lead_answer(page)
         check_headings_ask(page)
         check_microcosm_thread(page)
+        golden_values()
+        check_style(page, outdir, N)
         check_ai_tells(page, N)
         check_checker_line_prose(page, outdir)
         check_expected(outdir, N, page, expected, traps)
