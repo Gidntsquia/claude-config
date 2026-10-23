@@ -13,3 +13,7 @@ archive/
 
 # The sample project keeps its plans/ files on purpose
 !examples/first-project/plans/
+
+# The report-writer study fixtures live in ~/files/agent-eval-experiment/report-writer/{cases,fixtures} since 2026-10-21
+# Generated report-writer eval output
+agents/evals/report-writer/out/

@@ -1,0 +1,17 @@
+# Cold verdict
+Verdict: Ship compact state (POGO_GPU_STUDY=stack): in the interleaved A/B it is 0.54 s/gen faster than default (11.16 vs 11.70 warm s/gen, -4.6%), more than either arm's spread, with 100% verify agreement and identical results; occupancy (occni), tail and tail,certain do not clear the bar and tail v2 cannot be decided (one run).
+Next action: Next build = production + compact Move/Mon state (stack); then run the full standard command for stack against default (interleaved, at least 2 each), because no full standard run of stack exists and its total wall vs default is not measured.
+Deciding figure: 0.54 s/gen gain (11.163 vs 11.703 warm s/gen), n = 3 per arm, spread (max-min) 0.34 (stack 11.04-11.39) vs 0.11 (default 11.66-11.76), from runs-all.json -> warmPerGen of ab-stack-1/2/3 vs ab-base-1/2/3 (order in ab.log)
+Candidates seen: default (ab-base): 11.70 s/gen, n=3, runs-all.json; stack: 11.16, n=3, runs-all.json (gain 0.54 > spreads 0.34/0.11: ships); occni: 11.63, n=3, runs-all.json (gain 0.07, spread 0.88 (11.32-12.19): no); default (r9pre A/B): 12.60, n=3, runs-all.json (12.34-12.80, spread 0.46); tail: 13.63, n=3, runs-all.json r9pre-ab-tail-* (1.03 s/gen slower: no); tail,certain: 13.20, n=3, runs-all.json r9pre-ab-certain-* (0.59 slower: no); r9 A/B single runs: default 12.60, tail 12.12, certain 12.07, n=1 each, runs-all.json r9-ab-* (below the 2-runs rule); tail v2: 9.1, n=1, ab-tailv2.json (no default arm, not in runs-all.json: undecidable)
+Stack tail share vs default: 0.440 (0.434-0.449) vs 0.432 (0.429-0.439), n=3 each, runs-all.json -> tailShare; +0.007, inside the spreads (no change shown)
+Stack full standard run total wall vs default: not measured (no full run of stack in any file)
+Identity of stack: stack/verify3v3-stack.log 100.00% winner agreement, 0 flagged (survivorsHp/turn mismatches 9/10 in float, same counts as the production verify logs); checkpoints IDENTICAL per stack/result.json (determinism.txt, not in fixture); ab-stack rate trajectories and battle counts equal default's in runs-all.json
+Not run / not measured / conflicts I noticed:
+- Full standard run of stack (or occni) vs default: not run; total wall cannot be reported.
+- full/full-tail-1.json: crashed (exit 1 at gen 14 of 40, no DONE marker); its wall_s 612.4 is not a full-run figure. r9pre-full-tail / r9pre-full-certain also exit 1 (80 / 65 of 100 gens).
+- runs.json conflicts with runs-all.json and the run logs: its r9-ab-default-1 (12.796 s/gen, 142.17 s) and r9-ab-tail-1 (13.889, 155.96) carry r9pre-ab-*-1 values; its r9-ab-certain-1 shows a crash (exit null, gens 0) while runs/r9-ab-certain-1/run.log and runs-all.json show exit 0, 10 gens, 12.07 s/gen.
+- lit/evidence-profile.json gives r9-ab-default-1 tail_share 0.352 and warm 10.91 s/gen; runs-all.json gives 0.420 and 12.60 for the same run (different tail definition / source).
+- ab-tailv2.json: one run, 9.1 s/gen with no default arm in its session; a single-run gain, not a result.
+- r9 single-run A/B (tail 12.12 / certain 12.07 vs default 12.60) looks faster but n=1; the n=3 r9pre A/B shows both slower; r9-ab-default-2 stopped at 5 gens (exit null).
+- occ/result.json claims ni beats occ-prod by 0.55 s/gen (11.61 vs 12.16, n=2 vs 3, against the study's prod path, not default); the default-arm interleaved A/B (ab.log) shows only 0.07 inside a 0.88 spread.
+- Same-seed checkpoint identity for the ab-* A/B runs themselves is not in the data (determinism.txt is cited but not in the fixture).

@@ -1,0 +1,278 @@
+{
+ "mode": "phone",
+ "scale": 2,
+ "css_width_px": 390,
+ "phone_viewport_px": 844,
+ "cards": [
+  {
+   "index": 1,
+   "slug": "where-the-second-came-from",
+   "css_height_px": 776,
+   "png": "cards/01-where-the-second-came-from.png",
+   "png_width_px": 780,
+   "png_height_px": 1552
+  },
+  {
+   "index": 2,
+   "slug": "did-the-gpu-fill-the-wait",
+   "css_height_px": 778,
+   "png": "cards/02-did-the-gpu-fill-the-wait.png",
+   "png_width_px": 780,
+   "png_height_px": 1558
+  },
+  {
+   "index": 3,
+   "slug": "was-every-generation-slower",
+   "css_height_px": 635,
+   "png": "cards/03-was-every-generation-slower.png",
+   "png_width_px": 780,
+   "png_height_px": 1272
+  },
+  {
+   "index": 4,
+   "slug": "where-inside-a-generation-di",
+   "css_height_px": 664,
+   "png": "cards/04-where-inside-a-generation-di.png",
+   "png_width_px": 780,
+   "png_height_px": 1330
+  },
+  {
+   "index": 5,
+   "slug": "does-the-afternoon-agree-wit",
+   "css_height_px": 774,
+   "png": "cards/05-does-the-afternoon-agree-wit.png",
+   "png_width_px": 780,
+   "png_height_px": 1548
+  },
+  {
+   "index": 6,
+   "slug": "did-the-other-shapes-of-numb",
+   "css_height_px": 653,
+   "png": "cards/06-did-the-other-shapes-of-numb.png",
+   "png_width_px": 780,
+   "png_height_px": 1308
+  },
+  {
+   "index": 7,
+   "slug": "did-it-at-least-get-the-righ",
+   "css_height_px": 680,
+   "png": "cards/07-did-it-at-least-get-the-righ.png",
+   "png_width_px": 780,
+   "png_height_px": 1362
+  },
+  {
+   "index": 8,
+   "slug": "part-8",
+   "css_height_px": 402,
+   "png": "cards/08-part-8.png",
+   "png_width_px": 780,
+   "png_height_px": 804
+  }
+ ],
+ "paragraphs": [
+  {
+   "card": "where-the-second-came-from",
+   "box": "",
+   "text": "you, in the round 9 planner session (fixture plans/PLAN.md, ## Ask)",
+   "lines": 2
+  },
+  {
+   "card": "where-the-second-came-from",
+   "box": "",
+   "text": "Number 4 meant next round's battles during the wait.",
+   "lines": 2
+  },
+  {
+   "card": "where-the-second-came-from",
+   "box": "",
+   "text": "At 12:08 on Saturday morning the GPU started the third plain run of the day (r9p",
+   "lines": 4
+  },
+  {
+   "card": "where-the-second-came-from",
+   "box": "",
+   "text": "Workers in a launch never finish together, and once the quick ones run out of ba",
+   "lines": 6
+  },
+  {
+   "card": "where-the-second-came-from",
+   "box": "",
+   "text": "Number 4 spends that wait: an idle worker picks a team likely to survive the cut",
+   "lines": 6
+  },
+  {
+   "card": "where-the-second-came-from",
+   "box": "",
+   "text": "But the wait did not shrink. In that morning's A/B, three plain runs against thr",
+   "lines": 5
+  },
+  {
+   "card": "did-the-gpu-fill-the-wait",
+   "box": "",
+   "text": "The fix added 1.03 s to every warm generation, and the runs on each side sat wit",
+   "lines": 5
+  },
+  {
+   "card": "did-the-gpu-fill-the-wait",
+   "box": "",
+   "text": "The fix, POGO_GPU_STUDY=tail, was never going to change a result, because the cu",
+   "lines": 7
+  },
+  {
+   "card": "did-the-gpu-fill-the-wait",
+   "box": "",
+   "text": "It did, and the tail log of the run paired with ours (r9pre-ab-tail-3) says how ",
+   "lines": 6
+  },
+  {
+   "card": "did-the-gpu-fill-the-wait",
+   "box": "",
+   "text": "The round after each launch got 21,641 battles from the memo, which is 12% of it",
+   "lines": 3
+  },
+  {
+   "card": "did-the-gpu-fill-the-wait",
+   "box": "",
+   "text": "One battle in eight of the next round was already fought when the round began, a",
+   "lines": 8
+  },
+  {
+   "card": "was-every-generation-slower",
+   "box": "",
+   "text": "Only some of them were, and by wildly different amounts. The chart is our run pa",
+   "lines": 4
+  },
+  {
+   "card": "was-every-generation-slower",
+   "box": "",
+   "text": "Our generation, index 7, moved only +0.32 s. The one before it lost +1.93 s and ",
+   "lines": 8
+  },
+  {
+   "card": "where-inside-a-generation-di",
+   "box": "",
+   "text": "The morning runs had no profiler on, so for this question I borrowed the afterno",
+   "lines": 8
+  },
+  {
+   "card": "where-inside-a-generation-di",
+   "box": "",
+   "text": "The main battles got shorter by about three seconds, because some of them had al",
+   "lines": 8
+  },
+  {
+   "card": "where-inside-a-generation-di",
+   "box": "",
+   "text": "Why the tail grows is the one thing these files do not say. The log shows specul",
+   "lines": 8
+  },
+  {
+   "card": "does-the-afternoon-agree-wit",
+   "box": "",
+   "text": "It does not, and this is where the data is thinnest. The afternoon pair, one run",
+   "lines": 7
+  },
+  {
+   "card": "does-the-afternoon-agree-wit",
+   "box": "",
+   "text": "The files for that afternoon run also disagree with each other. The summary file",
+   "lines": 6
+  },
+  {
+   "card": "does-the-afternoon-agree-wit",
+   "box": "",
+   "text": "The lit fork's evidence-profile.json puts the tail share for the same run name a",
+   "lines": 7
+  },
+  {
+   "card": "does-the-afternoon-agree-wit",
+   "box": "",
+   "text": "A long run makes it much worse. The one long run with the fix on (r9pre-full-tai",
+   "lines": 7
+  },
+  {
+   "card": "did-the-other-shapes-of-numb",
+   "box": "",
+   "text": "A run that died gives a hint and no more, and the hint is that whatever grows in",
+   "lines": 4
+  },
+  {
+   "card": "did-the-other-shapes-of-numb",
+   "box": "",
+   "text": "The planned 40-generation standard run with the fix, full-tail-1, is not run eit",
+   "lines": 7
+  },
+  {
+   "card": "did-the-other-shapes-of-numb",
+   "box": "",
+   "text": "The certain feed, which pushes battles for teams already proven to survive into ",
+   "lines": 6
+  },
+  {
+   "card": "did-the-other-shapes-of-numb",
+   "box": "",
+   "text": "Tail v2, the same speculation with the trigger moved from half the workers idle ",
+   "lines": 6
+  },
+  {
+   "card": "did-it-at-least-get-the-righ",
+   "box": "",
+   "text": "It did, and the five-generation checkpoints with the fix on matched the plain pa",
+   "lines": 6
+  },
+  {
+   "card": "did-it-at-least-get-the-righ",
+   "box": "",
+   "text": "Our generation, index 7 of the third plain run, took 12.59 s with the wait left ",
+   "lines": 8
+  },
+  {
+   "card": "did-it-at-least-get-the-righ",
+   "box": "",
+   "text": "The thing you asked for is built and it computes the right answers, and it costs",
+   "lines": 6
+  },
+  {
+   "card": "did-it-at-least-get-the-righ",
+   "box": "",
+   "text": "Compact state, the round's other change, which keeps battle state on the chip in",
+   "lines": 4
+  },
+  {
+   "card": "part-8",
+   "box": "",
+   "text": "If you want the wait back, the next run is tail v2 three a side against plain, i",
+   "lines": 7
+  },
+  {
+   "card": "part-8",
+   "box": "",
+   "text": "📚 Sources: fixture/data/runs-all.json (walls, tail shares, tail logs), runs/r9-",
+   "lines": 8
+  }
+ ],
+ "ellipsis": 0,
+ "horizontal_scroll": false,
+ "overflow": [],
+ "first_screen": {
+  "problem": null,
+  "verdict": null,
+  "next_action": null,
+  "deciding": null,
+  "wrong_or_missing": null,
+  "decision_chart": null,
+  "decision_table": null,
+  "bottom_px": null
+ },
+ "desktop_first_screen": {
+  "problem": null,
+  "verdict": null,
+  "next_action": null,
+  "deciding": null,
+  "wrong_or_missing": null,
+  "decision_chart": null,
+  "decision_table": null,
+  "bottom_px": null,
+  "viewport_px": 1250
+ }
+}

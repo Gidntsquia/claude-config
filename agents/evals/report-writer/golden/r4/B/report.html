@@ -1,0 +1,108 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Filled the wait, lost a second</title><style>
+:root{--ink:#1b1b1b;--muted:#5d5d5d;--line:#d9d9d9;--bg:#fff;--keep:#2e7d32;--drop:#b23b3b;--rerun:#b26a00;--unproven:#6b6b6b;--acc:#1f5fa8;--wrong:#fff4e5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+main{max-width:860px;margin:0 auto;padding:12px 16px}
+@media (min-width:1000px){body[data-mode=desktop] main{max-width:1500px}
+body[data-mode=desktop] .fs-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-areas:"left right" "wrong right";grid-template-rows:auto 1fr;column-gap:28px;align-items:start}
+body[data-mode=desktop] .fs-left{grid-area:left}body[data-mode=desktop] .fs-right{grid-area:right}body[data-mode=desktop] .fs-grid .wrong{grid-area:wrong}
+body[data-mode=desktop] .card.body .fig,body[data-mode=desktop] #decision-values .fig{max-width:620px}}
+body[data-mode=phone] main{max-width:390px;padding:0}
+body[data-mode=phone] .card{padding:12px 8px}
+body[data-mode=phone] #first h1{font-size:18px;margin:0 0 6px}
+body[data-mode=phone] #first p{margin:4px 0}
+body[data-mode=phone] #first .problem{font-size:14.5px;line-height:1.35;margin:0 0 8px}
+body[data-mode=phone] #first .verdict{font-size:16.5px}
+body[data-mode=phone] #first .next,body[data-mode=phone] #first .deciding{font-size:14px;line-height:1.3}
+body[data-mode=phone] #first .wrong{font-size:12px;line-height:1.25;padding:5px 8px;margin-top:8px}
+body[data-mode=phone] #first .wrong ul{padding-left:14px;margin-top:2px}
+body[data-mode=phone] #first .wrong li{margin:1px 0}
+body[data-mode=phone] #first .fig{margin:6px 0 2px}
+body[data-mode=phone] #first figcaption{font-size:13px;line-height:1.25}
+body[data-mode=phone] #first table{font-size:11px;line-height:1.25}
+body[data-mode=phone] #first .meaning{font-size:10.5px}
+body[data-mode=phone] #first th{font-size:10.5px}
+body[data-mode=phone] #first th,body[data-mode=phone] #first td{padding:2px 3px}
+body[data-mode=phone] #first td:first-child{min-width:118px}
+body[data-mode=phone] #first td:nth-child(3),body[data-mode=phone] #first td:nth-child(4){white-space:nowrap}
+body[data-mode=phone] #first .supports{display:none}
+body[data-mode=phone] #first .verdict-tag{font-size:11px;padding:0 5px}
+body[data-mode=phone] #first p.cite{margin:2px 0 0}
+.card{padding:12px 0;border-bottom:2px solid var(--line)}
+.card.first{border-bottom-width:1px}
+h1{font-size:20px;margin:4px 0 8px;line-height:1.25}
+h2{font-size:17px;margin:2px 0 8px;line-height:1.3}
+h2 .supports{display:block;font-size:12px;font-weight:normal;color:var(--muted)}
+p{margin:6px 0}
+.problem{font-size:16px;line-height:1.4;margin:0 0 10px}
+.question{color:var(--muted);font-size:14px}
+.verdict{font-size:18px;line-height:1.3;border-left:5px solid var(--acc);padding-left:10px}
+.next{border-left:5px solid var(--keep);padding-left:10px}
+.deciding{border-left:5px solid var(--muted);padding-left:10px}
+.wrong{background:var(--wrong);border:1px solid #f0c27a;border-radius:6px;padding:8px 10px;margin-top:8px}
+.wrong ul{margin:4px 0 0;padding-left:18px}
+.wrong li{margin:3px 0}
+.n{font-variant-numeric:tabular-nums;font-weight:600}
+.wrong .n,td .n{font-weight:inherit}
+.n.missing{font-weight:600;color:var(--rerun)}
+.src{color:var(--muted);font-size:0.85em}
+.fig{margin:10px 0}
+figcaption{font-size:14px;margin-bottom:4px}
+.legend{color:var(--muted);font-size:12px}
+.reading{margin:4px 0 0;font-size:13.5px;line-height:1.3}
+body[data-mode=phone] #first .reading{font-size:13px}
+svg.chart{display:block;max-width:100%;height:auto}
+svg .lab{font-size:11px;fill:var(--ink)}
+svg .val{font-size:11px;fill:var(--ink)}
+svg .val .n{font-weight:600}
+svg .cite{font-size:9.5px;fill:var(--muted)}
+svg .leg{font-size:10px;fill:var(--ink)}
+svg .miss{font-size:11px;fill:var(--rerun)}
+svg .axis{stroke:#888;stroke-width:1}
+svg .bar{fill:#9db7d6}
+svg .bar.keep{fill:#7cb785}svg .bar.drop{fill:#d98b8b}svg .bar.rerun{fill:#e0b36a}svg .bar.unproven{fill:#bdbdbd}
+svg .err{stroke:#222;stroke-width:1.2}
+svg .break{fill:none;stroke:#fff;stroke-width:1.6}
+svg .axisnote{font-size:10px;fill:var(--muted)}
+svg .seg{stroke:#fff;stroke-width:0.8}
+svg .s0{fill:#6f9fd8}svg .s1{fill:#e9a86a}svg .s2{fill:#8fcf9b}svg .s3{fill:#c9a0dc}svg .s4{fill:#bdbdbd}svg .s5{fill:#f2d16b}
+svg .segval{font-size:10px;fill:#111}
+svg .line{fill:none;stroke-width:2}svg .l0{stroke:#1f5fa8}svg .l1{stroke:#d97a3a}svg .l2{stroke:#2e7d32}svg .l3{stroke:#8e4fb0}
+svg text.l0{fill:#1f5fa8}svg text.l1{fill:#d97a3a}svg text.l2{fill:#2e7d32}svg text.l3{fill:#8e4fb0}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600}
+.meaning{color:var(--muted);font-size:12px}
+.verdict-tag{display:inline-block;padding:1px 7px;border-radius:10px;color:#fff;font-size:12px;font-weight:600}
+.verdict-tag.keep{background:var(--keep)}.verdict-tag.drop{background:var(--drop)}.verdict-tag.rerun{background:var(--rerun)}.verdict-tag.unproven{background:var(--unproven)}
+p.cite{color:var(--muted);font-size:12px;margin-top:2px}
+.note{color:var(--muted);font-size:14px}
+details summary{cursor:pointer;font-weight:600}
+.appendix ul{font-size:14px;padding-left:18px}
+.checked{color:var(--muted);font-size:13px;margin-top:10px}
+body[data-mode=phone] table{font-size:12.5px}
+
+main.prose h1{font-size:21px;line-height:1.25;margin:6px 0 10px}
+main.prose h2{font-size:17.5px;line-height:1.3;margin:4px 0 6px}
+main.prose p{margin:8px 0;line-height:1.45}
+main.prose blockquote{margin:8px 0;padding:6px 10px;border-left:4px solid #bbb;background:#f7f7f7;border-radius:0 6px 6px 0}
+main.prose blockquote q{quotes:"“" "”";font-style:italic}
+main.prose p.who{margin:2px 0 8px;color:var(--muted);font-size:13.5px}
+main.prose ul{margin:6px 0;padding-left:20px}
+main.prose li{margin:3px 0;line-height:1.4}
+main.prose code{font-size:0.9em;background:#f2f2f2;padding:0 3px;border-radius:3px}
+main.prose .fig{margin:10px 0 4px}
+main.prose figcaption{font-size:13.5px;line-height:1.3;color:var(--muted);margin-top:4px}
+main.prose svg .bar{fill:#9db7d6}main.prose svg .bar.hi{fill:#1f5fa8}
+main.prose svg .val{font-size:10.5px}main.prose svg .lab{font-size:10.5px;fill:var(--muted)}
+main.prose .card{padding:12px 8px}
+main.prose .card:last-child{border-bottom:0}
+</style></head><body data-mode="phone"><main class="prose">
+<section class="card" id="filled-the-wait-lost-a-secon"><h1>Filled the wait, lost a second</h1><blockquote><q class="ask">I thought number 4 was one of the things I originally requested—I.e, removing unneeded wait times. I want it</q></blockquote><p class="who"><span class="who">you, in the round 9 planner session (fixture <code>plans/PLAN.md</code>, <code>## Ask</code>)</span></p><p><span class="id">Number 4</span> was "start next round's battles during the wait".</p><p>Here is one of the waits. r9pre-ab-default-1, <span class="id">index 7</span>, the first plain run on Saturday morning, 11:53 ET, took <span class="n" data-key="gw_def1_g7">12.84 s</span>. Across that run <span class="n" data-key="ts_default1">42.6%</span> of GPU time was tail, the slack at the end of a launch: battles finish unevenly, the quick workers go idle, and the chip mostly sits until the slowest battle lands. Call it <span class="n" data-key="tail_s_def1_g7">5.5 s</span> of this generation spent waiting.</p><p><span class="id">Number 4</span> puts that idle time to use: workers with nothing to do start next round's battles for teams likely to survive the cut. That is speculation, done early, kept as a memo hit if the team survives, binned if not.</p><p>But the same generation with the fix on, in r9pre-ab-tail-1, took <span class="n" data-key="gw_tail1_g7">12.94 s</span>. Over the morning's A/B, three runs a side, a warm generation (generation <span class="id">4</span> onward, once the pool is full) went from <span class="n" data-key="w_r9pre_def_mean">12.60 s</span> to <span class="n" data-key="w_r9pre_tail_mean">13.63 s</span>, n = <span class="n" data-key="w_r9pre_def_n">3</span>. The fix cost <span class="n" data-key="tail_diff">1.03 s</span> a generation.</p></section>
+<section class="card" id="is-it-a-fluke-of-short-runs"><h2>🔭 Is it a fluke of short runs?</h2><p>No. Long runs are worse. The one long run with the fix on, r9pre-full-tail, was taking <span class="n" data-key="gw_fulltail_pre_g79">127.1 s</span> a generation by generation <span class="id">79</span> and died at <span class="id">80</span> of <span class="id">100</span> (exit <span class="id">1</span>). The plain 100-generation run did that same generation in <span class="n" data-key="gw_full100def_g79">10.9 s</span>. A run that died is a hint rather than a measurement, and the hint is that the cost grows with the pool.</p><p>The 40-generation standard run with the fix, full-tail-1, is not run: it exited <span class="id">1</span> at generation <span class="n" data-key="ft_gens">14</span> of <span class="n" data-key="ft_planned">40</span> when the sidecar lost the GPU lock. So a full standard run with the fix on is not measured.</p><h2>🧮 Did the filler do anything?</h2><p>Plenty. r9pre-ab-tail-1 speculated <span class="n" data-key="tl1_speculated">65,127</span> battles, threw <span class="n" data-key="tl1_discard_pct">56%</span> of them away because the team did not survive the cut, and fed the next round <span class="n" data-key="tl1_served">21,928</span> from the memo, <span class="n" data-key="tl1_served_pct">12%</span> of its pool of <span class="n" data-key="tl1_pool">182,630</span>. The chip was busy. Busy and useful are different things, and a binned battle is work for nothing.</p><h2>⏱️ Where did the seconds land?</h2><p>In the tail, the one place they were meant to leave. The morning runs have no profile, so this comes from the afternoon build of the same fix, where the profiler was on. r9-ab-default-1, generation <span class="id">7</span>: <span class="n" data-key="pf_def_g7_kernel">6.58 s</span> in the main battle kernel, <span class="n" data-key="pf_def_g7_tail">5.04 s</span> in the tail. r9-ab-tail-1, same generation: <span class="n" data-key="pf_tail_g7_kernel">3.31 s</span> kernel, <span class="n" data-key="pf_tail_g7_tail">6.61 s</span> tail.</p></section>
+<section class="card" id="why-trust-the-morning-over-t"><p>The main battles shrank by about three seconds, because some were already done. The tail grew by a second and a half. Over that run the tail share went from <span class="n" data-key="ts_r9def_runsall">42.0%</span> to <span class="n" data-key="ts_r9tail_runsall">55.4%</span>.</p><p>Why the tail grows is not in these files. The log says speculation stops when the main battles end, so it is not the launch running on. My guess is memo traffic and ranking work landing in the tail window. It is a guess.</p><h2>🔀 Why trust the morning over the afternoon?</h2><p>Because the morning has three runs a side and the afternoon has one. That afternoon pair came out <span class="n" data-key="w_r9tail_runsall">12.12 s</span> with the fix against <span class="n" data-key="w_r9def_runsall">12.60 s</span> without (n = <span class="n" data-key="w_r9_n">1</span>), which is faster, and I do not know what changed between the 11:53 fork and the 14:05 build. One run each decides nothing.</p><p>There is also a conflict in the files for that run name. <code>runs.json</code> has r9-ab-default-1 at <span class="n" data-key="w_r9def_runsjson">12.80 s</span> with a tail share of <span class="n" data-key="ts_r9def_runsjson">42.6%</span>, the morning's numbers under the afternoon's name. The lit fork's <code>evidence-profile.json</code> has the tail share at <span class="n" data-key="ts_r9def_lit">35.2%</span>, by a different ruler (time after half the main battles ended). Both stay on the table.</p></section>
+<section class="card" id="did-the-other-shapes-do-bett"><h2>🧪 Did the other shapes do better?</h2><p>Not enough to matter. The certain feed, which pushes battles for teams already proven to survive into the running kernel through a queue, came out at <span class="n" data-key="w_r9pre_cert_mean">13.20 s</span>, <span class="n" data-key="cert_diff">0.59 s</span> slower than plain (n = <span class="n" data-key="w_r9pre_cert_n">3</span>).</p><p>Tail v2, the same speculation with the trigger at a quarter of workers idle instead of half, came out at <span class="n" data-key="w_tailv2">9.10 s</span> in its only run (n = <span class="n" data-key="w_tailv2_n">1</span>), which is unproven: one run, nothing beside it.</p><h2>✅ Were the answers right?</h2><p>Yes. Five-generation checkpoints with the fix on were identical to the plain path, <span class="n" data-key="det_tail_ckpts">5</span> of <span class="id">5</span>, and the 3v3 verify pass agreed with the CPU on <span class="n" data-key="verify_tail">100.00%</span> of winners. Nothing was lost except time.</p><h2>🔁 Back to r9pre-ab-default-1, <span class="id">index 7</span></h2><p><span class="n" data-key="gw_def1_g7">12.84 s</span> plain. <span class="n" data-key="gw_tail1_g7">12.94 s</span> with the wait filled. The generation after it went from <span class="n" data-key="gw_def1_g8">17.47 s</span> to <span class="n" data-key="gw_tail1_g8">19.59 s</span>. About <span class="n" data-key="tail_s_def1_g7">5.5 s</span> of waiting was there to be won back, and none of it came back.</p><p>Where that leaves the ask. Built, correct, slower by <span class="n" data-key="tail_diff">1.03 s</span> a warm generation, and the long run says the slope is the real problem. It stays off. The plain path is as it was.</p></section>
+<section class="card" id="part-5"><p>Compact state, the other change from this round (battle state kept on-chip instead of in slow memory), is its own <span class="n" data-key="stack_diff">−0.54 s</span> and is unaffected. If you want this pursued, the next run is tail v2 three a side against plain, then a profile of the 11:53 code so the tail has a bucket to blame, then one full standard run of each.</p><p>📚 <code>fixture/data/runs-all.json</code> (walls, tail shares, tail logs), <code>runs/r9-ab-*/gpu-profile.json</code>, <code>runs.json</code>, <code>lit/evidence-profile.json</code>, <code>full/full-tail-1.json</code>, <code>ab-tailv2.json</code>, <code>det-r9.txt</code>, <code>tail/verify3v3-tail.log</code>. Every figure is keyed in <code>numbers.json</code> and checked by <code>check.py --prose</code>.</p></section>
+</main></body></html>

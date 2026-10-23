@@ -1,0 +1,278 @@
+{
+ "mode": "phone",
+ "scale": 2,
+ "css_width_px": 390,
+ "phone_viewport_px": 844,
+ "cards": [
+  {
+   "index": 1,
+   "slug": "where-number-4-s-second-went",
+   "css_height_px": 776,
+   "png": "cards/01-where-number-4-s-second-went.png",
+   "png_width_px": 780,
+   "png_height_px": 1552
+  },
+  {
+   "index": 2,
+   "slug": "did-the-gpu-do-the-work",
+   "css_height_px": 709,
+   "png": "cards/02-did-the-gpu-do-the-work.png",
+   "png_width_px": 780,
+   "png_height_px": 1420
+  },
+  {
+   "index": 3,
+   "slug": "was-every-generation-slower",
+   "css_height_px": 612,
+   "png": "cards/03-was-every-generation-slower.png",
+   "png_width_px": 780,
+   "png_height_px": 1224
+  },
+  {
+   "index": 4,
+   "slug": "so-where-inside-a-generation",
+   "css_height_px": 641,
+   "png": "cards/04-so-where-inside-a-generation.png",
+   "png_width_px": 780,
+   "png_height_px": 1284
+  },
+  {
+   "index": 5,
+   "slug": "does-the-afternoon-agree-wit",
+   "css_height_px": 681,
+   "png": "cards/05-does-the-afternoon-agree-wit.png",
+   "png_width_px": 780,
+   "png_height_px": 1362
+  },
+  {
+   "index": 6,
+   "slug": "did-the-other-shapes-of-numb",
+   "css_height_px": 676,
+   "png": "cards/06-did-the-other-shapes-of-numb.png",
+   "png_width_px": 780,
+   "png_height_px": 1354
+  },
+  {
+   "index": 7,
+   "slug": "did-it-at-least-compute-the",
+   "css_height_px": 804,
+   "png": "cards/07-did-it-at-least-compute-the.png",
+   "png_width_px": 780,
+   "png_height_px": 1610
+  },
+  {
+   "index": 8,
+   "slug": "part-8",
+   "css_height_px": 231,
+   "png": "cards/08-part-8.png",
+   "png_width_px": 780,
+   "png_height_px": 464
+  }
+ ],
+ "paragraphs": [
+  {
+   "card": "where-number-4-s-second-went",
+   "box": "",
+   "text": "you, in the round 9 planner session (fixture plans/PLAN.md, ## Ask)",
+   "lines": 2
+  },
+  {
+   "card": "where-number-4-s-second-went",
+   "box": "",
+   "text": "Number 4 on that list: next round's battles during the wait.",
+   "lines": 2
+  },
+  {
+   "card": "where-number-4-s-second-went",
+   "box": "",
+   "text": "One generation, then. r9pre-ab-default-3, index 7, Saturday 12:08 ET, plain code",
+   "lines": 4
+  },
+  {
+   "card": "where-number-4-s-second-went",
+   "box": "",
+   "text": "Over the whole run, 41.6% of the GPU's time was tail, the end of a launch, when ",
+   "lines": 6
+  },
+  {
+   "card": "where-number-4-s-second-went",
+   "box": "",
+   "text": "Number 4 fills that wait: idle workers start next round's battles for the teams ",
+   "lines": 6
+  },
+  {
+   "card": "where-number-4-s-second-went",
+   "box": "",
+   "text": "But it went the wrong way. In that morning's A/B, three plain runs against three",
+   "lines": 5
+  },
+  {
+   "card": "did-the-gpu-do-the-work",
+   "box": "",
+   "text": "The fix, POGO_GPU_STUDY=tail, leaves the results alone, since the cut still come",
+   "lines": 7
+  },
+  {
+   "card": "did-the-gpu-do-the-work",
+   "box": "",
+   "text": "The wait was supposed to shrink. Something grew instead. The rest of this is a s",
+   "lines": 3
+  },
+  {
+   "card": "did-the-gpu-do-the-work",
+   "box": "",
+   "text": "Yes. The run paired with our generation, r9pre-ab-tail-3, logged 61,424 speculat",
+   "lines": 5
+  },
+  {
+   "card": "did-the-gpu-do-the-work",
+   "box": "",
+   "text": "The round after each launch was served 21,641 battles from the memo, which is 12",
+   "lines": 3
+  },
+  {
+   "card": "did-the-gpu-do-the-work",
+   "box": "",
+   "text": "So the filler did fill. The chip was busy where it used to idle, and one battle ",
+   "lines": 8
+  },
+  {
+   "card": "was-every-generation-slower",
+   "box": "",
+   "text": "Not every one, and not evenly. The chart is our run pair, generation by generati",
+   "lines": 3
+  },
+  {
+   "card": "was-every-generation-slower",
+   "box": "",
+   "text": "Our generation, index 7, moved only +0.32 s. Its neighbours lost +1.93 s and +1.",
+   "lines": 8
+  },
+  {
+   "card": "so-where-inside-a-generation",
+   "box": "",
+   "text": "The morning runs have no profile, so for this question I have to borrow one from",
+   "lines": 8
+  },
+  {
+   "card": "so-where-inside-a-generation",
+   "box": "",
+   "text": "Read that twice. The main battles got shorter, by about three seconds, because a",
+   "lines": 8
+  },
+  {
+   "card": "so-where-inside-a-generation",
+   "box": "",
+   "text": "Why the tail grows I cannot tell from these files. The log says speculation stop",
+   "lines": 7
+  },
+  {
+   "card": "does-the-afternoon-agree-wit",
+   "box": "",
+   "text": "No, and that is the awkward part. That afternoon pair, one run a side, came out ",
+   "lines": 7
+  },
+  {
+   "card": "does-the-afternoon-agree-wit",
+   "box": "",
+   "text": "It gets worse before it gets better. runs.json lists the afternoon names with th",
+   "lines": 5
+  },
+  {
+   "card": "does-the-afternoon-agree-wit",
+   "box": "",
+   "text": "The lit fork's evidence-profile.json says 35.2% for the same run name, measured ",
+   "lines": 6
+  },
+  {
+   "card": "does-the-afternoon-agree-wit",
+   "box": "",
+   "text": "Worse, a lot. One longer run with the fix on, r9pre-full-tail, got to generation",
+   "lines": 4
+  },
+  {
+   "card": "did-the-other-shapes-of-numb",
+   "box": "",
+   "text": "The plain 100-generation run took 10.9 s for the same generation, and 10.09 s pe",
+   "lines": 7
+  },
+  {
+   "card": "did-the-other-shapes-of-numb",
+   "box": "",
+   "text": "The planned 40-generation standard run with the fix, full-tail-1, is not run eit",
+   "lines": 7
+  },
+  {
+   "card": "did-the-other-shapes-of-numb",
+   "box": "",
+   "text": "Adding the certain feed, which pushes battles for teams that have already provab",
+   "lines": 5
+  },
+  {
+   "card": "did-the-other-shapes-of-numb",
+   "box": "",
+   "text": "Tail v2, the same speculation with the threshold dropped from half the workers i",
+   "lines": 5
+  },
+  {
+   "card": "did-it-at-least-compute-the",
+   "box": "",
+   "text": "Yes. Five-generation checkpoints with the fix on match the plain path, 5 of 5, a",
+   "lines": 4
+  },
+  {
+   "card": "did-it-at-least-compute-the",
+   "box": "",
+   "text": "Our generation, r9pre-ab-default-3 index 7, took 12.59 s with the wait in it. Wi",
+   "lines": 6
+  },
+  {
+   "card": "did-it-at-least-compute-the",
+   "box": "",
+   "text": "So the thing you asked for is built and it is correct, and it is slower. The cos",
+   "lines": 5
+  },
+  {
+   "card": "did-it-at-least-compute-the",
+   "box": "",
+   "text": "The plain path is unchanged, and the round's other change, compact state, which ",
+   "lines": 5
+  },
+  {
+   "card": "did-it-at-least-compute-the",
+   "box": "",
+   "text": "What I would try next. First, tail v2 in a three-a-side interleaved A/B, because",
+   "lines": 8
+  },
+  {
+   "card": "part-8",
+   "box": "",
+   "text": "📚 Sources: fixture/data/runs-all.json (walls, tail shares, tail logs), runs/r9-",
+   "lines": 8
+  }
+ ],
+ "ellipsis": 0,
+ "horizontal_scroll": false,
+ "overflow": [],
+ "first_screen": {
+  "problem": null,
+  "verdict": null,
+  "next_action": null,
+  "deciding": null,
+  "wrong_or_missing": null,
+  "decision_chart": null,
+  "decision_table": null,
+  "bottom_px": null
+ },
+ "desktop_first_screen": {
+  "problem": null,
+  "verdict": null,
+  "next_action": null,
+  "deciding": null,
+  "wrong_or_missing": null,
+  "decision_chart": null,
+  "decision_table": null,
+  "bottom_px": null,
+  "viewport_px": 1250
+ }
+}

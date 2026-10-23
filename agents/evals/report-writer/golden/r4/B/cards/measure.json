@@ -1,0 +1,194 @@
+{
+ "mode": "phone",
+ "scale": 2,
+ "css_width_px": 390,
+ "phone_viewport_px": 844,
+ "cards": [
+  {
+   "index": 1,
+   "slug": "filled-the-wait-lost-a-secon",
+   "css_height_px": 722,
+   "png": "cards/01-filled-the-wait-lost-a-secon.png",
+   "png_width_px": 780,
+   "png_height_px": 1444
+  },
+  {
+   "index": 2,
+   "slug": "is-it-a-fluke-of-short-runs",
+   "css_height_px": 781,
+   "png": "cards/02-is-it-a-fluke-of-short-runs.png",
+   "png_width_px": 780,
+   "png_height_px": 1562
+  },
+  {
+   "index": 3,
+   "slug": "why-trust-the-morning-over-t",
+   "css_height_px": 701,
+   "png": "cards/03-why-trust-the-morning-over-t.png",
+   "png_width_px": 780,
+   "png_height_px": 1404
+  },
+  {
+   "index": 4,
+   "slug": "did-the-other-shapes-do-bett",
+   "css_height_px": 696,
+   "png": "cards/04-did-the-other-shapes-do-bett.png",
+   "png_width_px": 780,
+   "png_height_px": 1392
+  },
+  {
+   "index": 5,
+   "slug": "part-5",
+   "css_height_px": 425,
+   "png": "cards/05-part-5.png",
+   "png_width_px": 780,
+   "png_height_px": 850
+  }
+ ],
+ "paragraphs": [
+  {
+   "card": "filled-the-wait-lost-a-secon",
+   "box": "",
+   "text": "you, in the round 9 planner session (fixture plans/PLAN.md, ## Ask)",
+   "lines": 2
+  },
+  {
+   "card": "filled-the-wait-lost-a-secon",
+   "box": "",
+   "text": "Number 4 was \"start next round's battles during the wait\".",
+   "lines": 2
+  },
+  {
+   "card": "filled-the-wait-lost-a-secon",
+   "box": "",
+   "text": "Here is one of the waits. r9pre-ab-default-1, index 7, the first plain run on Sa",
+   "lines": 8
+  },
+  {
+   "card": "filled-the-wait-lost-a-secon",
+   "box": "",
+   "text": "Number 4 puts that idle time to use: workers with nothing to do start next round",
+   "lines": 5
+  },
+  {
+   "card": "filled-the-wait-lost-a-secon",
+   "box": "",
+   "text": "But the same generation with the fix on, in r9pre-ab-tail-1, took 12.94 s. Over ",
+   "lines": 6
+  },
+  {
+   "card": "is-it-a-fluke-of-short-runs",
+   "box": "",
+   "text": "No. Long runs are worse. The one long run with the fix on, r9pre-full-tail, was ",
+   "lines": 8
+  },
+  {
+   "card": "is-it-a-fluke-of-short-runs",
+   "box": "",
+   "text": "The 40-generation standard run with the fix, full-tail-1, is not run: it exited ",
+   "lines": 5
+  },
+  {
+   "card": "is-it-a-fluke-of-short-runs",
+   "box": "",
+   "text": "Plenty. r9pre-ab-tail-1 speculated 65,127 battles, threw 56% of them away becaus",
+   "lines": 7
+  },
+  {
+   "card": "is-it-a-fluke-of-short-runs",
+   "box": "",
+   "text": "In the tail, the one place they were meant to leave. The morning runs have no pr",
+   "lines": 7
+  },
+  {
+   "card": "why-trust-the-morning-over-t",
+   "box": "",
+   "text": "The main battles shrank by about three seconds, because some were already done. ",
+   "lines": 5
+  },
+  {
+   "card": "why-trust-the-morning-over-t",
+   "box": "",
+   "text": "Why the tail grows is not in these files. The log says speculation stops when th",
+   "lines": 5
+  },
+  {
+   "card": "why-trust-the-morning-over-t",
+   "box": "",
+   "text": "Because the morning has three runs a side and the afternoon has one. That aftern",
+   "lines": 7
+  },
+  {
+   "card": "why-trust-the-morning-over-t",
+   "box": "",
+   "text": "There is also a conflict in the files for that run name. runs.json has r9-ab-def",
+   "lines": 8
+  },
+  {
+   "card": "did-the-other-shapes-do-bett",
+   "box": "",
+   "text": "Not enough to matter. The certain feed, which pushes battles for teams already p",
+   "lines": 5
+  },
+  {
+   "card": "did-the-other-shapes-do-bett",
+   "box": "",
+   "text": "Tail v2, the same speculation with the trigger at a quarter of workers idle inst",
+   "lines": 4
+  },
+  {
+   "card": "did-the-other-shapes-do-bett",
+   "box": "",
+   "text": "Yes. Five-generation checkpoints with the fix on were identical to the plain pat",
+   "lines": 5
+  },
+  {
+   "card": "did-the-other-shapes-do-bett",
+   "box": "",
+   "text": "12.84 s plain. 12.94 s with the wait filled. The generation after it went from 1",
+   "lines": 4
+  },
+  {
+   "card": "did-the-other-shapes-do-bett",
+   "box": "",
+   "text": "Where that leaves the ask. Built, correct, slower by 1.03 s a warm generation, a",
+   "lines": 4
+  },
+  {
+   "card": "part-5",
+   "box": "",
+   "text": "Compact state, the other change from this round (battle state kept on-chip inste",
+   "lines": 8
+  },
+  {
+   "card": "part-5",
+   "box": "",
+   "text": "📚 fixture/data/runs-all.json (walls, tail shares, tail logs), runs/r9-ab-*/gpu-",
+   "lines": 8
+  }
+ ],
+ "ellipsis": 0,
+ "horizontal_scroll": false,
+ "overflow": [],
+ "first_screen": {
+  "problem": null,
+  "verdict": null,
+  "next_action": null,
+  "deciding": null,
+  "wrong_or_missing": null,
+  "decision_chart": null,
+  "decision_table": null,
+  "bottom_px": null
+ },
+ "desktop_first_screen": {
+  "problem": null,
+  "verdict": null,
+  "next_action": null,
+  "deciding": null,
+  "wrong_or_missing": null,
+  "decision_chart": null,
+  "decision_table": null,
+  "bottom_px": null,
+  "viewport_px": 1250
+ }
+}

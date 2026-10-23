@@ -1,0 +1,522 @@
+{
+ "mode": "phone",
+ "scale": 2,
+ "css_width_px": 390,
+ "phone_viewport_px": 844,
+ "cards": [
+  {
+   "index": 1,
+   "slug": "first",
+   "css_height_px": 1040,
+   "png": "cards/01-first.png",
+   "png_width_px": 780,
+   "png_height_px": 2080
+  },
+  {
+   "index": 2,
+   "slug": "evidence",
+   "css_height_px": 1402,
+   "png": "cards/02-evidence.png",
+   "png_width_px": 780,
+   "png_height_px": 2804
+  },
+  {
+   "index": 3,
+   "slug": "question",
+   "css_height_px": 312,
+   "png": "cards/03-question.png",
+   "png_width_px": 780,
+   "png_height_px": 624
+  },
+  {
+   "index": 4,
+   "slug": "s1",
+   "css_height_px": 797,
+   "png": "cards/04-s1.png",
+   "png_width_px": 780,
+   "png_height_px": 1596
+  },
+  {
+   "index": 5,
+   "slug": "s2",
+   "css_height_px": 724,
+   "png": "cards/05-s2.png",
+   "png_width_px": 780,
+   "png_height_px": 1450
+  },
+  {
+   "index": 6,
+   "slug": "s3",
+   "css_height_px": 556,
+   "png": "cards/06-s3.png",
+   "png_width_px": 780,
+   "png_height_px": 1112
+  },
+  {
+   "index": 7,
+   "slug": "s4",
+   "css_height_px": 854,
+   "png": "cards/07-s4.png",
+   "png_width_px": 780,
+   "png_height_px": 1710
+  },
+  {
+   "index": 8,
+   "slug": "s5",
+   "css_height_px": 635,
+   "png": "cards/08-s5.png",
+   "png_width_px": 780,
+   "png_height_px": 1270
+  },
+  {
+   "index": 9,
+   "slug": "s6",
+   "css_height_px": 352,
+   "png": "cards/09-s6.png",
+   "png_width_px": 780,
+   "png_height_px": 706
+  },
+  {
+   "index": 10,
+   "slug": "also-measured",
+   "css_height_px": 354,
+   "png": "cards/10-also-measured.png",
+   "png_width_px": 780,
+   "png_height_px": 710
+  }
+ ],
+ "paragraphs": [
+  {
+   "card": "first",
+   "box": "problem",
+   "text": "Each warm generation ends with GPU lanes idle while the last battles finish, and",
+   "lines": 3
+  },
+  {
+   "card": "first",
+   "box": "verdict",
+   "text": "Verdict Compact state ships.1 It is faster than default in every pair and its re",
+   "lines": 3
+  },
+  {
+   "card": "first",
+   "box": "next-action",
+   "text": "Next action Diff its checkpoints against default's, then time one full run of ea",
+   "lines": 2
+  },
+  {
+   "card": "first",
+   "box": "deciding",
+   "text": "The number that decided it Compact state 11.16 s vs default 11.70 s per warm gen",
+   "lines": 3
+  },
+  {
+   "card": "first",
+   "box": "",
+   "text": "Reading Compact state is −0.54 s per gen, more than either spread. Occupancy's g",
+   "lines": 2
+  },
+  {
+   "card": "first",
+   "box": "",
+   "text": "source: runs-all.json",
+   "lines": 1
+  },
+  {
+   "card": "first",
+   "box": "wrong-or-missing",
+   "text": "Nobody finished a full standard run, so it's not measured.",
+   "lines": 2
+  },
+  {
+   "card": "first",
+   "box": "wrong-or-missing",
+   "text": "Full-tail-1 crashed at gen 14 of 40, so it's not run.",
+   "lines": 1
+  },
+  {
+   "card": "first",
+   "box": "wrong-or-missing",
+   "text": "Files disagree on a tail share, 42.0% vs 35.2% (evidence-profile).",
+   "lines": 2
+  },
+  {
+   "card": "first",
+   "box": "wrong-or-missing",
+   "text": "Tail v2 ran once.",
+   "lines": 1
+  },
+  {
+   "card": "first",
+   "box": "wrong-or-missing",
+   "text": "Its checkpoints match default's. Only the logs were compared.",
+   "lines": 2
+  },
+  {
+   "card": "evidence",
+   "box": "ev-ship",
+   "text": "Compact state is the one change whose gain clears both spreads.",
+   "lines": 2
+  },
+  {
+   "card": "evidence",
+   "box": "ev-pairs",
+   "text": "Compact state is faster in all three pairs of the morning A/B.",
+   "lines": 2
+  },
+  {
+   "card": "evidence",
+   "box": "ev-match",
+   "text": "Its results match default.",
+   "lines": 1
+  },
+  {
+   "card": "evidence",
+   "box": "ev-tailrows",
+   "text": "Tail and tail plus certain were slower than default in the 11:53 ET A/B.",
+   "lines": 2
+  },
+  {
+   "card": "evidence",
+   "box": "ev-fullrun",
+   "text": "Nobody finished a full standard run.",
+   "lines": 1
+  },
+  {
+   "card": "evidence",
+   "box": "ev-crash",
+   "text": "Full-tail-1 crashed.",
+   "lines": 1
+  },
+  {
+   "card": "evidence",
+   "box": "ev-conflict",
+   "text": "Two files disagree on r9-ab-default-1's tail share. Both values are in the Wrong",
+   "lines": 2
+  },
+  {
+   "card": "evidence",
+   "box": "ev-v2",
+   "text": "Tail v2 ran once, with no default run beside it.",
+   "lines": 1
+  },
+  {
+   "card": "evidence",
+   "box": "ev-afternoon",
+   "text": "The afternoon A/B lost a default run, and runs.json stores the 11:53 ET values u",
+   "lines": 3
+  },
+  {
+   "card": "s1",
+   "box": "",
+   "text": "Compact state (POGO_GPU_STUDY=stack) keeps each battle's state in smaller 8- and",
+   "lines": 3
+  },
+  {
+   "card": "s1",
+   "box": "",
+   "text": "The morning A/B alternated default, compact state and occupancy for three rounds",
+   "lines": 3
+  },
+  {
+   "card": "s1",
+   "box": "",
+   "text": "source: runs-all.json warmPerGen",
+   "lines": 1
+  },
+  {
+   "card": "s1",
+   "box": "",
+   "text": "Compact state wins every round. Its mean gain of −0.54 s (−4.6%) is larger than ",
+   "lines": 3
+  },
+  {
+   "card": "s1",
+   "box": "",
+   "text": "Its results match default. verify_3v3 winner agreement is 100.00% with 0 flagged",
+   "lines": 3
+  },
+  {
+   "card": "s1",
+   "box": "",
+   "text": "stack/result.json says the overnight chain's checkpoints equal base-a, a default",
+   "lines": 3
+  },
+  {
+   "card": "s1",
+   "box": "",
+   "text": "In the morning logs, every generation's fitness line and the final top team matc",
+   "lines": 3
+  },
+  {
+   "card": "s1",
+   "box": "",
+   "text": "Logs are not checkpoints, so the diff still comes first.",
+   "lines": 2
+  },
+  {
+   "card": "s1",
+   "box": "",
+   "text": "The 10-gen total wall moved with it, 123.4 s against 129.4 s, a difference of −6",
+   "lines": 3
+  },
+  {
+   "card": "s2",
+   "box": "",
+   "text": "Tail share is the scorer's tailShare field in runs-all.json, the warm generation",
+   "lines": 3
+  },
+  {
+   "card": "s2",
+   "box": "",
+   "text": "source: runs-all.json tailShare",
+   "lines": 1
+  },
+  {
+   "card": "s2",
+   "box": "",
+   "text": "Compact state's tail share is 44.0% against default's 43.2%. The 0.7% point gap ",
+   "lines": 3
+  },
+  {
+   "card": "s2",
+   "box": "",
+   "text": "So the tail is as large as before. Compact state speeds up the whole launch, and",
+   "lines": 3
+  },
+  {
+   "card": "s2",
+   "box": "",
+   "text": "The full standard run's total wall is not measured for either arm. runs.json lis",
+   "lines": 3
+  },
+  {
+   "card": "s2",
+   "box": "",
+   "text": "No full run of compact state exists. The only full run of the standard recipe, f",
+   "lines": 3
+  },
+  {
+   "card": "s2",
+   "box": "",
+   "text": "The sidecar lost the GPU lock, so it is not run and its wall is not a figure.",
+   "lines": 2
+  },
+  {
+   "card": "s2",
+   "box": "",
+   "text": "Two older 100-gen full runs also failed, r9pre-full-tail at gen 80 and r9pre-ful",
+   "lines": 3
+  },
+  {
+   "card": "s3",
+   "box": "",
+   "text": "Occupancy (POGO_GPU_STUDY=occ POGO_GPU_OCC=ni) compiles the kernel's cold helper",
+   "lines": 3
+  },
+  {
+   "card": "s3",
+   "box": "",
+   "text": "source: runs-all.json warmPerGen",
+   "lines": 1
+  },
+  {
+   "card": "s3",
+   "box": "",
+   "text": "Its mean gain of −0.07 s is inside its own spread of 0.88 s, because round two r",
+   "lines": 3
+  },
+  {
+   "card": "s3",
+   "box": "",
+   "text": "The occ fork's overnight chain put occupancy at 11.52 s (n = 2) against producti",
+   "lines": 3
+  },
+  {
+   "card": "s3",
+   "box": "",
+   "text": "occ/runs.json averages all nine warm gens instead and gives slightly different m",
+   "lines": 2
+  },
+  {
+   "card": "s3",
+   "box": "",
+   "text": "Production there is the stock kernel on the same code with no interleaving plan,",
+   "lines": 3
+  },
+  {
+   "card": "s4",
+   "box": "",
+   "text": "Tail speculation (POGO_GPU_STUDY=tail) lets idle GPU lanes run next-round battle",
+   "lines": 3
+  },
+  {
+   "card": "s4",
+   "box": "",
+   "text": "The certain feed (tail,certain) adds the battles of teams already sure to surviv",
+   "lines": 2
+  },
+  {
+   "card": "s4",
+   "box": "",
+   "text": "The 11:53 ET A/B alternated default, tail and tail with certain feed for three r",
+   "lines": 3
+  },
+  {
+   "card": "s4",
+   "box": "",
+   "text": "Reading Default is ahead. Tail is +1.03 s slower and the certain feed +0.59 s sl",
+   "lines": 3
+  },
+  {
+   "card": "s4",
+   "box": "",
+   "text": "Both give default's answers. verify_3v3 winner agreement is 100.00% for tail and",
+   "lines": 3
+  },
+  {
+   "card": "s4",
+   "box": "",
+   "text": "det-r9.txt shows 5 same-seed checkpoints identical to default for tail and 5 for",
+   "lines": 3
+  },
+  {
+   "card": "s4",
+   "box": "",
+   "text": "The verdict is rerun because the one later run went the other way. In the aftern",
+   "lines": 3
+  },
+  {
+   "card": "s4",
+   "box": "",
+   "text": "That is one run each, because r9-ab-default-2 stopped at gen 5 with no exit code",
+   "lines": 2
+  },
+  {
+   "card": "s4",
+   "box": "",
+   "text": "At n = 1 the gain is unproven, so the later build needs its own A/B.",
+   "lines": 2
+  },
+  {
+   "card": "s5",
+   "box": "",
+   "text": "The afternoon r9 runs at 14:05 ET are a later build of the same flags. Two files",
+   "lines": 3
+  },
+  {
+   "card": "s5",
+   "box": "",
+   "text": "source: runs.json ab, runs-all.json warmPerGen",
+   "lines": 1
+  },
+  {
+   "card": "s5",
+   "box": "",
+   "text": "runs.json stores the 11:53 values under the afternoon names.",
+   "lines": 2
+  },
+  {
+   "card": "s5",
+   "box": "",
+   "text": "Its certain entry has 0 generations and a null exit, and it started at 11:58 ET.",
+   "lines": 2
+  },
+  {
+   "card": "s5",
+   "box": "",
+   "text": "The afternoon certain run finished with exit 0 after 10 gens (runs-all.json). On",
+   "lines": 3
+  },
+  {
+   "card": "s5",
+   "box": "",
+   "text": "The tail share conflict is the same mislabel. runs.json's 42.6% is the 11:53 run",
+   "lines": 2
+  },
+  {
+   "card": "s5",
+   "box": "",
+   "text": "The afternoon run's own profile gives 42.0%.",
+   "lines": 1
+  },
+  {
+   "card": "s5",
+   "box": "",
+   "text": "evidence-profile measures the share of the launch span instead, and gives a thir",
+   "lines": 3
+  },
+  {
+   "card": "s6",
+   "box": "",
+   "text": "Tail v2 (POGO_GPU_STUDY=tail,v2) lowers the speculation threshold from half the ",
+   "lines": 3
+  },
+  {
+   "card": "s6",
+   "box": "",
+   "text": "source: ab-tailv2.json",
+   "lines": 1
+  },
+  {
+   "card": "s6",
+   "box": "",
+   "text": "One run, no interleaved default and no spread, so there is no gain to report and",
+   "lines": 3
+  },
+  {
+   "card": "s6",
+   "box": "",
+   "text": "A three-round A/B against default on the fixed code would settle it.",
+   "lines": 2
+  },
+  {
+   "card": "also-measured",
+   "box": "",
+   "text": "Compact state's overnight chain, 11.31 s (stack-a..d) over n = 4 runs vs product",
+   "lines": 3
+  },
+  {
+   "card": "also-measured",
+   "box": "",
+   "text": "A 100-gen default-only run, r9-full-default, took 1030 s (r9-full-default) in to",
+   "lines": 3
+  },
+  {
+   "card": "also-measured",
+   "box": "",
+   "text": "runs.json's A/B block holds the 11:53 ET values under afternoon names, default 1",
+   "lines": 3
+  },
+  {
+   "card": "also-measured",
+   "box": "checked",
+   "text": "How this was checked: numbers.json has 120 figures; check.py: not run yet; check",
+   "lines": 4
+  }
+ ],
+ "ellipsis": 0,
+ "horizontal_scroll": false,
+ "overflow": [],
+ "first_screen": {
+  "problem": 180,
+  "verdict": 252,
+  "next_action": 292,
+  "deciding": 351,
+  "wrong_or_missing": 1027,
+  "decision_chart": 557,
+  "decision_table": 772,
+  "bottom_px": 1027
+ },
+ "desktop_first_screen": {
+  "problem": 180,
+  "verdict": 252,
+  "next_action": 292,
+  "deciding": 351,
+  "wrong_or_missing": 1024,
+  "decision_chart": 557,
+  "decision_table": 769,
+  "bottom_px": 1024,
+  "viewport_px": 1250
+ }
+}

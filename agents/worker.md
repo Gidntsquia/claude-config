@@ -35,6 +35,13 @@ evaluator: where the plan is silent, looks wrong or cannot be checked here, pick
 closest to its Ask, build it, and record doubt and choice in `plans/WORKER_NOTES.md` under `For the
 evaluator`.
 
+## Data requests from the report-writer
+
+If `plans/DATA_REQUEST.md` exists, the report-writer could not reach a verdict. Collect each measurement
+it lists (run the command it names, or the study's standard one), put the results in the data directory
+it names, delete `plans/DATA_REQUEST.md`, and rerun the report-writer with the same prompt. It gives up
+after three loops and writes a "could not decide" report, so collect what it asks for, not a stand-in.
+
 ## Do the thing that was asked
 
 The goal is the outcome the user wants, not a passing check. Do not swap the ask for something

@@ -5,9 +5,20 @@ They talk through gitignored files in `plans/`.
 
 claude --agent planner     # "I want X." Answers a few questions.      → plans/PLAN.md (a spec)
 claude --agent worker      # builds the spec; does what you tell it     → plans/WORKER_NOTES.md
-claude --agent evaluator   # runs checks once, shows you the app, asks  → plans/EVAL.md
+claude --agent evaluator "."      # runs checks once, shows you the app, asks  → plans/EVAL.md
+claude --agent evaluator "phone"  # same, but on your phone: each item comes as a picture in the chat
 claude --agent worker      # fixes what EVAL.md lists                   (repeat)
 claude --agent planner     # only when EVAL.md says replan (big changes)
+
+Two side agents for study data (not part of the plan loop):
+
+claude --agent report-writer "<data dir> — <question> [--out <dir>] [--no-checker]"
+    # The essay the data supports, in a storyteller's voice: your ask quoted first, one typical unit followed
+    # through the numbers, every figure a sourced {key}; one build makes the page and 390 px phone cards in
+    # <data dir>/report/; a report-checker subagent reads it cold. Opus medium.
+claude --agent report-checker "<data dir> — <question> — <report dir>"
+    # Second set of eyes: answers the question cold from the data, then checks every figure in report.md
+    # against numbers.json. Opus high. The writer runs it itself.
 
 - PLAN.md is a spec in the style of ~/files/token-experiment/SPEC.md: ask, what to build,
   verified facts, requirements, constraints, acceptance criteria. No implementation.

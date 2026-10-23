@@ -4,7 +4,7 @@
   <img alt="The status line showing the project name, git branch, model, and 5-hour usage" src="https://raw.githubusercontent.com/wiki/Gidntsquia/claude-config/statusline.png">
 </p>
 
-My [Claude Code](https://claude.com/claude-code) setup: four agents, six skills, a custom status line, and my global `CLAUDE.md` and `settings.json`. The files live in this repo and `~/.claude` holds symlinks to them, so edits made from either place end up here.
+My [Claude Code](https://claude.com/claude-code) setup: five agents, six skills, a custom status line, and my global `CLAUDE.md` and `settings.json`. The files live in this repo and `~/.claude` holds symlinks to them, so edits made from either place end up here.
 
 The agents split a project into planning, building and checking. The [wiki](https://github.com/Gidntsquia/claude-config/wiki) is a beginner's guide to that workflow, starting from a fresh Windows or Mac install.
 
@@ -25,8 +25,11 @@ Run the agents from a project root:
 ```
 claude --agent planner     # Turns what you ask for into plans/PLAN.md
 claude --agent worker      # Builds what PLAN.md specifies
-claude --agent evaluator   # Launches the result, asks you if it works, writes plans/EVAL.md
+claude --agent evaluator "."      # Launches the result, asks you if it works, writes plans/EVAL.md
+claude --agent evaluator "phone"  # Same when you follow on your phone: pictures in the chat, no windows
 claude --agent helper      # Guides a beginner through the planner, worker and evaluator
+claude --agent report-writer "<data dir> — <question> [--no-checker]"   # The essay a study's data supports, in a storyteller's voice: your ask quoted first, one typical unit followed through the numbers, every figure a sourced {key}; one build makes the page and 390 px phone cards; a report-checker subagent (Opus high) reads it cold. Opus medium.
+claude --agent report-checker "<data dir> — <question> — <report dir>"   # Second set of eyes on a report (the writer runs it itself); Opus
 ```
 
 Other commands:
@@ -64,6 +67,7 @@ More details in the
 - [Cheat Sheet](https://github.com/Gidntsquia/claude-config/wiki/Cheat-Sheet) — commands and common pitfalls
 - [Glossary and FAQ](https://github.com/Gidntsquia/claude-config/wiki/Glossary-and-FAQ) — terms and beginner questions
 - [Context Trimming](https://github.com/Gidntsquia/claude-config/wiki/Context-Trimming) — settings that shrink every session's context
+- [AI Tells](https://github.com/Gidntsquia/claude-config/wiki/AI-Tells) — writing habits that read as AI, with fixes (also [docs/ai-tells.md](docs/ai-tells.md))
 
 `examples/first-project/` is the finished app from Getting Started, and `agents/USAGE.txt` has the hand-off rules between agents.
 
