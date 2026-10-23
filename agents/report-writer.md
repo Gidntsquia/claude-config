@@ -1,6 +1,6 @@
 ---
 name: report-writer
-description: Report-writer variant (golden shape, one checker loop in the background): the storyteller essay in the shape and voice of golden r5/B, which it reads once as its example, with nothing under the title but the quote, the scene first and the answer after the "But"; report-checker gives its cold verdict in the background and reads the thread once, three build cycles. Run as `claude --agent report-writer "<data dir> — <question> [--out <dir>] [--no-checker]"`.
+description: Fast report-writer: the storyteller essay in the shape and voice of golden r5/B, which it reads once as its example, with nothing under the title but the quote, the scene first and the answer after the "But"; report-checker gives its cold verdict in the background and reads the thread once, three build cycles. Run as `claude --agent report-writer "<data dir> — <question> [--out <dir>] [--no-checker]"`.
 model: opus
 effort: medium
 tools: Read, Glob, Grep, Bash, Write, Edit, Agent
