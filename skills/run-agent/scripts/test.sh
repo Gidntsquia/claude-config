@@ -293,7 +293,16 @@ EOF
 
   # (4b) --need-tmux outside tmux: exit 1, nothing scheduled
   out=$(TMUX= "$S" worker '.' --at 0 --at-text 'after window' --window --need-tmux 2>&1); rc=$?
-  [ "$rc" = 1 ] && [ "$out" = "not scheduled — not in tmux" ] && ok "sched: --need-tmux outside tmux -> exit 1" || bad "sched: --need-tmux" "rc=$rc $out"
+  [ "$rc" = 1 ] && [ "$(head -1 <<<"$out")" = "not scheduled — not in tmux" ] && ok "sched: --need-tmux outside tmux -> exit 1" || bad "sched: --need-tmux" "rc=$rc $out"
+  [ "$(tail -1 <<<"$out")" = "Relaunch: not scheduled — not in tmux; run /run-agent worker after window to schedule it by hand" ] && ok "sched: --need-tmux Relaunch line (no tmux)" || bad "sched: --need-tmux Relaunch line (no tmux)" "$out"
+  # (4c) --need-tmux with no reset time: exit 2, Relaunch line with the hint
+  out=$(RUN_AGENT_USAGE_FILE="$T/none.json" "$S" worker '.' --at 0 --at-text 'after window' --window --need-tmux 2>&1); rc=$?
+  [ "$rc" = 2 ] && grep -q "^Relaunch: not scheduled — no reset time (.*); run /run-agent worker after window to schedule it by hand$" <<<"$out" && ok "sched: --need-tmux Relaunch line (no reset)" || bad "sched: --need-tmux Relaunch line (no reset)" "rc=$rc $out"
+  # (4d) --need-tmux success: last line is Relaunch: <time> ET (job #N)
+  R=$(( $(date +%s) + 600 )); usage_at "$R"
+  out=$("$S" worker '.' --at "$R" --at-text 'after window' --window --need-tmux 2>&1); rc=$?
+  [ "$rc" = 0 ] && grep -q "^Relaunch: .* ET (job #[0-9]*)$" <<<"$(tail -1 <<<"$out")" && ok "sched: --need-tmux Relaunch line (scheduled)" || bad "sched: --need-tmux Relaunch line (scheduled)" "rc=$rc $out"
+  "$S" --cancel >/dev/null 2>&1
 
   # (5) dry run: prints, schedules nothing
   R=$(( $(date +%s) + 3600 )); usage_at "$R"
@@ -309,7 +318,7 @@ EOF
   TARGET=t:second keys "'$S' worker '.' --at $R --at-text 'in 3s' > '$T/sched6.out' 2>&1"
   wait_for 3 test -s "$T/sched6.out"
   TM kill-window -t t:second
-  wait_for 10 grep -q "  #6  fired in new window  " "$LOG" && ok "sched: pane gone -> fired in new window" || bad "sched: pane gone" "$(cat "$LOG")"
+  wait_for 10 grep -q "  #7  fired in new window  " "$LOG" && ok "sched: pane gone -> fired in new window" || bad "sched: pane gone" "$(cat "$LOG")"
   wait_for 3 bash -c "tmux -L '$SOCK' list-windows -t t -F '#{window_name}' | grep -qx 'worker: repo'" && ok "sched: new window named 'worker: repo'" || bad "sched: new window name" "$(TM list-windows -t t)"
   wait_for 5 grep -q "arg=worker: repo" "$RA_OUT" && ok "sched: claude ran in the new window" || bad "sched: claude in new window" "$(cat "$RA_OUT")"
 
@@ -318,7 +327,7 @@ EOF
   keys "'$S' worker '.' --at $R --at-text 'in 3s' > '$T/sched7.out' 2>&1"
   wait_for 3 test -s "$T/sched7.out"
   TM kill-server
-  wait_for 10 grep -q "  #7  fired in new session  " "$LOG" && ok "sched: server gone -> fired in new session" || bad "sched: server gone" "$(cat "$LOG")"
+  wait_for 10 grep -q "  #8  fired in new session  " "$LOG" && ok "sched: server gone -> fired in new session" || bad "sched: server gone" "$(cat "$LOG")"
   wait_for 3 bash -c "tmux -L '$SOCK' list-sessions -F '#{session_name}' | grep -qx 'worker repo'" && ok "sched: new session 'worker repo'" || bad "sched: new session" "$(TM list-sessions 2>&1)"
   wait_for 5 grep -q "arg=worker: repo" "$RA_OUT" && ok "sched: claude ran in the new session" || bad "sched: claude in new session" "$(cat "$RA_OUT")"
 else

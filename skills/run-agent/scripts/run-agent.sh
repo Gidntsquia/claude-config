@@ -23,7 +23,8 @@ USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--at <epoch> [--at
                          that respawns this pane into the command at that time; --at-text keeps the words typed,
                          --window marks a usage-window run (re-fetched at fire time), --until <epoch> skips the
                          run when the window reset is later than that; --need-tmux refuses to schedule outside
-                         tmux (exit 1, "not scheduled — not in tmux"; used by the worker at the usage limit)
+                         tmux (exit 1, "not scheduled — not in tmux") and ends every outcome with a ready-made
+                         "Relaunch: ..." line; used by the worker at the usage limit
   --dry-run ...          print the command, directory and run time; run and schedule nothing
   --jobs, --cancel [id]  list pending scheduled runs / cancel one (the only one when no id is given)
   --cwd <dir>, -C <dir>  start the new session in <dir> (must exist; <folder> = its basename);
@@ -197,11 +198,18 @@ if [ "$dry" = 1 ]; then
 fi
 
 if [ -n "$at" ]; then
-  if [ "$need_tmux" = 1 ] && [ -z "${TMUX:-}" ]; then echo "not scheduled — not in tmux" >&2; exit 1; fi
+  HINT="; run /run-agent worker after window to schedule it by hand"
+  if [ "$need_tmux" = 1 ] && [ -z "${TMUX:-}" ]; then
+    echo "not scheduled — not in tmux" >&2
+    echo "Relaunch: not scheduled — not in tmux$HINT" >&2
+    exit 1
+  fi
   [ -n "$at_text" ] || at_text="at $(fmt "$at")"
   if [ "$window" = 1 ]; then
     if ! reset=$(python3 "$HERE/parse.py" --reset 2>&1); then
-      echo "at_error: usage API: ${reset#error: }; open any claude session to refresh the token" >&2; exit 2
+      echo "at_error: usage API: ${reset#error: }; open any claude session to refresh the token" >&2
+      [ "$need_tmux" = 1 ] && echo "Relaunch: not scheduled — no reset time (${reset#error: })$HINT" >&2
+      exit 2
     fi
     [ "$reset" -gt "$at" ] && at="$reset"
     if [ -n "$until_at" ] && [ "$reset" -gt "$until_at" ]; then
@@ -220,6 +228,7 @@ if [ -n "$at" ]; then
   setsid nohup bash "$HERE/runner.sh" "$id" >> "$STATE/runner.log" 2>&1 < /dev/null &
   disown
   echo "scheduled #$id: $shown at $(fmt "$at") ($at_text, $(in_from_now "$at"))"
+  [ "$need_tmux" = 1 ] && echo "Relaunch: $(fmt "$at") (job #$id)"
   exit 0
 fi
 
