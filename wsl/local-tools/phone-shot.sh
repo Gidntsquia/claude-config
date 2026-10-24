@@ -2,12 +2,12 @@
 # Phone path of the evaluator: render one item to PNG(s) for the Read tool (no window is opened).
 #   phone-shot.sh <out-base> url  <url>                 a web page or running app
 #   phone-shot.sh <out-base> html <file.html>           an HTML file
-#   phone-shot.sh <out-base> md   <file.md>             markdown rendered to HTML (python3 -m markdown if present, else <pre>)
+#   phone-shot.sh <out-base> md   <file.md>             markdown rendered to HTML (headings, lists, tables, code, emphasis)
 #   phone-shot.sh <out-base> text <file> [A-B]          plain text / log / source with line numbers (optional line range)
 #   phone-shot.sh <out-base> tmux <session> [--no-ansi] a tmux pane you created: capture-pane -e, ANSI colours kept
-# Output: <out-base>.png (or <out-base>-pN.png parts for pages taller than 3 phone screens); prints "png <path> WxH" per part.
+# Output: <out-base>.png (or <out-base>-pN.png parts, each at most one phone screen, 780x1688); prints "png <path> WxH" per part.
 # Playwright Chromium (390 css px, 2x) via phone-shot.mjs; if node/playwright is missing it says so and falls back to
-# headless Firefox (--screenshot, window 390 px wide, 1x, no split).
+# headless Firefox (--screenshot, window 390x844, 1x, first screen only).
 set -e
 base="$1"; kind="$2"; src="$3"; arg4="$4"
 [ -n "$base" ] && [ -n "$kind" ] && [ -n "$src" ] || { sed -n 2,8p "$0"; exit 2; }
@@ -17,15 +17,14 @@ tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 esc() { python3 -c 'import html,sys; sys.stdout.write(html.escape(sys.stdin.read()))'; }
 wrap() {  # wrap <title> <body-html-file> -> $tmp/page.html
   { printf '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>%s</title>' "$(printf %s "$1" | esc)"
-    printf '<style>body{margin:12px;font:15px/1.45 system-ui,sans-serif;color:#111;background:#fff;word-wrap:break-word}pre{font:12px/1.35 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all;margin:0}pre.term{background:#111;color:#ddd;padding:8px;border-radius:6px}h1,h2,h3{line-height:1.2}img{max-width:100%%}table{border-collapse:collapse}td,th{border:1px solid #bbb;padding:2px 6px}</style></head><body>'
+    printf '<style>body{margin:12px;font:15px/1.45 system-ui,sans-serif;color:#111;background:#fff;word-wrap:break-word}pre{font:12px/1.35 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all;margin:0}pre.term{background:#111;color:#ddd;padding:8px;border-radius:6px}h1,h2,h3{line-height:1.2}img{max-width:100%%}table{border-collapse:collapse}h1{font-size:22px}h2{font-size:18px}h3{font-size:16px}table{width:100%%;table-layout:auto;font-size:11px;line-height:1.3;overflow-wrap:anywhere}td,th{border:1px solid #bbb;padding:2px 4px;vertical-align:top}th{background:#eee;text-align:left}code{font:12px ui-monospace,Menlo,monospace;background:#f3f3f3;padding:0 3px}pre code{background:none;padding:0}pre.code{background:#f3f3f3;padding:6px;border-radius:4px}blockquote{margin:0 0 0 8px;padding-left:8px;border-left:3px solid #ccc;color:#444}</style></head><body>'
     cat "$2"; printf '</body></html>'; } > "$tmp/page.html"
 }
 case "$kind" in
   url)  url="$src" ;;
   html) url="file://$(readlink -f "$src")" ;;
   md)
-    if python3 -c 'import markdown' 2>/dev/null; then python3 -m markdown "$src" > "$tmp/body.html"
-    else { printf '<pre>'; esc < "$src"; printf '</pre>'; } > "$tmp/body.html"; fi
+    python3 "$here/md2html.py" "$src" > "$tmp/body.html"
     wrap "$(basename "$src")" "$tmp/body.html"; url="file://$tmp/page.html" ;;
   text)
     range="${arg4:-}"
@@ -98,6 +97,6 @@ FF=/mnt/c/Program\ Files/Mozilla\ Firefox/firefox.exe
 [ -n "$FF" ] || { echo "phone-shot.sh: no firefox for the fallback"; exit 1; }
 out="$base.png"
 if [ "${url#file://}" != "$url" ] && [ "${FF#/mnt/c}" != "$FF" ]; then url="file:///$(wslpath -w "${url#file://}" | sed 's#\\#/#g')"; fi
-"$FF" --headless --screenshot "$( [ "${FF#/mnt/c}" != "$FF" ] && wslpath -w "$out" || echo "$out" )" --window-size=390,"${PHONE_FF_HEIGHT:-2532}" "$url" >/dev/null 2>&1 || true
+"$FF" --headless --screenshot "$( [ "${FF#/mnt/c}" != "$FF" ] && wslpath -w "$out" || echo "$out" )" --window-size=390,"${PHONE_FF_HEIGHT:-844}" "$url" >/dev/null 2>&1 || true
 [ -s "$out" ] || { echo "phone-shot.sh: firefox fallback produced no file"; exit 1; }
 python3 -c 'import struct,sys; b=open(sys.argv[1],"rb").read(24); print("png", sys.argv[1], "%dx%d" % struct.unpack(">II", b[16:24]))' "$out"

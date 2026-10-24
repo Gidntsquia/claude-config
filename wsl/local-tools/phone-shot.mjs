@@ -1,5 +1,5 @@
 // Phone picture of a page: full-page PNG at 390 css px wide, device scale 2 (780 px wide), split into numbered parts
-// when the page is taller than three phone screens (3 x 844 = 2532 css px).
+// when the page is taller than one phone screen (844 css px = 1688 px tall); no part is ever over 780x1688.
 //   node phone-shot.mjs <out-base> <url>        -> <out-base>.png, or <out-base>-p1.png, -p2.png ... ; prints "png <path> WxH" per part
 // Playwright is found like report-writer/cards.mjs: PLAYWRIGHT_DIR, ./node_modules/playwright, then the two known installs.
 import { createRequire } from 'node:module';
@@ -13,7 +13,7 @@ const candidates = [process.env.PLAYWRIGHT_DIR, resolve(process.cwd(), 'node_mod
 const pwDir = candidates.find((d) => existsSync(d));
 if (!pwDir) { console.error(`phone-shot.mjs: playwright not found (tried ${candidates.join(', ')}); set PLAYWRIGHT_DIR`); process.exit(1); }
 const { chromium } = createRequire(import.meta.url)(pwDir);
-const W = 390, SCREEN = 844, MAX = 3 * SCREEN, SCALE = +(process.env.PHONE_SCALE ?? 2);
+const W = 390, SCREEN = 844, MAX = SCREEN, SCALE = +(process.env.PHONE_SCALE ?? 2);
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: W, height: SCREEN }, deviceScaleFactor: SCALE });
