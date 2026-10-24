@@ -45,7 +45,9 @@ run|skill)
   sec=1
   for n in alpha beta gamma delta; do
     src=$(find "$HOME/.claude/projects" -mindepth 2 -maxdepth 2 -name "$(id $n).jsonl" | head -1)
-    d="$W/projects/$(basename "$(dirname "$src")")"; mkdir -p "$d"; cp "$src" "$d/"
+    d="$W/projects/$(basename "$(dirname "$src")")"; mkdir -p "$d"
+    # made with claude -p, but they stand for interactive sessions: plan.sh leaves headless (sdk-*) runs out
+    sed 's/"entrypoint":"sdk-cli"/"entrypoint":"cli"/g' "$src" > "$d/$(id $n).jsonl"
     touch -d "2026-10-15T04:56:0${sec}-04:00" "$d/$(id $n).jsonl"; sec=$((sec+1))
   done
   T has-session -t 0 2>/dev/null && { echo "test server $SOCK already has session 0: run 'e2e.sh clean $W' first"; exit 2; }
@@ -86,7 +88,7 @@ run|skill)
   [ "$(tr '\n' ' ' < "$W/out/s0.txt")" = "1 terminal-pet 2 claude 3 claude 4 claude " ]
   check $? "R6: session 0 pane 1 terminal-pet, panes 2-4 claude"
   echo "list-panes -t 1:"; T list-panes -t '=1:' -F '#{pane_index} #{pane_current_command}'
-  pets=$(for p in $(T list-panes -a -F '#{pane_pid}'); do ps -o args= --ppid "$p"; done | grep '^terminal-pet' | sed 's/^terminal-pet$/terminal-pet (squid)/')
+  pets=$(for p in $(T list-panes -a -F '#{pane_pid}' | sort -u); do ps -o args= --ppid "$p"; done | grep '^terminal-pet' | sed 's/^terminal-pet$/terminal-pet (squid)/')
   echo "$pets"; [ "$(echo "$pets" | wc -l)" = 2 ] && [ "$(echo "$pets" | sort -u | wc -l)" = 2 ]
   check $? "R8: two windows, two different pets"
   for n in alpha beta gamma; do
@@ -104,13 +106,13 @@ run|skill)
   k=kill; ! grep -rnE "$k-server|$k-session|$k-pane|$k-window" "$here/.." ; check $? "R13: no tmux kill commands in the skill dir"
   echo "passed $pass, failed $fail"; [ "$fail" = 0 ] ;;
 clean)
-  h=$(cut -f3 "$W/out/wt.tsv" 2>/dev/null | head -1)
+  h=$(cut -f3 "$W/out/wt.tsv" 2>/dev/null | tr "\n" " ")
   for f in "$HOME"/.cache/restore-sessions/*/wt.tsv; do   # windows the driven skill opened on the test server
     [ -f "$f" ] && grep -q "$SOCK" "$(dirname "$f")/actions.log" 2>/dev/null && h="$h $(cut -f3 "$f")"
   done
   end_server $SOCK; tmux -L rs-e2e-drv has-session 2>/dev/null && end_server rs-e2e-drv
   sleep 2
-  for x in $h; do "$HOME/.claude/local-tools/win.sh" reg "$x" "tmux 1 (restored)" >/dev/null 2>&1   # it may have been opened by the driven skill's session
+  for x in $h; do "$HOME/.claude/local-tools/win.sh" reg "$x" "restored" >/dev/null 2>&1   # it may have been opened by the driven skill's session
     "$HOME/.claude/local-tools/win.sh" close "$x" >/dev/null 2>&1 && echo "closed window $x" || echo "window $x already closed"; done ;;
 *) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

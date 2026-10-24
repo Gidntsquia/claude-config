@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # usage: verify.sh DIR [--no-wait] [--no-screenshot]
 # About 12 s after apply.sh: capture-pane on every resumed pane and check it shows the Claude prompt (empty input
-# box), the expected agent on the prompt box and the expected mode on the status line; check every pet pane runs
+# box), the expected label on the prompt box (the session's --name if it has one, else its agent), the expected mode
+# and model on the status line; check every pet pane runs
 # terminal-pet; take a screenshot (~/.claude/local-tools/screen-capture.sh restore-sessions); then print the report:
 # window x pane table, per-pane check results with the captured lines, sessions not reopened, mid-task sessions,
 # and any agent/model that differs from the transcript. Nothing is retried. Captures go to DIR/capture-<pane>.txt;
@@ -77,8 +78,10 @@ for k, pid, now, cmd, cap in checks:
         results.append((now, "pet " + r[10], ok, "pane runs %s" % cmd, []))
         continue
     sid, cwd, agent, model, mode = r[4], r[5], r[6], r[7], r[8]
+    name = r[11] if len(r) > 11 else ""
+    want_label = name or agent                        # Claude shows the --name on the prompt box instead of the agent
     holds[now] = "claude %s (%s)" % (sid[:8], short(cwd))
-    want_cmd = "cd '%s' && claude --resume %s" % (cwd.replace("'", "'\\''"), sid)
+    want_cmd = "cd '%s' && claude --resume %s" % (cwd.replace("'", "'\\''"), sid)   # apply.sh adds --model after it
     probs = []
     n_cmd = sum(1 for l in shell if "claude --resume" in l)
     if not any(want_cmd in l for l in shell): probs.append("resume line not found on the shell screen")
@@ -95,17 +98,18 @@ for k, pid, now, cmd, cap in checks:
     else:
         if lines[pi].lstrip()[1:].strip(): probs.append("input box is not empty: %r" % lines[pi].strip())
         border = lines[pi - 1] if pi > 0 else ""
-        m = re.search(r"─ (\S+) ─+\s*$", border)
+        m = re.search(r"─ ([^─]+?) ─+\s*$", border)
         shown_agent = m.group(1) if m else ""
         tail = "\n".join(lines[pi + 1:])
         shown_mode = next((k2 for k2, v in MODE_TEXT.items() if v in tail), "default")
-        m = re.search(r"\b(Opus|Sonnet|Haiku|Fable) (\d+(?:\.\d+)?)", tail)
-        shown_model = m.group(0) if m else ""
-        if shown_agent != agent:
-            probs.append("agent: expected %s, shows %s" % (agent or "(none)", shown_agent or "(none)"))
-            changed.append("%s: agent %s in the transcript, %s now" % (sid[:8], agent or "(none)", shown_agent or "(none)"))
+        m = re.search(r"\b(Opus|Sonnet|Haiku|Fable)(?: (\d+(?:\.\d+)?))?", tail)
+        shown_model = m.group(0) if m else ""         # may be the family alone ("Fable")
+        if shown_agent != want_label and not (name and shown_agent == agent):
+            probs.append("agent: expected %s, shows %s" % (want_label or "(none)", shown_agent or "(none)"))
+            changed.append("%s: agent %s in the transcript, %s now" % (sid[:8], want_label or "(none)", shown_agent or "(none)"))
         if mode and shown_mode != mode: probs.append("mode: expected %s, shows %s" % (mode, shown_mode))
-        if model and shown_model and shown_model != model_name(model):
+        if model and shown_model and shown_model not in (model_name(model), model_name(model).split(" ")[0]):
+            probs.append("model: expected %s, shows %s" % (model_name(model), shown_model))
             changed.append("%s: model %s in the transcript, %s now" % (sid[:8], model_name(model), shown_model))
     ev = ["shell: " + l.strip() for l in shell if "claude --resume" in l] + ([lines[pi - 1].strip(), lines[pi].strip()] if pi > 0 else []) \
          + [l.strip() for l in lines[pi + 1:pi + 4] if l.strip()]
@@ -129,7 +133,7 @@ for now, what, ok, msg, ev in results:
 print("\nCaptures: %s/capture-<pane>.txt (Claude screen) and capture-<pane>-shell.txt (shell screen)" % d)
 print("Screenshot: %s" % (png or "(none taken)"))
 wt = tsv("wt.tsv")
-for w in wt: print("Windows Terminal for tmux session %s: %s" % (w[0], w[3]))
+for w in wt: print("Windows Terminal window \"%s\" (tmux %s): %s" % (w[1], w[0], w[3]))
 print("\n## Not reopened")
 sk = tsv("skipped.tsv")
 for s in sk: print("- %s %s: %s" % (s[0][:8], short(s[1]), s[2]))

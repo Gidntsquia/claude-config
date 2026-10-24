@@ -5,9 +5,14 @@
 # Writes DIR/plan.tsv (one row per pane: target role how key id cwd agent model mode midtask pet),
 #        DIR/skipped.tsv (id cwd reason), DIR/ops.tsv (what apply.sh runs), DIR/before.txt (tmux list-panes -a),
 # and prints the plan as markdown: the table, then skipped sessions, idle panes reused, new sessions/windows.
+# Left out on their own (each listed with its reason; `keep <id>` brings one back): headless `claude -p` runs,
+# /restore-sessions runs, sessions with no Claude reply, sessions started in a test/temporary folder (a path part
+# named plans, experiments, evals or eval_*), and every session but the newest in each project (git top-level of
+# its cwd, else the cwd).
 # Never changes tmux. RS_TMUX_L=<name> uses a private tmux server (tmux -L <name>), for tests. RS_SEED fixes the pets.
 # Corrections (--fix, any number, applied in order):
 #   drop <id-prefix>          leave that session out
+#   keep <id-prefix>          bring back a session left out as older / temporary / headless / empty
 #   <id-prefix> -> S:W        put it in tmux session S, window W (next free pane; a new window if W does not exist)
 #   <id-prefix> -> S:W.P      put it in pane P of S:W (an idle shell there is reused; a busy pane is refused)
 #   <id-prefix> -> S          put it in the first window of session S with room
@@ -25,7 +30,7 @@ while [ $# -gt 0 ]; do
     --prev) prev="$2"; shift 2 ;;
     --projects) projects="$2"; shift 2 ;;
     --fix) fixes+=("$2"); shift 2 ;;
-    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "plan.sh: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -53,7 +58,7 @@ printf '%s\n' "${fixes[@]+"${fixes[@]}"}" > "$out/fixes.txt"
 python3 -I - "$cand" "$out" "$panes" "$out/procs.txt" "$out/fixes.txt" "$(epoch "$boot")" "$(epoch "$prev")" \
   "$(epoch "$stop")" "$projects" "${base:-1}" "${RS_SEED:-}" \
   "$([ -n "$stop" ] && date -d "@$(epoch "$stop")" '+%a %Y-%m-%d %H:%M:%S %Z' 2>/dev/null)" <<'PY'
-import os, random, re, sys, time
+import os, random, re, subprocess, sys, time
 cand, out, panes_f, procs_f, fixes_f = sys.argv[1:6]
 boot, prev, stop = (int(x) for x in sys.argv[6:9])
 projects, base, seed, stop_s = sys.argv[9], int(sys.argv[10]), sys.argv[11], sys.argv[12]
@@ -70,7 +75,9 @@ rows = []
 for line in open(cand, encoding="utf-8"):
     f = line.rstrip("\n").split("\t")
     if len(f) >= 8 and f[0]:
-        rows.append(dict(id=f[0], cwd=f[1], agent=f[2], model=f[3], mode=f[4], mid=f[5], mtime=f[6], path=f[7]))
+        f += [""] * (13 - len(f))
+        rows.append(dict(id=f[0], cwd=f[1], agent=f[2], model=f[3], mode=f[4], mid=f[5], mtime=f[6], path=f[7],
+                         name=f[9], entry=f[10], first=f[11], replies=f[12]))
 procs = [l.rstrip("\n") for l in open(procs_f, encoding="utf-8", errors="replace")]
 def claude_args(l):
     parts = l.split(None, 1)
@@ -92,6 +99,35 @@ for r in rows:
         skipped.append((r, "cwd no longer exists: %s" % (r["cwd"] or "(none)")))
     else:
         live.append(r)
+
+# Sessions the user does not want back unless asked: test/temporary, headless, empty, and older ones per project.
+TEMP_PARTS = re.compile(r"^(plans|experiments|evals?|eval_.*)$")
+auto = []                                            # (row, reason): left out on their own; `keep` undoes it
+def leave_out(r, why): live.remove(r); auto.append((r, why))
+for r in list(live):
+    rel = os.path.relpath(r["cwd"], os.path.expanduser("~"))
+    tmp = next((x for x in rel.split(os.sep) if TEMP_PARTS.match(x)), None)
+    if r["entry"] and not r["entry"].startswith("cli"):
+        leave_out(r, "headless run (claude -p, entrypoint %s)" % r["entry"])
+    elif r["first"] == "/restore-sessions":
+        leave_out(r, "a /restore-sessions run")
+    elif r["replies"] == "0":
+        leave_out(r, "empty: no Claude reply in it")
+    elif tmp:
+        leave_out(r, "test/temporary folder (%s/ in its path)" % tmp)
+def project(cwd):
+    try:
+        top = subprocess.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        top = ""
+    return top or cwd
+newest = {}
+for r in live:                                       # live is oldest first, so the last one per project wins
+    newest[project(r["cwd"])] = r
+for r in list(live):
+    top = project(r["cwd"])
+    if newest[top] is not r:
+        leave_out(r, "older session in %s (newest there: %s)" % (top.replace(os.path.expanduser("~"), "~"), newest[top]["id"][:8]))
 
 # Sessions that ended earlier in the stopped boot: newest top-level transcript per project, last written
 # between that boot's start and the 60-minute window, with no surviving process file (find-sessions.sh adds those).
@@ -122,6 +158,11 @@ pins, errors = {}, []
 def find(prefix):
     m = [r for r in live if r["id"].startswith(prefix)]
     if len(m) == 1: return m[0]
+    if not m:                                        # a session left out on its own comes back when named
+        a = [x for x in auto if x[0]["id"].startswith(prefix)]
+        if len(a) == 1:
+            auto.remove(a[0]); live.append(a[0][0]); return a[0][0]
+        m = [x[0] for x in a]
     errors.append("%s: %s" % (prefix, "no such session in the plan" if not m else "matches %d sessions" % len(m)))
 for fx in fixes:
     m = re.fullmatch(r"(?:drop|remove|skip)\s+([0-9a-fA-F-]{4,})", fx, re.I)
@@ -129,12 +170,18 @@ for fx in fixes:
         r = find(m.group(1).lower())
         if r: live.remove(r); skipped.append((r, "dropped by user")); pins.pop(r["id"], None)
         continue
+    m = re.fullmatch(r"(?:keep|restore|add)\s+([0-9a-fA-F-]{4,})", fx, re.I)
+    if m:
+        find(m.group(1).lower())
+        continue
     m = re.fullmatch(r"([0-9a-fA-F-]{4,})\s*(?:->|=>|→|to)\s*([^\s:.]+)(?::(\d+)(?:\.(\d+))?)?", fx)
     if m:
         r = find(m.group(1).lower())
         if r: pins[r["id"]] = (m.group(2), m.group(3), m.group(4))
         continue
-    errors.append("cannot read correction: %r (use 'drop <id>' or '<id> -> S:W[.P]')" % fx)
+    errors.append("cannot read correction: %r (use 'drop <id>', 'keep <id>' or '<id> -> S:W[.P]')" % fx)
+
+skipped += auto
 
 # ---- tmux model ---------------------------------------------------------------------------------------------
 class Pane:
@@ -275,9 +322,13 @@ for W in windows:
             plan.append([tgt, "pet", "existing pet", p.key, "", "", "", "", "", "", p.pet])
         elif p.role == "claude":
             r = p.row
-            ops.append(("resume", W.tgt(), p.key, r["cwd"], r["id"]))
-            plan.append([tgt, "claude", how, p.key, r["id"], r["cwd"], r["agent"], r["model"], r["mode"], r["mid"], ""])
+            ops.append(("resume", W.tgt(), p.key, r["cwd"], r["id"], r["model"]))
+            plan.append([tgt, "claude", how, p.key, r["id"], r["cwd"], r["agent"], r["model"], r["mode"], r["mid"], "", r["name"]])
 for s in new_sessions: ops.append(("wt", s))
+# A Windows Terminal window shows one tmux window; every other window with a resumed session gets its own
+# (apply.sh skips a window some client already shows).
+for W in windows:
+    if any(p.role == "claude" for p in W.panes): ops.append(("show", W.sess, str(W.idx)))
 
 def w(name, rows_):
     with open(os.path.join(out, name), "w", encoding="utf-8") as f:
@@ -304,6 +355,8 @@ for sid, cwd, why in ended: print("- %s %s: %s" % (sid[:8], cwd.replace(os.path.
 reused = [t[0] for t in plan if t[2] == "idle shell reused"]
 if reused: print("Idle shell panes reused (nothing running in them now): " + ", ".join(reused))
 if new_sessions: print("New tmux sessions (each gets a new Windows Terminal window): " + ", ".join(new_sessions))
+shown = [W.tgt() for W in windows if any(p.role == "claude" for p in W.panes)]
+if shown: print("Every window with a reopened session ends up on screen (one Windows Terminal window each, unless already shown): " + ", ".join(shown))
 if new_windows: print("New tmux windows: " + ", ".join(new_windows))
 noagent = [t[4][:8] for t in plan if t[1] == "claude" and not t[6]]
 if noagent: print("No agent in the transcript (comes back without one): " + ", ".join(noagent))

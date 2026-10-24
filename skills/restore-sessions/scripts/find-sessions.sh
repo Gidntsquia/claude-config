@@ -9,6 +9,10 @@
 # A session whose last prompt was /exit (or /quit) was closed on purpose and is never listed.
 # Prints one TSV line per candidate, oldest mtime first:
 #   session-id  cwd  agent  model  permission-mode  mid-task(yes/no)  mtime-ET  transcript-path  why(recent|open at stop)
+#   name  entrypoint  first-command  replies
+# name = the session's --name (Claude shows it on the prompt box instead of the agent), entrypoint = cli for an
+# interactive session (sdk-* = a headless `claude -p` run), first-command = the slash command of the first prompt
+# (e.g. /restore-sessions; empty if it was plain text), replies = Claude replies in it. plan.sh filters on these.
 # cwd is the directory the session was started in (its project folder), not where it last cd'ed: resuming
 # elsewhere makes Claude continue in a new session under another project folder.
 # Times are anything `date -d` reads, e.g. '2026-10-15 04:56:11' (local = ET) or 'Thu 2026-10-15 04:56:11 EDT'.
@@ -17,11 +21,11 @@ pos=() since=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --since) since="$2"; shift 2 ;;
-    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) pos+=("$1"); shift ;;
   esac
 done
-[ ${#pos[@]} -ge 1 ] || { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+[ ${#pos[@]} -ge 1 ] || { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 stop=$(date -d "${pos[0]}" +%s) || { echo "find-sessions: cannot read stop time: ${pos[0]}" >&2; exit 2; }
 if [ -n "$since" ]; then
   since=$(date -d "$since" +%s) || { echo "find-sessions: cannot read --since time" >&2; exit 2; }
@@ -35,7 +39,7 @@ dir="${pos[1]:-${RS_PROJECTS:-$HOME/.claude/projects}}"
 dir=$(realpath -- "$dir")   # absolute, so no path ever starts with '-'
 
 python3 -I - "$stop" "$dir" "$since" "$sess" <<'PY'
-import glob, json, os, sys, time
+import glob, json, os, re, sys, time
 stop, root, since, sessdir = int(sys.argv[1]), sys.argv[2], int(sys.argv[3]), sys.argv[4]
 lo, hi = stop - 3600, stop + 5
 CONV = {"user", "assistant", "system"}
@@ -46,7 +50,8 @@ def parts(msg):
     return [p for p in c if isinstance(p, dict)] if isinstance(c, list) else []
 
 def scan(path):
-    cwd = agent = model = mode = ""
+    cwd = agent = model = mode = name = entry = first = ""
+    replies, prompted = 0, False
     exited = False                             # last prompt was /exit or /quit
     last = None                                # last conversation entry (user/assistant/system)
     with open(path, encoding="utf-8", errors="replace") as fh:
@@ -60,17 +65,26 @@ def scan(path):
             t = d.get("type")
             if d.get("cwd") and not cwd:
                 cwd = d["cwd"]                 # first cwd = where the session was started
+            if d.get("entrypoint") and not entry:
+                entry = d["entrypoint"]
             if t == "agent-setting":
                 agent = d.get("agentSetting") or ""
+            elif t == "agent-name":
+                name = d.get("agentName") or name
             elif t == "permission-mode":
                 mode = d.get("permissionMode") or ""
             if t == "assistant":
                 m = (d.get("message") or {}).get("model") or ""
                 if m and m != "<synthetic>":
                     model = m
+                    replies += 1
             if t in CONV:
                 last = d
                 c = (d.get("message") or {}).get("content")
+                if t == "user" and not prompted and isinstance(c, str) and not c.lstrip().startswith(("<local-command-", "<command-name>/clear<")):
+                    prompted = True
+                    m = re.search(r"<command-name>(/[^<]+)</command-name>", c)
+                    first = m.group(1) if m else ""
                 if t == "user" and isinstance(c, str) and ("<command-name>/exit</command-name>" in c or "<command-name>/quit</command-name>" in c):
                     exited = True
                 elif t == "assistant" or (t == "user" and not (isinstance(c, str) and c.lstrip().startswith("<local-command-"))):
@@ -85,7 +99,7 @@ def scan(path):
             mid = "yes"
         elif t == "system" and last.get("subtype") in END_SUBTYPES_MIDTASK:
             mid = "yes"
-    return cwd, agent, model, mode, mid, exited
+    return cwd, agent, model, mode, mid, exited, name, entry, first, replies
 
 rows = {}
 for proj in sorted(os.listdir(root)):
@@ -122,9 +136,9 @@ if sessdir and os.path.isdir(sessdir):
             rows[sid] = (os.stat(hits[0]).st_mtime, hits[0], "open at stop")
 
 for sid, (mt, p, why) in sorted(rows.items(), key=lambda kv: kv[1][0]):
-    cwd, agent, model, mode, mid, exited = scan(p)
+    cwd, agent, model, mode, mid, exited, name, entry, first, replies = scan(p)
     if exited:
         continue
     stamp = time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(mt))
-    print("\t".join([sid, cwd, agent, model, mode, mid, stamp, p, why]))
+    print("\t".join([sid, cwd, agent, model, mode, mid, stamp, p, why, name.replace("\t", " "), entry, first, str(replies)]))
 PY
