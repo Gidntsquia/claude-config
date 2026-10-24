@@ -21,9 +21,11 @@ PET="$(command -v terminal-pet || echo "$HOME/.cargo/bin/terminal-pet")"
 declare -A key win   # plan key -> pane id; "S:W" -> window id
 : > "$dir/wt.tsv"; warn=()
 
-wid() {  # S:W -> window id (resolved once)
-  [ -n "${win[$1]:-}" ] || win[$1]=$(tm display -p -t "$1" '#{window_id}' 2>/dev/null)
-  printf '%s' "${win[$1]:-}"
+wid() {  # S:W -> window id (resolved once); fails if the window does not exist, since an empty -t means the
+  # current window and would put everything there
+  [ -n "${win[$1]:-}" ] || win[$1]=$(tm list-windows -t "=${1%%:*}" -F '#{window_index} #{window_id}' 2>/dev/null |
+    awk -v w="${1#*:}" '$1 == w { print $2 }')
+  [ -n "${win[$1]:-}" ] && printf '%s' "${win[$1]}"
 }
 pid_of() {  # plan key -> pane id (existing panes use their %id as key)
   case "$1" in new:*) printf '%s' "${key[$1]:-}" ;; *) printf '%s' "$1" ;; esac
@@ -45,9 +47,11 @@ while IFS=$'\t' read -r op a b c d; do
       win["$a:$b"]=${w#* }
       [ "${w%% *}" = "$b" ] || warn+=("window $a:$b was created as $a:${w%% *}") ;;
     first-pane)
-      key[$b]=$(tm list-panes -t "$(wid "$a")" -F '#{pane_index} #{pane_id}' | sort -n | head -1 | cut -d' ' -f2) ;;
+      w=$(wid "$a") || { warn+=("window $a does not exist; nothing put there"); continue; }
+      key[$b]=$(tm list-panes -t "$w" -F '#{pane_index} #{pane_id}' | sort -n | head -1 | cut -d' ' -f2) ;;
     split)
-      w=$(wid "$a"); p=$(tm split-window -d -t "$(last_pane "$w")" -c "$HOME" -P -F '#{pane_id}' 2>>"$log")
+      w=$(wid "$a") || { warn+=("window $a does not exist; no pane split there"); continue; }
+      p=$(tm split-window -d -t "$(last_pane "$w")" -c "$HOME" -P -F '#{pane_id}' 2>>"$log")
       if [ -z "$p" ]; then   # no space: re-tile and split the biggest pane
         tm select-layout -t "$w" tiled >/dev/null
         big=$(tm list-panes -t "$w" -F '#{e|*:#{pane_width},#{pane_height}} #{pane_id}' | sort -n | tail -1 | cut -d' ' -f2)
@@ -57,14 +61,15 @@ while IFS=$'\t' read -r op a b c d; do
     swap)
       tm swap-pane -d -s "$(pid_of "$b")" -t "$(pid_of "$c")" ;;
     layout)
-      tm select-layout -t "$(wid "$a")" tiled >/dev/null ;;
+      w=$(wid "$a") && tm select-layout -t "$w" tiled >/dev/null ;;
     pet)
-      p=$(pid_of "$b")
+      p=$(pid_of "$b"); [ -n "$p" ] || { warn+=("no pane for the pet in $a; skipped"); continue; }
       if [ ! -x "$PET" ]; then warn+=("terminal-pet not found; no pet in $a"); continue; fi
       if [ "$c" = squid ]; then cmd="cd ~ && terminal-pet"; else cmd="cd ~ && terminal-pet --pet $c"; fi
       ready "$p"; tm send-keys -t "$p" "$cmd" Enter ;;
     resume)
-      p=$(pid_of "$b"); q=${c//\'/\'\\\'\'}; ready "$p"
+      p=$(pid_of "$b"); [ -n "$p" ] || { warn+=("no pane for $d in $a; not resumed"); continue; }
+      q=${c//\'/\'\\\'\'}; ready "$p"
       tm send-keys -t "$p" "cd '$q' && claude --resume $d" Enter
       # Save the shell screen showing the typed line now: a later resize (Windows Terminal attaching) can cut it
       # on tmux's saved screen once Claude has switched to the alternate screen.

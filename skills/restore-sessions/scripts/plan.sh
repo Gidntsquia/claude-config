@@ -258,7 +258,9 @@ windows = [W for s in sorted(sessions, key=sorder) for W in sessions[s].values()
 plan, ops = [], []
 for s in new_sessions: ops.append(("new-session", s, str(min(sessions[s]))))
 for W in windows:
-    if not W.exists and W.sess not in new_sessions: ops.append(("new-window", W.sess, str(W.idx)))
+    # a new session comes with its first window; every other window it needs is a new-window
+    if not W.exists and not (W.sess in new_sessions and W.idx == min(sessions[W.sess])):
+        ops.append(("new-window", W.sess, str(W.idx)))
     first = next((p for p in W.panes if getattr(p, "fresh", False)), None)
     if first: ops.append(("first-pane", W.tgt(), first.key))
     for op in W.ops: ops.append((op[0], W.tgt()) + op[1:])
