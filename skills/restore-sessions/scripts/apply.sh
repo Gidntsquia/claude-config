@@ -3,7 +3,7 @@
 # Runs DIR/ops.tsv from plan.sh: creates missing tmux sessions/windows, splits new panes (never moves a pane out
 # of its window, never closes anything), starts one terminal-pet per window in its top-left pane, sends exactly one
 # line `cd '<cwd>' && claude --resume <id>` + Enter to each session's pane, and opens a Windows Terminal window
-# for each new tmux session (brought to front with win.sh; "in the taskbar" if that fails).
+# for each new tmux session (raised with win.sh front, then untop so it is not left always-on-top; "in the taskbar" if that fails).
 # Writes DIR/actions.log (every tmux/wt command, ET times), DIR/panes-final.tsv (key pane_id target) and
 # DIR/wt.tsv (session title hwnd status) and DIR/sent-<pane>.txt (the pane's shell screen right after the resume line). RS_TMUX_L=<name> uses tmux -L <name> (tests); RS_NO_WT=1 skips wt.exe.
 # New windows use the Windows Terminal profile $RS_WT_PROFILE (default Ubuntu) so they get its font and colors;
@@ -96,6 +96,7 @@ while IFS=$'\t' read -r op a b c d; do
           [ -n "$hwnd" ] && break; sleep 0.5
         done
         if [ -n "$hwnd" ] && "$WIN" reg "$hwnd" "$t" >/dev/null 2>&1 && "$WIN" front "$hwnd" >/dev/null 2>&1; then
+          "$WIN" untop "$hwnd" >/dev/null 2>&1   # front pins it always-on-top; unpin so it stays raised but can go behind
           status="frontmost"
         fi
       fi
