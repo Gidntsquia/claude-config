@@ -22,7 +22,8 @@ USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--at <epoch> [--at
   --at <epoch>           do not run now: write ~/.claude/run-agent/jobs/<id>.json and start a detached runner
                          that respawns this pane into the command at that time; --at-text keeps the words typed,
                          --window marks a usage-window run (re-fetched at fire time), --until <epoch> skips the
-                         run when the window reset is later than that
+                         run when the window reset is later than that; --need-tmux refuses to schedule outside
+                         tmux (exit 1, "not scheduled — not in tmux"; used by the worker at the usage limit)
   --dry-run ...          print the command, directory and run time; run and schedule nothing
   --jobs, --cancel [id]  list pending scheduled runs / cancel one (the only one when no id is given)
   --cwd <dir>, -C <dir>  start the new session in <dir> (must exist; <folder> = its basename);
@@ -97,7 +98,7 @@ dry="${dry:-0}"
 agent="$1"; shift
 
 # Arguments after the agent: [prompt] and [--cwd|-C <dir>] in any order, then [-- flags...].
-prompt=""; have_prompt=0; dir=""; have_dir=0; at=""; at_text=""; window=0; until_at=""
+prompt=""; have_prompt=0; dir=""; have_dir=0; at=""; at_text=""; window=0; until_at=""; need_tmux=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --) shift; break ;;
@@ -106,6 +107,7 @@ while [ $# -gt 0 ]; do
       case "$1" in --at) at="$2" ;; --at-text) at_text="$2" ;; --until) until_at="$2" ;; esac
       shift 2 ;;
     --window) window=1; shift ;;
+    --need-tmux) need_tmux=1; shift ;;
     --dry-run) dry=1; shift ;;
     --cwd|-C|--cwd=*)
       [ "$have_dir" = 0 ] || { echo "$USAGE" >&2; exit 2; }
@@ -195,6 +197,7 @@ if [ "$dry" = 1 ]; then
 fi
 
 if [ -n "$at" ]; then
+  if [ "$need_tmux" = 1 ] && [ -z "${TMUX:-}" ]; then echo "not scheduled — not in tmux" >&2; exit 1; fi
   [ -n "$at_text" ] || at_text="at $(fmt "$at")"
   if [ "$window" = 1 ]; then
     if ! reset=$(python3 "$HERE/parse.py" --reset 2>&1); then

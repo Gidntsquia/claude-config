@@ -291,6 +291,10 @@ EOF
   out=$(RUN_AGENT_USAGE_FILE="$T/none.json" "$S" worker '.' --at 0 --at-text 'after window' --window 2>&1); rc=$?
   [ "$rc" = 2 ] && grep -q "^at_error: usage API: " <<<"$out" && ok "sched: API unreachable -> exit 2" || bad "sched: API unreachable" "rc=$rc $out"
 
+  # (4b) --need-tmux outside tmux: exit 1, nothing scheduled
+  out=$(TMUX= "$S" worker '.' --at 0 --at-text 'after window' --window --need-tmux 2>&1); rc=$?
+  [ "$rc" = 1 ] && [ "$out" = "not scheduled — not in tmux" ] && ok "sched: --need-tmux outside tmux -> exit 1" || bad "sched: --need-tmux" "rc=$rc $out"
+
   # (5) dry run: prints, schedules nothing
   R=$(( $(date +%s) + 3600 )); usage_at "$R"
   out=$("$S" --dry-run worker '.' --at "$R" --at-text 'in 1h' -- --model fable 2>&1)

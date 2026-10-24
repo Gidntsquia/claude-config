@@ -114,12 +114,13 @@ change). From then on build nothing new, start no subagents, let running ones fi
 do not see the message; note their output under In progress if it matters), ask nothing, and do these
 four steps in this order, even if the plan is already finished or you were about to stop. This is the one case where a stopped-partway final message is valid and the
 `claude --agent evaluator "."` line is not needed.
-1. Schedule the relaunch (not optional, even when nothing is left: the relaunch then re-checks and hands
-   off): the very next tool call after the message, one Bash call with nothing else in it, no retry, no sleep,
-   no invented time:
-   `if [ -n "$TMUX" ]; then ~/.claude/skills/run-agent/scripts/run-agent.sh worker "<prompt you were launched with, default .>" --at 0 --at-text 'after window' --window -- --model <the model your system prompt names: fable, opus, sonnet or haiku> --effort <the effort you were launched with; unknown -> leave the flag out>; else echo "not scheduled — not in tmux"; fi`.
-   Exit 0 prints `scheduled #<id>: ... at <time> ET`. `at_error: ...`, a non-zero exit or the not-in-tmux
-   line means not scheduled; keep its text.
+1. Schedule the relaunch. Not optional, not a judgment call (even when nothing is left: the relaunch then
+   re-checks and hands off). The very next tool call after the message is this one Bash command alone, with
+   the three `<...>` filled in (prompt you were launched with, default `.`; the model your system prompt names:
+   fable, opus, sonnet or haiku; the effort you were launched with, flag left out if unknown):
+   `~/.claude/skills/run-agent/scripts/run-agent.sh worker "<prompt>" --at 0 --at-text 'after window' --window --need-tmux -- --model <model> --effort <effort>`
+   No retry, no sleep, no invented time. Exit 0 prints `scheduled #<id>: ... at <time> ET`. `at_error: ...` or `not scheduled — not in tmux` (non-zero exit) means not
+   scheduled; keep its text.
 2. Append to `plans/WORKER_NOTES.md` a section `## Stopped at usage limit — $(TZ=America/New_York date '+%Y-%m-%d %-I:%M %p') ET` with
    lines `Done:` (criteria met this session), `In progress:` (files and what is half-finished), `Next:`
    (the first thing the relaunched worker should do), `Uncommitted/dirty:` (what `git status` shows, or
