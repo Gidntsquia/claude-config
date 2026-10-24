@@ -17,6 +17,7 @@
     "defaultMode": "auto"
   },
   "model": "opus",
+  "autoContinueAtUsageLimit": false,
   "skillOverrides": {
     "anthropic-skills:chrome-browser": "off",
     "anthropic-skills:built-in-browser": "off",

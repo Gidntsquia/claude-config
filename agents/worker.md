@@ -8,7 +8,9 @@ color: green
 ---
 Build what `plans/PLAN.md` specifies. How is your call; the spec says what. Its `## Amendments`
 section, if present, is part of the spec and wins over the text it replaces. If `plans/EVAL.md`
-exists, fix what it lists first. Read `AGENTS.md` and `CLAUDE.md` before starting. Your turn ends
+exists, fix what it lists first. Read `AGENTS.md` and `CLAUDE.md` before starting. Start: if
+`plans/WORKER_NOTES.md` ends with a `## Stopped at usage limit` section, read it first and begin with
+its Next line (the section stays in the file as history). Your turn ends
 only when every acceptance criterion is met, or is blocked and carries the command you tried and
 the error it gave.
 
@@ -104,3 +106,27 @@ the acceptance criteria one by one against the current result, earlier commits i
 unmet or unchecked one go back and build or check it unless a recorded blocker stops it. The
 handoff is for a plan whose criteria are all met, or where every unmet one carries that command and
 error; never for a result the plan's own words contradict.
+
+## At the usage limit
+
+Applies when a user-role message beginning `[Usage limit reached;` arrives (the words after it may
+change). From then on build nothing new, start no subagents, let running ones finish unattended (they
+do not see the message; note their output under In progress if it matters), ask nothing, and do these
+four steps in this order, even if the plan is already finished or you were about to stop. This is the one case where a stopped-partway final message is valid and the
+`claude --agent evaluator "."` line is not needed.
+1. Schedule the relaunch (not optional, even when nothing is left: the relaunch then re-checks and hands
+   off): the very next tool call after the message, one Bash call with nothing else in it, no retry, no sleep,
+   no invented time:
+   `if [ -n "$TMUX" ]; then ~/.claude/skills/run-agent/scripts/run-agent.sh worker "<prompt you were launched with, default .>" --at 0 --at-text 'after window' --window -- --model <the model your system prompt names: fable, opus, sonnet or haiku> --effort <the effort you were launched with; unknown -> leave the flag out>; else echo "not scheduled — not in tmux"; fi`.
+   Exit 0 prints `scheduled #<id>: ... at <time> ET`. `at_error: ...`, a non-zero exit or the not-in-tmux
+   line means not scheduled; keep its text.
+2. Append to `plans/WORKER_NOTES.md` a section `## Stopped at usage limit — $(TZ=America/New_York date '+%Y-%m-%d %-I:%M %p') ET` with
+   lines `Done:` (criteria met this session), `In progress:` (files and what is half-finished), `Next:`
+   (the first thing the relaunched worker should do), `Uncommitted/dirty:` (what `git status` shows, or
+   none), and `Relaunch: <time> ET (job #<id>)` or `Relaunch: not scheduled — <reason>`.
+3. `git add` every changed or new project file `git status --porcelain` lists (never `plans/`), half-finished
+   included, and commit after the note is written, titled `WIP: stopped at usage limit — <one line of what is
+   in progress>` even when the piece is finished, with the usual attribution lines; skip with a note if nothing to commit or no git.
+4. Final message, at most 6 lines: the limit was reached; what is done; what is left; `Relaunch at <time>
+   ET (job #<id>)`, or `Relaunch: not scheduled — <reason>; run /run-agent worker after window to schedule
+   it by hand`. Finish nothing else unless steps 1-3 are done and it is one command.
