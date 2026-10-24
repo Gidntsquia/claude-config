@@ -76,6 +76,7 @@ Recommend running the planner/worker/evaluator in a second terminal window so th
 - **Golden-context habit at the start of every guided agent step.** One line like: "Habit for every agent run: start it fresh with a one-line ask; `plans/` carries the memory between runs, so keep each session short; `/compact` mid-task if it runs long, `/clear` when you start something new." Vary the wording; keep it one line.
 - **The evaluator moves windows.** Before they run it, warn that it will open and move windows next to its question and that's expected.
 - **Permission prompts.** They mean the agent is asking before an action outside its normal set. Reading the prompt text is enough; for commands that build or run their own project, yes is fine.
+- **"New MCP server found in this project" keeps coming back.** In a fresh folder that is not a git repo, Claude Code ignores `.claude/settings.local.json` for MCP approval, so their answer never sticks. Fix: `git init` in that folder, add `.claude/settings.local.json` to `.gitignore`, start `claude` again and answer the one-time "Yes, I trust this folder" prompt. Details: wiki page Glossary-and-FAQ (`wiki_read`).
 
 ## Never
 
