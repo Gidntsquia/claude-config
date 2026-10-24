@@ -3,7 +3,9 @@
 # No prompt: worker/evaluator/helper get "."; planner and built-ins start with no prompt argument.
 # Usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--at <epoch> [--at-text <text>] [--window] [--until <epoch>]]
 #        [-- claude flags...] | --parse '<raw $ARGUMENTS>' | --dry-run <same as a run> | --jobs | --cancel [id]
-#        | --resolve <dir> | --list | --help
+#        | --handoff <agent> [prompt] [-- claude flags...] | --resolve <dir> | --list | --help
+# --handoff is the worker's usage-limit handoff in one call: schedules the relaunch after the window, appends a
+# `## Stopped at usage limit` section (stdin = Done / In progress / Next) to plans/WORKER_NOTES.md, makes the WIP commit.
 # --parse hands the raw argument string to parse.py (loose phone typing -> one JSON block). --at schedules:
 # a job file under ~/.claude/run-agent/jobs/ and a detached runner (runner.sh) that respawns this pane into
 # the command at that time (pane gone -> new window; server gone -> new session). --jobs / --cancel manage them.
@@ -17,6 +19,7 @@ set -euo pipefail
 
 USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--at <epoch> [--at-text <text>] [--window] [--until <epoch>]] [-- claude flags...]
        run-agent.sh --parse '\''<raw arguments>'\'' | --dry-run <run args> | --jobs | --cancel [id] | --resolve <dir> | --list | --help
+       run-agent.sh --handoff <agent> [prompt] [-- claude flags...]  < "Done / In progress / Next" text
   adds --name "<agent>: <folder> (<model>)" to the claude command unless --name/-n is among the flags
   --parse <raw>          parse a loosely typed /run-agent argument string into one JSON block (parse.py)
   --at <epoch>           do not run now: write ~/.claude/run-agent/jobs/<id>.json and start a detached runner
@@ -26,6 +29,10 @@ USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--at <epoch> [--at
                          tmux (exit 1, "not scheduled — not in tmux") and ends every outcome with a ready-made
                          "Relaunch: ..." line; used by the worker at the usage limit
   --dry-run ...          print the command, directory and run time; run and schedule nothing
+  --handoff ...          usage-limit handoff in one call: schedule after the window (--need-tmux path), append a
+                         "## Stopped at usage limit — <time> ET" section (stdin text, Uncommitted, Relaunch) to
+                         plans/WORKER_NOTES.md, commit project files as "WIP: stopped at usage limit — ...",
+                         print "Note: / Commit: / Relaunch:" lines; exit 0 whether or not scheduling worked
   --jobs, --cancel [id]  list pending scheduled runs / cancel one (the only one when no id is given)
   --cwd <dir>, -C <dir>  start the new session in <dir> (must exist; <folder> = its basename);
                          outside tmux the printed command starts with cd '\''<dir>'\'' &&
@@ -92,9 +99,10 @@ case "${1:-}" in
   --jobs) exec python3 "$HERE/jobs.py" list ;;
   --cancel) shift; exec python3 "$HERE/jobs.py" cancel "$@" ;;
   --dry-run) shift; dry=1 ;;
+  --handoff) shift; handoff=1 ;;
   ""|--*) echo "$USAGE" >&2; exit 2 ;;
 esac
-dry="${dry:-0}"
+dry="${dry:-0}"; handoff="${handoff:-0}"
 
 agent="$1"; shift
 
@@ -142,6 +150,42 @@ if [ -z "$prompt" ]; then
   case "$agent" in
     worker|evaluator|helper) prompt="." ;;
   esac
+fi
+
+# --handoff: schedule (same path as --at 0 --window --need-tmux, in a child so a failure there cannot stop the
+# note and commit), append the handoff section to plans/WORKER_NOTES.md, commit, print the three lines.
+if [ "$handoff" = 1 ]; then
+  HINT="; run /run-agent worker after window to schedule it by hand"
+  args=("$agent"); [ -n "$prompt" ] && args+=("$prompt"); [ -n "$dir" ] && args+=(--cwd "$dir")
+  sched=$("$BASH_SOURCE" "${args[@]}" --at 0 --at-text 'after window' --window --need-tmux -- "${flags[@]}" 2>&1) || true
+  relaunch=$(grep -m1 '^Relaunch: ' <<<"$sched" || true)
+  [ -n "$relaunch" ] || relaunch="Relaunch: not scheduled — $(tail -n1 <<<"${sched:-no output from the scheduler}")$HINT"
+  text=""; [ -t 0 ] || text=$(cat)
+  cd "${dir:-$PWD}"
+  in_git=0; top=$(git rev-parse --show-toplevel 2>/dev/null) && in_git=1 && cd "$top"
+  dirty=""
+  [ "$in_git" = 1 ] && dirty=$(git status --porcelain -- . ':!plans' | cut -c4- | paste -sd, - | sed 's/,/, /g')
+  mkdir -p plans
+  {
+    echo; echo "## Stopped at usage limit — $(TZ=America/New_York date '+%Y-%m-%d %-I:%M %p') ET"
+    [ -n "$text" ] && printf '%s\n' "$text"
+    echo "Uncommitted/dirty: ${dirty:-none}"
+    echo "$relaunch"
+  } >> plans/WORKER_NOTES.md
+  echo "Note: plans/WORKER_NOTES.md"
+  if [ "$in_git" = 0 ]; then echo "Commit: no git"
+  elif [ -z "$dirty" ]; then echo "Commit: nothing to commit"
+  else
+    what=$(awk 'f && NF {sub(/^[-*] */,""); print; exit} /^In progress:/ {r=$0; sub(/^In progress: */,"",r); if (r!="") {print r; exit}; f=1}' <<<"$text")
+    title="WIP: stopped at usage limit — ${what:-see WORKER_NOTES.md}"
+    git add -A -- . && { git reset -q -- plans 2>/dev/null || true; }   # plans/ stays out even when not ignored
+    git commit -q -m "$title" -m "Handoff written by run-agent.sh --handoff; plans/WORKER_NOTES.md has Done / In progress / Next.
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+    echo "Commit: $(git rev-parse --short HEAD) $title"
+  fi
+  echo "$relaunch"
+  exit 0
 fi
 
 # Session name: "<agent>: <folder>" or "<agent>: <folder> (<model>)", unless --name/-n was passed.

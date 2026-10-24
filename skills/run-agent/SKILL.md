@@ -74,7 +74,7 @@ AskUserQuestion, header "Run?" (or "Schedule?" with a time), question text exact
 `<dir>` is the cwd when none was given. Options: "Yes, replace this session" / "No" (or "Yes, schedule it" / "No").
 "No" -> reply exactly `nothing changed` and stop.
 
-(`--need-tmux` on a scheduling call refuses outside tmux with exit 1 and `not scheduled — not in tmux`, and ends every outcome with a ready-made `Relaunch: ...` line (time and job id, or `not scheduled — <reason>; run /run-agent worker after window to schedule it by hand`); the worker's usage-limit handoff copies that line into its note and final message.)
+(`S --handoff <agent> ["prompt"] [-- flags]` is the worker's usage-limit handoff in one call: schedules the relaunch after the window (`--need-tmux` path, so outside tmux or without a reset time it still goes on), appends a `## Stopped at usage limit — <time> ET` section (stdin = Done / In progress / Next, then Uncommitted and `Relaunch: ...`) to `plans/WORKER_NOTES.md`, commits project files as `WIP: stopped at usage limit — ...`, and prints the `Note:` / `Commit:` / `Relaunch:` lines for the worker's final message; exit 0 in every handled case.)
 
 ## 6. Run or schedule
 If `dir_state` is `missing`: `mkdir -p '<dir>'` first (only now, after Yes, or at once with force).

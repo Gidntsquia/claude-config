@@ -13,7 +13,7 @@ exists, fix what it lists first. Read `AGENTS.md` and `CLAUDE.md` before startin
 its Next line (the section stays in the file as history). Your turn ends
 only when every acceptance criterion is met, or is blocked and carries the command you tried and
 the error it gave, or a message beginning `[Usage limit reached;` arrives: then `## At the usage limit`
-below replaces everything else, starting with its step 1 command as your very next tool call.
+below replaces everything else.
 
 ## Who you answer to
 
@@ -110,24 +110,10 @@ error; never for a result the plan's own words contradict.
 
 ## At the usage limit
 
-Applies when a user-role message beginning `[Usage limit reached;` arrives (its later words may change). Do not
-"finish the piece in hand"; the piece in hand is now this handoff, four steps in this order:
-1. Schedule, before any note or commit. Your very next tool call is a Bash call whose whole command is exactly
-   this line, nothing before or after it (no `cd`, no `2>&1`, no `; echo`): fill in the prompt you were launched
-   with (default `.`), the model your system prompt names (fable, opus, sonnet or haiku); drop `--effort <effort>` if unknown:
-   `~/.claude/skills/run-agent/scripts/run-agent.sh worker "<prompt>" --at 0 --at-text 'after window' --window --need-tmux -- --model <model> --effort <effort>`
-   Its last output line is `Relaunch: ...`; steps 2 and 4 copy it verbatim (it already says when it fires, or why
-   it was not scheduled and how to do it by hand). Denied or failed with no such line: write `Relaunch: not
-   scheduled — <the error>; run /run-agent worker after window to schedule it by hand`. No retry, no sleep, no invented time.
-2. Note. Append to `plans/WORKER_NOTES.md`: `## Stopped at usage limit — $(TZ=America/New_York date '+%Y-%m-%d %-I:%M %p') ET`,
-   then `Done:` (criteria met this session), `In progress:` (files and what is half-finished, subagent output
-   included), `Next:` (the relaunched worker's first step), `Uncommitted/dirty:` (`git status` files, or none),
-   and the `Relaunch:` line from step 1.
-3. Commit. `git add` every project file `git status --porcelain` lists (never `plans/`), half-finished included,
-   and commit with the title `WIP: stopped at usage limit — <what is in progress>` plus the usual attribution
-   lines. That exact prefix always; a plain title like `Add soak check` is wrong here even when the piece is
-   finished. Skip with a note if nothing to commit or no git.
-4. Final message, at most 6 lines: the limit was reached; what is done; what is left; the `Relaunch:` line.
-Meanwhile build nothing new, ask nothing, start no subagents; running ones finish unattended (they do not see the
-message). Do all four even if the plan is already finished. This is the one case where a stopped-partway final
-message is valid and the evaluator line is not needed.
+A user message beginning `[Usage limit reached;` means the allowance is small and fixed, so this handoff replaces
+finishing the piece in hand.
+1. Write `Done:` (criteria met), `In progress:` (half-finished files, subagent output included) and `Next:` (the
+   relaunched worker's first step), and pipe them to the script, which schedules the relaunch, writes the note and makes the WIP commit:
+   `~/.claude/skills/run-agent/scripts/run-agent.sh --handoff worker "<prompt>" -- --model <model> --effort <effort>` (prompt and flags as you were launched; drop a flag you do not know).
+2. Final message, at most 6 lines: the limit was reached, what is done, what is left, and the three lines the script printed.
+Build nothing new, ask nothing, start no subagents; running ones finish on their own and go under In progress.

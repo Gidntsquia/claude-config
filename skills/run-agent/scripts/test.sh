@@ -3,7 +3,7 @@
 # exit codes), the --parse suite (every argument string from the 2026-10-22 log review, time strings, typos;
 # exact JSON output with a frozen clock and a fake usage API), then inside a private tmux server
 # (`tmux -L run-agent-test-$$`, fake `claude` on PATH, RUN_AGENT_HOME in the temp dir) the respawn and the
-# scheduling suite (fire into the pane, --jobs, --cancel, until skipping, pane-gone, server-gone).
+# scheduling suite (fire into the pane, --jobs, --cancel, until skipping, --handoff, pane-gone, server-gone).
 # Never touches your tmux or ~/.claude/run-agent. Prints "N passed, M failed"; exit 1 on any failure.
 set -uo pipefail
 
@@ -304,6 +304,49 @@ EOF
   [ "$rc" = 0 ] && grep -q "^Relaunch: .* ET (job #[0-9]*)$" <<<"$(tail -1 <<<"$out")" && ok "sched: --need-tmux Relaunch line (scheduled)" || bad "sched: --need-tmux Relaunch line (scheduled)" "rc=$rc $out"
   "$S" --cancel >/dev/null 2>&1
 
+  # (4e) --handoff: schedule + note + WIP commit in one call, from a scratch repo (in tmux, reset 2 min ahead)
+  H="$T/handoff"; mkdir -p "$H"; git -C "$H" init -q; git -C "$H" commit -q --allow-empty -m init
+  printf 'plans/\n' > "$H/.gitignore"; echo a > "$H/a.txt"
+  R=$(( $(date +%s) + 120 )); usage_at "$R"
+  out=$(cd "$H" && printf 'Done: x\nIn progress: y\nNext: z\n' | "$S" --handoff worker "." -- --model haiku 2>&1); rc=$?
+  [ "$rc" = 0 ] && [ "$(sed -n 1p <<<"$out")" = "Note: plans/WORKER_NOTES.md" ] && grep -q "^Commit: [0-9a-f]* WIP: stopped at usage limit — y$" <<<"$(sed -n 2p <<<"$out")" \
+    && grep -q "^Relaunch: .* ET (job #[0-9]*)$" <<<"$(sed -n 3p <<<"$out")" && ok "handoff: prints Note / Commit / Relaunch" || bad "handoff: output" "rc=$rc $out"
+  n=$(tail -n 6 "$H/plans/WORKER_NOTES.md")
+  grep -q "^## Stopped at usage limit — 20[0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9]*:[0-9][0-9] [AP]M ET$" <<<"$(sed -n 1p <<<"$n")" \
+    && [ "$(sed -n 2,4p <<<"$n")" = "$(printf 'Done: x\nIn progress: y\nNext: z')" ] \
+    && [ "$(sed -n 5p <<<"$n")" = "Uncommitted/dirty: .gitignore, a.txt" ] && grep -q "^Relaunch: .* ET (job #[0-9]*)$" <<<"$(sed -n 6p <<<"$n")" \
+    && ok "handoff: note section (heading with time, stdin, Uncommitted, Relaunch)" || bad "handoff: note section" "$n"
+  [ "$(git -C "$H" log -1 --format=%s)" = "WIP: stopped at usage limit — y" ] && [ -z "$(git -C "$H" status --porcelain)" ] \
+    && git -C "$H" log -1 --format=%b | grep -q "^Co-Authored-By: Claude <noreply@anthropic.com>$" && ok "handoff: WIP commit, tree clean, plans/ not committed" || bad "handoff: WIP commit" "$(git -C "$H" log -1; git -C "$H" status --porcelain)"
+  grep -q '^#[0-9]*  claude --agent worker "." --model haiku --name "worker: handoff (haiku)"  at .* ET (after window, in 2m)$' <<<"$("$S" --jobs)" && ok "handoff: --jobs lists the relaunch" || bad "handoff: --jobs" "$("$S" --jobs)"
+  "$S" --cancel >/dev/null 2>&1
+  # outside tmux: note and commit still written, Relaunch says not scheduled
+  echo b > "$H/b.txt"
+  out=$(cd "$H" && printf 'Done: x\nIn progress:\n- half of b\nNext: z\n' | TMUX= "$S" --handoff worker 2>&1); rc=$?
+  [ "$rc" = 0 ] && [ "$(sed -n 3p <<<"$out")" = "Relaunch: not scheduled — not in tmux; run /run-agent worker after window to schedule it by hand" ] \
+    && [ "$(git -C "$H" log -1 --format=%s)" = "WIP: stopped at usage limit — half of b" ] && [ "$(tail -n1 "$H/plans/WORKER_NOTES.md")" = "$(sed -n 3p <<<"$out")" ] \
+    && ok "handoff: outside tmux -> exit 0, note + commit, not-scheduled Relaunch" || bad "handoff: outside tmux" "rc=$rc $out"
+  # no reset time ({}): same fallback shape, exit 0
+  echo '{}' > "$T/empty.json"; echo c > "$H/c.txt"
+  out=$(cd "$H" && printf 'In progress: c\n' | RUN_AGENT_USAGE_FILE="$T/empty.json" "$S" --handoff worker 2>&1); rc=$?
+  [ "$rc" = 0 ] && grep -q "^Relaunch: not scheduled — no reset time (.*); run /run-agent worker after window to schedule it by hand$" <<<"$(sed -n 3p <<<"$out")" \
+    && [ "$(git -C "$H" log -1 --format=%s)" = "WIP: stopped at usage limit — c" ] && ok "handoff: no reset time -> exit 0, note + commit" || bad "handoff: no reset time" "rc=$rc $out"
+  [ "$("$S" --jobs)" = "no scheduled runs" ] && ok "handoff: fallbacks scheduled nothing" || bad "handoff: fallbacks scheduled nothing" "$("$S" --jobs)"
+  # empty stdin, clean tree: heading + Uncommitted + Relaunch only, Commit: nothing to commit
+  usage_at "$R"
+  out=$(cd "$H" && : | "$S" --handoff worker 2>&1); rc=$?
+  n=$(tail -n 3 "$H/plans/WORKER_NOTES.md")
+  [ "$rc" = 0 ] && [ "$(sed -n 2p <<<"$out")" = "Commit: nothing to commit" ] && grep -q "^## Stopped at usage limit — .* ET$" <<<"$(sed -n 1p <<<"$n")" \
+    && [ "$(sed -n 2p <<<"$n")" = "Uncommitted/dirty: none" ] && grep -q "^Relaunch: .* ET (job #[0-9]*)$" <<<"$(sed -n 3p <<<"$n")" \
+    && ok "handoff: empty stdin -> heading + Uncommitted + Relaunch only" || bad "handoff: empty stdin" "rc=$rc $out / $n"
+  "$S" --cancel >/dev/null 2>&1
+  # non-git directory: Commit: no git, note still written
+  mkdir -p "$T/nogit"
+  out=$(cd "$T/nogit" && printf 'Next: z\n' | "$S" --handoff worker 2>&1); rc=$?
+  [ "$rc" = 0 ] && [ "$(sed -n 2p <<<"$out")" = "Commit: no git" ] && grep -q "^Next: z$" "$T/nogit/plans/WORKER_NOTES.md" \
+    && ok "handoff: non-git dir -> Commit: no git" || bad "handoff: non-git dir" "rc=$rc $out"
+  "$S" --cancel >/dev/null 2>&1
+
   # (5) dry run: prints, schedules nothing
   R=$(( $(date +%s) + 3600 )); usage_at "$R"
   out=$("$S" --dry-run worker '.' --at "$R" --at-text 'in 1h' -- --model fable 2>&1)
@@ -318,7 +361,7 @@ EOF
   TARGET=t:second keys "'$S' worker '.' --at $R --at-text 'in 3s' > '$T/sched6.out' 2>&1"
   wait_for 3 test -s "$T/sched6.out"
   TM kill-window -t t:second
-  wait_for 10 grep -q "  #7  fired in new window  " "$LOG" && ok "sched: pane gone -> fired in new window" || bad "sched: pane gone" "$(cat "$LOG")"
+  wait_for 10 grep -q "  #10  fired in new window  " "$LOG" && ok "sched: pane gone -> fired in new window" || bad "sched: pane gone" "$(cat "$LOG")"
   wait_for 3 bash -c "tmux -L '$SOCK' list-windows -t t -F '#{window_name}' | grep -qx 'worker: repo'" && ok "sched: new window named 'worker: repo'" || bad "sched: new window name" "$(TM list-windows -t t)"
   wait_for 5 grep -q "arg=worker: repo" "$RA_OUT" && ok "sched: claude ran in the new window" || bad "sched: claude in new window" "$(cat "$RA_OUT")"
 
@@ -327,7 +370,7 @@ EOF
   keys "'$S' worker '.' --at $R --at-text 'in 3s' > '$T/sched7.out' 2>&1"
   wait_for 3 test -s "$T/sched7.out"
   TM kill-server
-  wait_for 10 grep -q "  #8  fired in new session  " "$LOG" && ok "sched: server gone -> fired in new session" || bad "sched: server gone" "$(cat "$LOG")"
+  wait_for 10 grep -q "  #11  fired in new session  " "$LOG" && ok "sched: server gone -> fired in new session" || bad "sched: server gone" "$(cat "$LOG")"
   wait_for 3 bash -c "tmux -L '$SOCK' list-sessions -F '#{session_name}' | grep -qx 'worker repo'" && ok "sched: new session 'worker repo'" || bad "sched: new session" "$(TM list-sessions 2>&1)"
   wait_for 5 grep -q "arg=worker: repo" "$RA_OUT" && ok "sched: claude ran in the new session" || bad "sched: claude in new session" "$(cat "$RA_OUT")"
 else
