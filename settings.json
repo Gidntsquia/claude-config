@@ -3,6 +3,9 @@
     "ENABLE_CLAUDEAI_MCP_SERVERS": "false"
   },
   "permissions": {
+    "allow": [
+      "Bash(~/.claude/skills/run-agent/scripts/run-agent.sh:*)"
+    ],
     "deny": [
       "Workflow",
       "SendFeedback",
