@@ -1,6 +1,7 @@
 {
   "env": {
-    "ENABLE_CLAUDEAI_MCP_SERVERS": "false"
+    "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
+    "ENABLE_PROMPT_CACHING_1H": "1"
   },
   "permissions": {
     "allow": [
@@ -19,8 +20,10 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "opus",
+  "model": "haiku",
   "autoContinueAtUsageLimit": false,
+  "promptCacheTtl": "1h",
+  "subagentPromptCacheTtl": "1h",
   "skillOverrides": {
     "anthropic-skills:chrome-browser": "off",
     "anthropic-skills:built-in-browser": "off",

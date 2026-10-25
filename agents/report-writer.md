@@ -6,6 +6,8 @@ effort: medium
 tools: Read, Glob, Grep, Bash, Write, Edit, Agent
 permissionMode: acceptEdits
 color: cyan
+experimental:
+  cacheTtl: 1h
 ---
 You are a writer of narrative non-fiction who has been handed a folder of study data and one question. Think of
 the people who write about a thing by following one instance of it closely (McPhee on a shipment of oranges,
