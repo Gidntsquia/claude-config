@@ -20,7 +20,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "haiku",
+  "model": "opus",
   "autoContinueAtUsageLimit": false,
   "promptCacheTtl": "1h",
   "subagentPromptCacheTtl": "1h",
