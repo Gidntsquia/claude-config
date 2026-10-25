@@ -1,15 +1,53 @@
 # Changelog
 
-## Unreleased
+## v1.2.0 — 2026-10-25
 
-- **Worker usage-limit section follows Anthropic's agent guidance.** The `## At the usage limit` section of `agents/worker.md` is one intro sentence, two one-line numbered steps with the `run-agent.sh --handoff` command in its own code block, and a closing line that says what to do; the trigger is named only there (the Start paragraph points at it no more). The frontmatter `description` is trimmed to what the agent does (the launch command stays in the READMEs). New `docs/agent-style.md` lists the house rules for agent files, each with the Anthropic sentence it comes from and a link.
-- **Worker hands off at the usage limit.** When Claude Code injects its `[Usage limit reached; ...]` wrap-up message, the worker writes three lines (Done / In progress / Next) and pipes them to `run-agent.sh --handoff worker "<prompt>" -- <flags>` (new); the script does the mechanics in one call: schedules the relaunch (`after window`, same prompt, same `--model`/`--effort`), appends a `## Stopped at usage limit — <time> ET` section (the three lines, Uncommitted, `Relaunch: ...`) to `plans/WORKER_NOTES.md`, commits the project files as `WIP: stopped at usage limit — ...` and prints the `Note:` / `Commit:` / `Relaunch:` lines for the worker's final message. Outside tmux or without a reset time it still writes the note and commit and says `Relaunch: not scheduled — <reason>` with the by-hand `/run-agent worker after window` hint. The worker.md section is now a short numbered list (no mechanics, no forceful wording), following Anthropic's sub-agent and prompting guidance; `settings.json` allows the script's Bash call so the auto-mode classifier cannot block it. `settings.json` now sets `autoContinueAtUsageLimit: false`, trading Claude Code's own resume of the old session for the fresh scheduled one so the two do not both wake at reset.
-- **run-agent: scheduled runs and forgiving parsing.** `/run-agent worker fable low effort at 9pm` (or `in 2h`, `after window` = when the 5-hour usage window resets, with `until 7am` to cap the wait) writes a job under `~/.claude/run-agent/jobs/` and starts a detached runner that respawns the pane into `claude --agent ...` at that time (a new tmux window if the pane is gone, a new session if the server is gone), so overnight runs start after the usage cap resets. `/run-agent jobs` lists pending runs, `/run-agent cancel [id]` drops one, `dry` shows the command and times without doing anything. The script now parses the arguments (`run-agent.sh --parse`): `model=fable`, `effort = low`, `—model` (em dash), `-model`, `opus+medium`, bare `fable`/`low effort`, curly quotes and newlines in the prompt all work, near-miss typos are auto-corrected (`fabel -> fable`) and shown, and only words it cannot place are asked about. `test.sh` has 129 checks including every `/run-agent` argument string found in the session transcripts (the five Haiku misreads first); mixed straight/curly quotes (`"I’m on my phone”`) now close properly.
-- **report-writer agent** (model: Fable). `claude --agent report-writer "<data dir> — <question>"` turns collected study data into a short report: verdict, next action, the deciding number with n and spread, a "Wrong or missing" box, one chart and a decision table on the first screen; every figure traces to a file in the data dir through `numbers.json`. One run writes one `report.json`; `render.py` renders the desktop page and the 390 px phone cards from it, so both modes always agree. The decision chart is plain bars whose axis start the writer chooses per chart (`axis_min` + `axis_reason`; "(axis does not start at 0)" label and break marks when above zero). When a candidate is measured in more than one file the decision table uses the source with the most runs per arm. Every chart carries a written reading under it (who is ahead, by how much, clears the spread or not). The report opens with the problem being solved and why it is worth solving, before the verdict; the Wrong-or-missing box comes after the evidence as at most six one-line plain sentences, and card 1 says each figure once (check.py `first_once`). The prose follows the user's house style (the write-readme voice rules): plain spoken sentences; check.py `voice` fails contrasts, emphasis words, em-dashes, colon taglines, semicolon chains and a verdict made of fragments. Writes `plans/DATA_REQUEST.md` instead of a report when the data cannot decide (the worker collects and reruns, three loops at most). Eval fixture from the pogo GPU rounds 8–9 with planted traps, `check.py` and a rubric in `agents/evals/report-writer/`.
-- **report-checker agent** (model: Opus). A second set of eyes the writer spawns through the Agent tool: answers the question cold from the data (`checker/cold.md`), then scans every claim and figure in the report for anything that looks off and recomputes only those (`checker/findings.json`). The writer revises only what was flagged, up to 2 loops; what stays open lands in the Wrong-or-missing box as "checker: …", and the report's last line says how many findings were raised, fixed and open. `bash agents/evals/report-writer/run.sh planted` proves it catches a shifted figure, a flipped verdict and a dropped trap.
-- **Plane theme for the status line.** Set `CLAUDE_STATUSLINE_THEME=plane` and the squid becomes ✈️, with aviation easter eggs (runway race, delay board, baggage claim, Wright Brothers, Apollo launch, in-flight meal and more) at the same odds and story lengths as the squid ones. Unset, the squid status line is unchanged.
-- `bash statusline.sh --preview [squid|plane]` lists every easter egg of a theme with its roll band and every step.
-- `./install.sh --theme plane` adds `export CLAUDE_STATUSLINE_THEME=plane` to `~/.bashrc` (`~/.zshrc` on macOS) once.
+A week of new skills and two new agents for writing reports, and every session now uses the one-hour prompt cache. Everything since v1.1.0 (2026-10-15) is here.
+
+### Highlights ✨
+
+- `/write-report` is a new skill for anything that compares or measures two options. It offers the report-writer agent, which turns a folder of study data into a short report that leads with the verdict and traces every figure back to a file, and the report-checker agent reads it a second time.
+- `/run-agent` can schedule a run with `at 9pm`, `in 2h` or `after window`, and it understands loose phone typing such as `model=fable` or `fabel`. When the worker hits the usage limit it saves its work with a short note and schedules its own relaunch for when the window resets.
+- `/restore-sessions` was rebuilt. It reopens one session per project with the model each one had, shows every tmux window in its own terminal, looks back 60 minutes from the stop and skips sessions you closed with `/exit`.
+
+### Skills 🧰
+
+- write-report tells Claude when a question calls for a measured comparison and how to run the report-writer on the data. The planner loads it when a plan compares or benchmarks something.
+- run-agent schedules a run for a set time or for when the usage window resets, and `until 7am` caps how long it waits. If the pane is gone by then, the run starts in a new tmux window. `/run-agent jobs` lists the waiting runs and `cancel` drops one. `dry` shows the command and the start time without running anything. The script reads the arguments itself (`--parse`), fixes near-miss typos and shows the fix, and asks only about words it can't place. `--need-tmux` stops early outside tmux, and `--handoff` does the worker's usage-limit steps in one call.
+- restore-sessions catches sessions that were open at the stop and opens restored windows with the Ubuntu Windows Terminal profile. The windows no longer stay always on top. It leaves out empty sessions and older sessions in the same project, and `keep <id>` brings one back.
+- weekly-roundup prices Sonnet 5.5 cache reads at 0.05x input and adds the Oct 11-18 week to the archive with its own project colors.
+
+### Agents 🤖
+
+- report-writer (model Fable) turns a data folder and one question into a short report with the verdict, the deciding number, one chart and a list of what could be wrong, on a desktop page and as phone cards. When the data can't decide, it writes `plans/DATA_REQUEST.md` with what to measure, and the worker collects it and reruns. It asks for the one-hour prompt cache itself.
+- report-checker (model Opus) answers the question cold from the data, then checks every claim and figure in the report and writes findings. The writer fixes what was flagged over up to two loops, and anything still open is listed in the report. It asks for the one-hour prompt cache itself.
+- worker has a section for the usage limit. It writes a three-line note and a WIP commit, then relaunches itself through `run-agent.sh --handoff`. `docs/agent-style.md` lists the house rules for agent files, each with the Anthropic guidance it comes from.
+- evaluator has a phone path. `claude --agent evaluator "phone"` shows each item as a phone-sized picture and opens no windows. The window-control rules moved into the agent file, and the file is shorter with every rule kept.
+- helper knows the git-init fix for the MCP approval dialog that keeps coming back. It now says the cache stays warm for about an hour in this setup.
+- planner has the Skill tool and calls for a report-writer report when a plan compares or measures something.
+
+### Settings ⚙️
+
+- Default model is Haiku.
+- The one-hour prompt cache is requested on every request, in main sessions and subagents, and the five-minute cache is never used. `promptCacheTtl` and `subagentPromptCacheTtl` are both `1h`, and `ENABLE_PROMPT_CACHING_1H` is set as a backup.
+- `autoContinueAtUsageLimit` is off, so the worker's scheduled relaunch is the only thing that wakes up when the usage window resets.
+- Deny rules hide the planner, worker, evaluator and helper from the Agent tool, since they only run as main sessions.
+- The `run-agent.sh` Bash call is allowed, so auto mode doesn't block the worker's handoff.
+- The status line has a plane theme. Set `CLAUDE_STATUSLINE_THEME=plane` or run `./install.sh --theme plane`, and `bash statusline.sh --preview plane` lists every easter egg.
+- `UPDATING.md` has the steps for an AI to update your clone to the latest release.
+
+### Known issues
+
+- None known.
+
+### Agent versions 📄
+
+- planner.md at 19ecb18 (2026-10-23)
+- worker.md at 8206204 (2026-10-24)
+- evaluator.md at 7a8394b (2026-10-23)
+- helper.md at 06a0875 (2026-10-25)
+- report-writer.md at 06a0875 (2026-10-25)
+- report-checker.md at 06a0875 (2026-10-25)
 
 ## v1.1.0 — 2026-10-15
 
