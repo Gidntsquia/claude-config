@@ -78,8 +78,12 @@ scenario() {  # $1 = a|b
       expect "b: planner.md is now the repo's (--agent-clash replace)" sh -c "grep -q '^name: planner\$' '$H/.claude/agents/planner.md' && ! cmp -s '$H/.claude/agents/planner.md' '$H/planner.md.orig'"
       expect "b: your planner kept as planner.pre-link.md" cmp -s "$H/.claude/agents/planner.pre-link.md" "$H/planner.md.orig"
     fi
-    out="$(./install.sh 2>&1 | head -1)"
+    out="$(./install.sh 2>&1)"; rc=$?
+    expect "$name: rerun with no flags exits 0 (got $rc)" test "$rc" = 0
     expect "$name: rerun with no flags reuses saved choices" sh -c "echo \"\$1\" | grep -q 'reusing saved choices'" _ "$out"
+    expect "$name: rerun made no .pre-link of the repo's own files" sh -c "! ls '$H/.claude' '$H/.claude/agents' '$H/.claude/skills' 2>/dev/null | grep -v '^planner.pre-link.md\$' | grep -v '^settings.json.pre-link\$' | grep -q pre-link"
+    out="$(./install.sh --check 2>&1)"
+    expect "$name: --check shows every repo agent installed or kept (no SKIP agent)" sh -c "! echo \"\$1\" | grep -q '^SKIP agent'" _ "$out"
     exit "$fails"
   )
   fails=$((fails+$?))

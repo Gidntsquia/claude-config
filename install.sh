@@ -42,8 +42,14 @@ PY=""
 for p in python3 python; do command -v "$p" >/dev/null 2>&1 && "$p" -c 'import json' >/dev/null 2>&1 && { PY="$p"; break; }; done
 [ -n "$PY" ] || { echo "install.sh: needs python3 (for the settings merge); install it and rerun" >&2; exit 1; }
 
-resolve() { "$PY" -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
-in_clone() { [ -L "$1" ] && case "$(resolve "$1")" in "$R"|"$R"/*) return 0 ;; esac; return 1; }
+# readlink -f keeps Git Bash's /c/... form (Windows python would print C:\...); old macOS lacks it, so python is the fallback.
+resolve() { readlink -f "$1" 2>/dev/null || "$PY" -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
+# in_clone <path> [repo path]: <path> is a link into this clone. On Windows, where an account without symlink rights
+# gets copies, an identical copy of [repo path] counts too.
+in_clone() {
+  if [ -L "$1" ]; then case "$(resolve "$1")" in "$R"|"$R"/*) return 0 ;; esac; fi
+  [ "$OS" = windows ] && [ -n "${2:-}" ] && [ -e "$1" ] && diff -rq "$1" "$2" >/dev/null 2>&1
+}
 expand() { case "$1" in "~") echo "$HOME" ;; "~/"*) echo "$HOME/${1#\~/}" ;; *) echo "$1" ;; esac; }
 saved() { [ -f "$CFG" ] && "$PY" -c 'import json,sys; v=json.load(open(sys.argv[1])).get(sys.argv[2]); print("" if v is None else (str(v).lower() if isinstance(v,bool) else v))' "$CFG" "$1" 2>/dev/null || true; }
 
@@ -102,7 +108,7 @@ PROJECTS="$(expand "$PROJECTS")"
 repo_agents() { for f in "$R"/agents/*.md; do head -5 "$f" | grep -q '^name:' && basename "$f" .md; done; }
 repo_skills() { for s in "$R"/skills/*/; do [ -f "$s/SKILL.md" ] && basename "$s"; done; }
 # ~/.claude/agents is either a link to the repo's agents/ (whole folder) or the user's own folder (one link per agent).
-agents_whole() { [ ! -e "$C/agents" ] && [ ! -L "$C/agents" ] || in_clone "$C/agents"; }
+agents_whole() { [ ! -e "$C/agents" ] && [ ! -L "$C/agents" ] || in_clone "$C/agents" "$R/agents"; }
 
 # =================================================================================================================
 # --check
@@ -122,14 +128,14 @@ if [ -n "$CHECK" ]; then
   if agents_whole; then linked "$C/agents" "agents" "$R/agents"
   else
     for a in $(repo_agents); do
-      if in_clone "$C/agents/$a.md"; then pass "agent $a"
+      if in_clone "$C/agents/$a.md" "$R/agents/$a.md"; then pass "agent $a"
       elif [ -f "$C/agents/$a-claude-config.md" ]; then pass "agent $a (yours kept; repo copy is $a-claude-config)"
       elif [ -f "$C/agents/$a.md" ]; then skip "agent $a (yours kept, repo's skipped)"
       else fail "agent $a: $C/agents/$a.md missing"; fi
     done
   fi
   for s in $(repo_skills); do
-    if in_clone "$C/skills/$s" || { [ "$OS" = windows ] && diff -rq "$C/skills/$s" "$R/skills/$s" >/dev/null 2>&1; }; then pass "skill $s"
+    if in_clone "$C/skills/$s" "$R/skills/$s"; then pass "skill $s"
     elif [ -d "$C/skills/$s-claude-config" ]; then pass "skill $s (yours kept; repo copy is $s-claude-config)"
     elif [ -e "$C/skills/$s" ]; then skip "skill $s (yours kept, repo's skipped)"
     else fail "skill $s: $C/skills/$s missing"; fi
@@ -196,7 +202,9 @@ clash_mode() {  # clash_mode <name>: keep|replace|skip from --agent-clash, or em
 }
 link() {  # link <src> <dst>: replace a link, move a real file to <dst>.pre-link
   local src="$1" dst="$2"
-  if [ -L "$dst" ]; then rm "$dst"; elif [ -e "$dst" ]; then mv "$dst" "$dst.pre-link"; fi
+  if [ -L "$dst" ]; then rm "$dst"
+  elif [ -e "$dst" ] && in_clone "$dst" "$src"; then rm -rf "$dst"  # Windows: our own earlier copy
+  elif [ -e "$dst" ]; then mv "$dst" "$dst.pre-link"; fi
   ln -s "$src" "$dst" 2>/dev/null || { [ "$OS" = windows ] && cp -R "$src" "$dst" && echo "  (copied $dst: this Windows account cannot make symlinks; rerun install.sh after updates)"; }
 }
 backup() { local f="$1" b="$2"; [ -e "$b" ] && b="$b.$(date +%Y%m%d%H%M%S)"; mv "$f" "$b"; echo "  moved your $(basename "$f") to $b"; }
@@ -206,12 +214,12 @@ clashes=""
 if ! agents_whole; then
   for a in $(repo_agents); do
     f="$C/agents/$a.md"
-    { [ -e "$f" ] || [ -L "$f" ]; } && ! in_clone "$f" && [ -z "$(clash_mode "$a")" ] && clashes="$clashes agents/$a.md"
+    { [ -e "$f" ] || [ -L "$f" ]; } && ! in_clone "$f" "$R/agents/$a.md" && [ -z "$(clash_mode "$a")" ] && clashes="$clashes agents/$a.md"
   done
 fi
 for s in $(repo_skills); do
   d="$C/skills/$s"
-  { [ -e "$d" ] || [ -L "$d" ]; } && ! in_clone "$d" && [ -z "$(clash_mode "$s")" ] && clashes="$clashes skills/$s"
+  { [ -e "$d" ] || [ -L "$d" ]; } && ! in_clone "$d" "$R/skills/$s" && [ -z "$(clash_mode "$s")" ] && clashes="$clashes skills/$s"
 done
 if [ -n "$clashes" ]; then
   echo "These are already in $C and are yours (not links into $R):"
@@ -230,7 +238,7 @@ else
   echo "  agents: you have your own $C/agents, so each repo agent is added next to yours"
   for a in $(repo_agents); do
     f="$C/agents/$a.md"
-    if in_clone "$f" || [ ! -e "$f" ]; then link "$R/agents/$a.md" "$f"; continue; fi
+    if in_clone "$f" "$R/agents/$a.md" || [ ! -e "$f" ]; then link "$R/agents/$a.md" "$f"; continue; fi
     case "$(clash_mode "$a")" in
       keep)    sed "s/^name: *$a *\$/name: $a-claude-config/" "$R/agents/$a.md" > "$C/agents/$a-claude-config.md"
                echo "  agent $a: kept yours; the repo's is $a-claude-config (claude --agent $a-claude-config)" ;;
@@ -246,7 +254,7 @@ fi
 # 3. Skills.
 for s in $(repo_skills); do
   d="$C/skills/$s"
-  if in_clone "$d" || { [ ! -e "$d" ] && [ ! -L "$d" ]; }; then link "$R/skills/$s" "$d"; continue; fi
+  if in_clone "$d" "$R/skills/$s" || { [ ! -e "$d" ] && [ ! -L "$d" ]; }; then link "$R/skills/$s" "$d"; continue; fi
   case "$(clash_mode "$s")" in
     keep)    k="$C/skills/$s-claude-config"; rm -rf "$k"; mkdir -p "$k"
              for f in "$R/skills/$s"/*; do [ "$(basename "$f")" = SKILL.md ] || link "$f" "$k/$(basename "$f")"; done
@@ -259,7 +267,7 @@ done
 echo "  skills: $(repo_skills | tr '\n' ' ')"
 
 # 4. CLAUDE.md: linked only when you have none.
-if [ ! -e "$C/CLAUDE.md" ] || in_clone "$C/CLAUDE.md"; then link "$R/CLAUDE.md" "$C/CLAUDE.md"; echo "  CLAUDE.md: linked"
+if [ ! -e "$C/CLAUDE.md" ] || in_clone "$C/CLAUDE.md" "$R/CLAUDE.md"; then link "$R/CLAUDE.md" "$C/CLAUDE.md"; echo "  CLAUDE.md: linked"
 else
   echo "  CLAUDE.md: yours is left as it is. To use the repo's rules too, add this line to $C/CLAUDE.md:"
   echo "      @$R/CLAUDE.md"
