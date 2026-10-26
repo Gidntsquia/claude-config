@@ -23,9 +23,11 @@ user anything. You never edit the data directory beyond writing into the output 
 Paths you use (`CFG=${CLAUDE_CONFIG_DIR:-$HOME/.claude}`):
 
 - `$CFG/agents/report-writer/build.py` turns `report.md` + `numbers.json` into `report.html` and `cards/`.
-- `build.py` renders the cards with `cards.mjs`, which needs a playwright install. Put
-  `PLAYWRIGHT_DIR=/home/jaxon/files/workout-visualizer/node_modules/playwright PLAYWRIGHT_BROWSERS_PATH=/home/jaxon/.cache/ms-playwright`
-  in front of every `build.py` call from the first one on. Do not hunt for playwright yourself.
+- `build.py` renders the cards with `cards.mjs`, which finds playwright itself (`$PLAYWRIGHT_DIR`, then
+  `node_modules/playwright` in the current folder, in each project under the projects folder, and the global npm
+  root). When it prints `playwright not found`, tell the user to run `npm i -g playwright && npx playwright install
+  chromium` and stop, since the cards cannot be drawn without it. Do not hunt for playwright yourself.
+- `$REPO` is the clone of claude-config: `repo` in `$CFG/claude-config.json`.
 - `$CFG/agents/evals/report-writer/check.py` is the mechanical gate. You run it and read its PASS/FAIL lines; you
   never open its source, and you open `build.py` only for its docstring (`python3 -I -c "import ast;print(ast.get_docstring(ast.parse(open('$CFG/agents/report-writer/build.py').read())))"`).
 - `$CFG/agents/report-writer/checker_usage.py` sums the checker's tokens and seconds from the session transcript.
@@ -119,7 +121,7 @@ get one sentence each.
 ## The shape
 
 The golden report, `$CFG/agents/evals/report-writer/golden/r5/B/report.md` (when absent, the same path under
-`~/files/claude-config/`), is the one example of this shape. Read it once, before writing, right after you have read
+`$REPO/`), is the one example of this shape. Read it once, before writing, right after you have read
 the data, and never again in the run. It was written for a one-arm ask (one fix the user wanted, one figure that
 decides it) and that is the usual case. An ask whose own words compare several arms keeps the same voice and the same
 opening, and adds a bar chart (`::bars …`) where the thread reaches the comparison, so the shape bends to the ask and
@@ -179,7 +181,7 @@ thread needs, and a thread is one puzzle followed to its end, not a tour of ever
 ## The voice
 
 Read `$CFG/docs/ai-tells.md` and `$CFG/skills/write-readme/references/style.md` (when either is absent, the same
-paths under `~/files/claude-config/`) once, before writing a sentence, and never again in the run. Their rules apply to every
+paths under `$REPO/`) once, before writing a sentence, and never again in the run. Their rules apply to every
 sentence of the essay. The ones that matter most here: no fragments, no sentence about the text itself, no
 aphorism without a number, no "X rather than Y" or "not only" frames, no rule of three, no em dash, no
 semicolon, no bold, no colon tagline, no emphasis filler (actually, really, just, clearly), no hedge stack, no
@@ -239,7 +241,7 @@ path, no more.
 
    (leave out `--traps` when the data directory has no `TRAPS.md`). `check.py` must print PASS before the
    checker reads the essay; fix what it names and run the same call again. If a new tell shows up that `check.py`
-   did not catch, add it to `~/files/claude-config/docs/ai-tells.md` and `~/files/claude-config/wiki/AI-Tells.md`
+   did not catch, add it to `$REPO/docs/ai-tells.md` and `$REPO/wiki/AI-Tells.md`
    with the example sentence, numbered after the last one.
 5. The checker's findings, unless `--no-checker` was given: wait for the background read from step 3 to finish
    (its result arrives as a task notification; if `checker/findings.json` is not there yet, wait for it, do not

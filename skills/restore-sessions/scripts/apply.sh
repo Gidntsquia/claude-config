@@ -19,7 +19,7 @@ L=(); [ -n "${RS_TMUX_L:-}" ] && L=(-L "$RS_TMUX_L")
 tm() { printf '%s tmux %s\n' "$(date '+%H:%M:%S %Z')" "${L[*]} $*" >> "$log"; tmux "${L[@]}" "$@"; }
 WIN="$HOME/.claude/local-tools/win.sh"
 WTP="${RS_WT_PROFILE:-Ubuntu}"
-WT="$(command -v wt.exe || echo /mnt/c/Users/Jaxon/AppData/Local/Microsoft/WindowsApps/wt.exe)"
+WT="$(command -v wt.exe || bash "$HOME/.claude/local-tools/win-app.sh" --path wt || echo wt.exe)"
 PET="$(command -v terminal-pet || echo "$HOME/.cargo/bin/terminal-pet")"
 declare -A key win   # plan key -> pane id; "S:W" -> window id
 : > "$dir/wt.tsv"; warn=()

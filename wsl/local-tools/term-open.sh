@@ -11,7 +11,7 @@ set -e
 grep -qi microsoft /proc/version 2>/dev/null || { echo "term-open.sh: WSL only (this is $(uname))"; exit 1; }
 t="$1"; dir="$2"; shift 2
 W="$HOME/.claude/local-tools/win.sh"
-WT="${EVSHOW_WT:-/mnt/c/Users/Jaxon/AppData/Local/Microsoft/WindowsApps/wt.exe}"
+WT="${EVSHOW_WT:-$(bash "$HOME/.claude/local-tools/win-app.sh" --path wt)}"
 [ -x "$WT" ] || { echo "wt.exe not found: $WT"; exit 1; }
 tmux new-session -d -s "$t" -c "$dir" -x 200 -y 50
 "$WT" -w new -p "${TERM_OPEN_PROFILE:-Ubuntu}" --title "$t" --suppressApplicationTitle \

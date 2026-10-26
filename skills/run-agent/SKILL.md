@@ -67,7 +67,7 @@ script alone.)
 AskUserQuestion, header "Run?" (or "Schedule?" with a time), question text exactly:
 - now: `Replace this session with: <command>  (in <dir>[, will be created])?`
 - with a time: `Schedule: <command> at <at_shown> (in <dir>[, will be created])?`
-  e.g. `Schedule: claude --agent worker "." --model fable --effort low --name "worker: claude-config (fable)" at 2:40 AM ET (after window, in 3h 12m) (in /home/jaxon/files/claude-config)?`
+  e.g. `Schedule: claude --agent worker "." --model fable --effort low --name "worker: claude-config (fable)" at 2:40 AM ET (after window, in 3h 12m) (in ~/files/claude-config)?`
 - `until` set: append ` until <until_shown>` after `<at_shown>`.
 - corrections: append ` (read: fabel -> fable, lo -> low)` before the final `?`.
 - `--continue`/`resume` with a dir different from the cwd: append ` (note: --continue resumes the latest session in <dir>, not this one)`.

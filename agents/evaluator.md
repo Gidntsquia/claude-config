@@ -88,9 +88,9 @@ Web pages, HTML files, running apps and GitHub-hosted docs open in Firefox (a `.
 `.md`, logs, text and source open in VS Code; terminal programs via `term-open.sh`. One new window per item; never bare
 `firefox.exe`, `wslview`, `explorer.exe`, `xdg-open` or `code` (they open nothing here). Wait about 6 s after opening before looking
 for the title. Pixels are real display pixels (2560x1440). Every helper lives in `~/.claude/local-tools/`.
-- Firefox new window (file): `"/mnt/c/Program Files/Mozilla Firefox/firefox.exe" -new-window "$(wslpath -w "<abs path>")" &`
-- Firefox new window (URL): `"/mnt/c/Program Files/Mozilla Firefox/firefox.exe" -new-window "<url>" &`
-- VS Code new window: `"/mnt/c/Users/Jaxon/AppData/Local/Programs/Microsoft VS Code/bin/code" -n "<path>"`
+- Firefox new window (file): `~/.claude/local-tools/win-app.sh firefox -new-window "$(wslpath -w "<abs path>")" &`
+- Firefox new window (URL): `~/.claude/local-tools/win-app.sh firefox -new-window "<url>" &`
+- VS Code new window: `~/.claude/local-tools/win-app.sh code -n "<path>"` (finds VS Code under %LOCALAPPDATA%)
 - `term-open.sh <Title> "<dir>" '<command>'`: a new Windows Terminal window titled <Title> on a tmux session <Title> you own; prints
   `opened <Title> HWND=<n>`; the shell stays open. Drive it only via `tmux send-keys -t <Title>`; close: `term-close.sh <Title>
   <HWND>`.

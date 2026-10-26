@@ -61,7 +61,7 @@ Ask the user **who this machine's usage belongs to** every run, in the same ques
 `--person "<answer>"` exactly as typed. The script matches it fuzzily (case, punctuation, extra
 words, typos and short forms all ignored) against the pool's people and the account's known
 people (`KNOWN_PEOPLE` in `gather_data.py`: Jaxon, Jet), so anything like "jet", "Jett", "jet
-Lee" pools into "Jet" and "jaxon.", "jax", "Jaxson" into "Jaxon"; a name that matches nobody
+Lee" pools into "Jet" and "JAXON.", "jax", "Jaxson" into "Jaxon"; a name that matches nobody
 starts a new person. Never normalize the answer yourself. Each person gets their own color
 scheme once the week's pool has two or more people (first person seen: `warm`, 20 accents in
 reds, oranges, pinks, magentas, golds and browns, hues 300-60°; second: `cool`, 20 accents in
@@ -107,8 +107,8 @@ other machines' entries are kept. If the hostname is already in the pool under a
 person the script exits with an error naming both people and the hostname: stop, report it to
 the user, and do not work around it. On a rerun the output has `rewrite` (`hostname`,
 `replaced_collected_at`, `projects`, `fixed`) and the pool's `authored` map passes through.
-If `~/files` doesn't exist on this machine, ask the user where their repos live and pass
-`--files-dir`. The same project on two machines merges by GitHub remote, else by repo folder
+Pass `--files-dir` the projects folder (`projects` in `~/.claude/claude-config.json`); when that file has none and
+`~/files` doesn't exist, ask the user where their repos live. The same project on two machines merges by GitHub remote, else by repo folder
 name; shared commits and sessions count once.
 
 It prints JSON for the pooled week: `people` (person, palette name, `color`, `accents`, devices,
@@ -495,7 +495,7 @@ update it too, inserts or replaces this week by `weekStart` (the added week must
 kept as they are), saves them to
 `archive_weeks.json` and builds the page) and republish the page with `Artifact`
 (`url: archive_url`; omit `capabilities`).
-Commit `archive_weeks.json` in `~/files/claude-config` if this machine has that repo. Never give the archive a `db`: a `db` page
+Commit `archive_weeks.json` in the claude-config clone (`repo` in `~/.claude/claude-config.json`) if this machine has one. Never give the archive a `db`: a `db` page
 is organization-only, so public viewers would not see the weeks.
 
 ```

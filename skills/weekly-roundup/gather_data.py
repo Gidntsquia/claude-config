@@ -18,7 +18,7 @@ Usage:
       --token-window-start "2026-09-06T22:00:00" \
       [--token-window-end "2026-09-13T22:00:00"] \
       [--cap-pct 90] --plan-cost 100 \
-      [--device jaxon@desktop] --person Jaxon [--pool-in this-week.html] [--pool-out pool.json] \
+      [--device me@desktop] --person Jaxon [--pool-in this-week.html] [--pool-out pool.json] \
       [--include-ai-sandbox] [--include-project yugioh-deck-optimizer]
 
 Who did what: --person names the owner of this machine's usage. Spellings pool fuzzily into the
@@ -258,7 +258,7 @@ def repo_commits(repo: Path, start: str, end: str):
 
 def slug_for(path: Path) -> str:
     # Claude Code maps every non-alphanumeric character (/, \, :, _, ., space) to "-":
-    # /home/x/repo -> -home-x-repo, C:\Users\x\repo -> C--Users-x-repo
+    # /srv/x/repo -> -srv-x-repo, C:\Users\x\repo -> C--Users-x-repo
     return re.sub(r"[^A-Za-z0-9-]", "-", str(path).rstrip("/\\"))
 
 

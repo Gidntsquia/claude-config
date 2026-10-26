@@ -8,14 +8,24 @@
 import { createRequire } from 'node:module';
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { execSync } from 'node:child_process';
 
 const [outdir, mode = 'desktop', page_name = 'report.html'] = process.argv.slice(2);
 if (!outdir) { console.error('usage: node cards.mjs <outdir> desktop|phone'); process.exit(2); }
 const SCALE = +(process.env.CARD_SCALE ?? 2);
-const candidates = [process.env.PLAYWRIGHT_DIR, resolve(process.cwd(), 'node_modules/playwright'),
-  `${process.env.HOME}/files/workout-visualizer/node_modules/playwright`, `${process.env.HOME}/files/pogo-gbl-team-generator/node_modules/playwright`].filter(Boolean);
+// Where playwright may be: $PLAYWRIGHT_DIR, ./node_modules, any project in the projects folder chosen at install
+// ("projects" in ~/.claude/claude-config.json), then the global npm root.
+const projectsDir = (() => {
+  try { return JSON.parse(readFileSync(`${process.env.CLAUDE_CONFIG_DIR || `${process.env.HOME}/.claude`}/claude-config.json`, 'utf8')).projects; }
+  catch { return null; }
+})();
+const inProjects = projectsDir && existsSync(projectsDir)
+  ? readdirSync(projectsDir).map((d) => `${projectsDir}/${d}/node_modules/playwright`) : [];
+const npmRoot = (() => { try { return execSync('npm root -g', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return null; } })();
+const candidates = [process.env.PLAYWRIGHT_DIR, resolve(process.cwd(), 'node_modules/playwright'), ...inProjects,
+  npmRoot && `${npmRoot}/playwright`].filter(Boolean);
 const pwDir = candidates.find((d) => existsSync(d));
-if (!pwDir) { console.error(`cards.mjs: playwright not found (tried ${candidates.join(', ')}); set PLAYWRIGHT_DIR`); process.exit(1); }
+if (!pwDir) { console.error(`cards.mjs: playwright not found (looked in $PLAYWRIGHT_DIR, ./node_modules, ${projectsDir || 'the projects folder'}/*/node_modules, npm root -g); install it: npm i -g playwright && npx playwright install chromium`); process.exit(1); }
 const { chromium } = createRequire(import.meta.url)(pwDir);
 
 const dir = resolve(outdir, 'cards');

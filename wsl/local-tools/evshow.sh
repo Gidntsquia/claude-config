@@ -26,6 +26,7 @@
 grep -qi microsoft /proc/version 2>/dev/null || { echo "evshow.sh: WSL only (this is $(uname))" >&2; exit 1; }
 set -u
 . "$HOME/.claude/local-tools/evsession.sh"
+. "$HOME/.claude/local-tools/winenv.sh"
 W="$HOME/.claude/local-tools/win.sh"
 PY="$HOME/.claude/local-tools/evshow_watch.py"
 CAP="$HOME/.claude/local-tools/screen-capture.sh"
@@ -58,7 +59,7 @@ fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired
   local mode title old out rc t0 t1 capw capl
   mode=$(cat "$D/mode"); title=$(cat "$D/title"); old=$(cat "$D/old" 2>/dev/null || echo 0)
   if [ -e "$D/gatepid" ]; then kill -- -"$(cat "$D/gatepid")" 2>/dev/null; pkill -P "$(cat "$D/gatepid")" 2>/dev/null; rm -f "$D/gatepid"; fi
-  capl="/mnt/c/Users/Jaxon/evshow-shown-$SID8-$(date +%s).png"; capw="C:\\Users\\Jaxon\\$(basename "$capl")"
+  capl="$WIN_HOME/evshow-shown-$SID8-$(date +%s).png"; capw="$WIN_HOME_W\\$(basename "$capl")"
   t0=$(et); read -r ix iy iw ih <<<"$ITEMG"; read -r tx ty tw th <<<"$TERMG"
   if [ "$mode" = first ]; then
     out=$("$W" start "$title" "$ix" "$iy" "$iw" "$ih" 5 "$tx" "$ty" "$tw" "$th" "${EVSHOW_TERMHWND:-}" "$capw"); rc=$?
