@@ -1,3 +1,5 @@
+# v1.2.1 — 2026-10-26
+
 Installing this setup is now one sentence to Claude, and the install adds to what you already have instead of replacing it. Everything since v1.2.0 (2026-10-25) is here.
 
 ## Highlights ✨
