@@ -1234,5 +1234,382 @@
     "total_pct": 13.54
    }
   ]
+ },
+ {
+  "weekStart": "2026-10-18",
+  "label": "Oct 18–25, 2026",
+  "url": "https://claude.ai/artifact/Aa8whS51pXJy251MzZfnHj",
+  "projectCount": 10,
+  "totalCost": 677.53,
+  "slices": [
+   {
+    "name": "Pokémon Go GBL Team Generator · Jaxon",
+    "pct": 24.4,
+    "color": "#2f80ed"
+   },
+   {
+    "name": "claude-config · Jaxon",
+    "pct": 19.55,
+    "color": "#27a566"
+   },
+   {
+    "name": "Godot MCP Study · Jaxon",
+    "pct": 16.46,
+    "color": "#8f51d6"
+   },
+   {
+    "name": "terminal-pet · Jaxon",
+    "pct": 14.11,
+    "color": "#13a2ae"
+   },
+   {
+    "name": "Evaluator Building · Jaxon",
+    "pct": 6.81,
+    "color": "#7b319b"
+   },
+   {
+    "name": "Report-Writer Improver · Jaxon",
+    "pct": 4.55,
+    "color": "#4e4ed0"
+   },
+   {
+    "name": "Curling Simulator · Jaxon",
+    "pct": 4.18,
+    "color": "#2b822b"
+   },
+   {
+    "name": "Substitute Teacher Sim · Jaxon",
+    "pct": 3.73,
+    "color": "#5fc6f2"
+   },
+   {
+    "name": "Spire Advisor · Jaxon",
+    "pct": 1.47,
+    "color": "#13725a"
+   },
+   {
+    "name": "Agent Eval Experiment · Jaxon",
+    "pct": 0.0,
+    "color": "#183795"
+   },
+   {
+    "name": "Misc · Jaxon",
+    "pct": 3.97,
+    "color": "#94a3b8"
+   },
+   {
+    "name": "claude-config · Jet",
+    "pct": 0.12,
+    "color": "#e5484d"
+   },
+   {
+    "name": "Misc · Jet",
+    "pct": 0.65,
+    "color": "#b9a295"
+   }
+  ],
+  "days": [
+   {
+    "date": "2026-10-18",
+    "label": "Sun",
+    "segments": [
+     {
+      "project": "Curling Simulator",
+      "person": "Jaxon",
+      "color": "#2b822b",
+      "pct": 2.64
+     },
+     {
+      "project": "Substitute Teacher Sim",
+      "person": "Jaxon",
+      "color": "#5fc6f2",
+      "pct": 1.91
+     },
+     {
+      "project": "Pokémon Go GBL Team Generator",
+      "person": "Jaxon",
+      "color": "#2f80ed",
+      "pct": 1.0
+     },
+     {
+      "project": "claude-config",
+      "person": "Jaxon",
+      "color": "#27a566",
+      "pct": 0.55
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#94a3b8",
+      "pct": 0.37
+     }
+    ],
+    "total_pct": 6.47
+   },
+   {
+    "date": "2026-10-19",
+    "label": "Mon",
+    "segments": [
+     {
+      "project": "Pokémon Go GBL Team Generator",
+      "person": "Jaxon",
+      "color": "#2f80ed",
+      "pct": 0.3
+     }
+    ],
+    "total_pct": 0.3
+   },
+   {
+    "date": "2026-10-20",
+    "label": "Tue",
+    "segments": [],
+    "total_pct": 0.0
+   },
+   {
+    "date": "2026-10-21",
+    "label": "Wed",
+    "segments": [
+     {
+      "project": "claude-config",
+      "person": "Jaxon",
+      "color": "#27a566",
+      "pct": 9.18
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#94a3b8",
+      "pct": 1.57
+     },
+     {
+      "project": "Pokémon Go GBL Team Generator",
+      "person": "Jaxon",
+      "color": "#2f80ed",
+      "pct": 1.49
+     }
+    ],
+    "total_pct": 12.25
+   },
+   {
+    "date": "2026-10-22",
+    "label": "Thu",
+    "segments": [
+     {
+      "project": "claude-config",
+      "person": "Jaxon",
+      "color": "#27a566",
+      "pct": 5.28
+     },
+     {
+      "project": "Pokémon Go GBL Team Generator",
+      "person": "Jaxon",
+      "color": "#2f80ed",
+      "pct": 3.75
+     },
+     {
+      "project": "Godot MCP Study",
+      "person": "Jaxon",
+      "color": "#8f51d6",
+      "pct": 1.82
+     },
+     {
+      "project": "Substitute Teacher Sim",
+      "person": "Jaxon",
+      "color": "#5fc6f2",
+      "pct": 1.82
+     },
+     {
+      "project": "Evaluator Building",
+      "person": "Jaxon",
+      "color": "#7b319b",
+      "pct": 1.58
+     },
+     {
+      "project": "Curling Simulator",
+      "person": "Jaxon",
+      "color": "#2b822b",
+      "pct": 0.38
+     },
+     {
+      "project": "Report-Writer Improver",
+      "person": "Jaxon",
+      "color": "#4e4ed0",
+      "pct": 0.29
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#94a3b8",
+      "pct": 0.23
+     }
+    ],
+    "total_pct": 15.15
+   },
+   {
+    "date": "2026-10-23",
+    "label": "Fri",
+    "segments": [
+     {
+      "project": "Evaluator Building",
+      "person": "Jaxon",
+      "color": "#7b319b",
+      "pct": 5.23
+     },
+     {
+      "project": "Report-Writer Improver",
+      "person": "Jaxon",
+      "color": "#4e4ed0",
+      "pct": 4.26
+     },
+     {
+      "project": "Pokémon Go GBL Team Generator",
+      "person": "Jaxon",
+      "color": "#2f80ed",
+      "pct": 1.94
+     },
+     {
+      "project": "claude-config",
+      "person": "Jaxon",
+      "color": "#27a566",
+      "pct": 1.83
+     },
+     {
+      "project": "Godot MCP Study",
+      "person": "Jaxon",
+      "color": "#8f51d6",
+      "pct": 1.71
+     },
+     {
+      "project": "terminal-pet",
+      "person": "Jaxon",
+      "color": "#13a2ae",
+      "pct": 0.54
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#94a3b8",
+      "pct": 0.43
+     },
+     {
+      "project": "Misc",
+      "person": "Jet",
+      "color": "#b9a295",
+      "pct": 0.18
+     }
+    ],
+    "total_pct": 16.12
+   },
+   {
+    "date": "2026-10-24",
+    "label": "Sat",
+    "segments": [
+     {
+      "project": "Godot MCP Study",
+      "person": "Jaxon",
+      "color": "#8f51d6",
+      "pct": 8.96
+     },
+     {
+      "project": "Pokémon Go GBL Team Generator",
+      "person": "Jaxon",
+      "color": "#2f80ed",
+      "pct": 8.67
+     },
+     {
+      "project": "terminal-pet",
+      "person": "Jaxon",
+      "color": "#13a2ae",
+      "pct": 5.54
+     },
+     {
+      "project": "claude-config",
+      "person": "Jaxon",
+      "color": "#27a566",
+      "pct": 1.62
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#94a3b8",
+      "pct": 1.21
+     },
+     {
+      "project": "Misc",
+      "person": "Jet",
+      "color": "#b9a295",
+      "pct": 0.13
+     },
+     {
+      "project": "Curling Simulator",
+      "person": "Jaxon",
+      "color": "#2b822b",
+      "pct": 0.02
+     }
+    ],
+    "total_pct": 26.15
+   },
+   {
+    "date": "2026-10-25",
+    "label": "Sun",
+    "segments": [
+     {
+      "project": "terminal-pet",
+      "person": "Jaxon",
+      "color": "#13a2ae",
+      "pct": 8.03
+     },
+     {
+      "project": "Pokémon Go GBL Team Generator",
+      "person": "Jaxon",
+      "color": "#2f80ed",
+      "pct": 7.24
+     },
+     {
+      "project": "Godot MCP Study",
+      "person": "Jaxon",
+      "color": "#8f51d6",
+      "pct": 3.96
+     },
+     {
+      "project": "Spire Advisor",
+      "person": "Jaxon",
+      "color": "#13725a",
+      "pct": 1.47
+     },
+     {
+      "project": "Curling Simulator",
+      "person": "Jaxon",
+      "color": "#2b822b",
+      "pct": 1.13
+     },
+     {
+      "project": "claude-config",
+      "person": "Jaxon",
+      "color": "#27a566",
+      "pct": 1.1
+     },
+     {
+      "project": "Misc",
+      "person": "Jet",
+      "color": "#b9a295",
+      "pct": 0.35
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#94a3b8",
+      "pct": 0.16
+     },
+     {
+      "project": "claude-config",
+      "person": "Jet",
+      "color": "#e5484d",
+      "pct": 0.12
+     }
+    ],
+    "total_pct": 23.57
+   }
+  ]
  }
 ]
