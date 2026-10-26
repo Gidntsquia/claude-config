@@ -62,13 +62,16 @@ scenario() {  # $1 = a|b
     expect "$name: claude-config.json names this clone" sh -c "grep -q '\"repo\"' '$H/.claude/claude-config.json'"
     s="$H/.claude/settings.json"
     if [ "$name" = a ]; then
-      expect "a: settings.json has the repo's statusLine" sh -c "grep -q statusline.sh '$s'"
+      case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) expect "a: no statusLine on Windows without WSL" sh -c "! grep -q statusline.sh '$s'" ;;
+        *) expect "a: settings.json has the repo's statusLine" sh -c "grep -q statusline.sh '$s'" ;;
+      esac
       expect "a: CLAUDE.md is linked" test -L "$H/.claude/CLAUDE.md"
       expect "a: planner agent installed" test -e "$H/.claude/agents/planner.md"
     else
       expect "b: model unchanged" test "$(jget "$s" model)" = '"haiku"'
       expect "b: statusLine unchanged" test "$(jget "$s" statusLine)" = '{"type": "command", "command": "echo my-status"}'
-      expect "b: deny list kept and unioned" sh -c "'$PY' -c \"import json;d=json.load(open('$s'))['permissions']['deny'];assert d[0]=='Bash(rm -rf:*)' and len(d)>1\""
+      expect "b: deny list kept and unioned" "$PY" -c "import json,sys;d=json.load(open(sys.argv[1]))['permissions']['deny'];assert d[0]=='Bash(rm -rf:*)' and len(d)>1" "$s"
       expect "b: repo keys added (promptCacheTtl)" sh -c "grep -q promptCacheTtl '$s'"
       expect "b: original settings kept as settings.json.pre-link" test -f "$s.pre-link"
       expect "b: CLAUDE.md byte-identical" cmp -s "$H/.claude/CLAUDE.md" "$H/claude.md.orig"
