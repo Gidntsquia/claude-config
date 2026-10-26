@@ -20,10 +20,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "opus",
-  "autoContinueAtUsageLimit": false,
-  "promptCacheTtl": "1h",
-  "subagentPromptCacheTtl": "1h",
+  "model": "sonnet",
   "skillOverrides": {
     "anthropic-skills:chrome-browser": "off",
     "anthropic-skills:built-in-browser": "off",
@@ -77,6 +74,8 @@
   },
   "extraKnownMarketplaces": {},
   "outputStyle": "Concise",
+  "promptCacheTtl": "1h",
+  "subagentPromptCacheTtl": "1h",
   "effortLevel": "xhigh",
   "modelSettings": {
     "claude-fable-5": {
@@ -108,6 +107,7 @@
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
   "theme": "auto",
+  "autoContinueAtUsageLimit": false,
   "remoteControlAtStartup": true,
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true,
@@ -134,7 +134,7 @@
       "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
       "### User-specific",
       "**Primary use of Claude Code**: software development (browser-based JavaScript game, Wordbound, in this repo)",
-      "**Trusted repo**: Gidntsquia/descent-of-essence (public GitHub repo, working directory /home/jaxon/ai-test) and its origin remote — this is a public repo, so only this repo's own work is safe to publish there; secrets and sensitive data are never cleared into it by virtue of visibility",
+      "**Trusted repo**: Gidntsquia/descent-of-essence (public GitHub repo) and its origin remote — this is a public repo, so only this repo's own work is safe to publish there; secrets and sensitive data are never cleared into it by virtue of visibility",
       "**Org-specific CLIs**: None configured",
       "routine actions scoped to this repo's working tree and its origin remote only"
     ]
