@@ -26,8 +26,12 @@ CSS = """.barchart-wrap{margin:16px 0 6px}
 .bc-grid{position:absolute;left:0;right:0;height:0;border-top:1px dashed var(--line);pointer-events:none}
 .bc-col{position:relative;z-index:1;height:100%;display:flex;align-items:flex-end;justify-content:center}
 .bc-bar{width:100%;display:flex;flex-direction:column-reverse;border-radius:3px 3px 0 0;overflow:hidden}
-.bc-seg{flex:none;width:100%}
+.bc-seg{flex:none;width:100%;transition:opacity .15s}
 .bc-seg:hover{filter:brightness(1.18)}
+.bc-plot[data-sel] .bc-seg{opacity:.25}
+.bc-plot[data-sel] .bc-seg.on{opacity:1}
+.bc-wk .bc-seg{cursor:pointer}
+.bc-wk .bc-plot{touch-action:manipulation}
 .bc-x{grid-column:2;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:var(--bc-gap,10px);margin-top:5px;font-size:.72rem;font-weight:600;color:var(--muted);text-align:center}
 .bc-cap{color:var(--muted);font-size:.72rem;margin-top:8px}
 .bc.arch{--bc-h:180px;--bc-gap:3px}
@@ -74,21 +78,40 @@ def _column(d, ymax, solo):
     for s in d["segments"]:
         who = "" if solo else f' · {s["person"]}'
         title = f'{s["project"]}{who} · {s["pct"]:.1f}%'
+        name = f'{s["project"]}{who}'  # the pie slice's data-name
         segs.append(f'<div class="bc-seg" style="height:{_pct(s["pct"] / d["total_pct"] * 100)};background:{s["color"]}" '
-                    f'title="{html.escape(title)}"></div>')
+                    f'data-name="{html.escape(name)}" title="{html.escape(title)}"></div>')
     return (f'<div class="bc-col" title="{html.escape(date_title)}"><div class="bc-bar" '
             f'style="height:{_pct(d["total_pct"] / ymax * 100)}">' + "".join(segs) + "</div></div>")
 
 
+# Week page only. Click a segment: its project (pie slice name) lights up across every day and the
+# projects pie selects that slice (by clicking it, so the pie's own script does the selecting);
+# click it again or anywhere else to clear. Double-click: jump to the project's deep-dive card, found
+# like pie-jump-js does (a list pill's text, minus a trailing " · <person>"). The chart follows the
+# pie, so a pie or legend click re-highlights the bars too.
+WEEK_JS = """<script>(function(){var w=document.currentScript.parentNode,p=w.querySelector('.bc-plot');if(!p)return;
+var segs=[].slice.call(p.querySelectorAll('.bc-seg[data-name]')),map={},last=null,at=0;
+document.querySelectorAll('.proj-btn[href^="#"]').forEach(function(a){map[a.textContent.trim()]=a.getAttribute('href').slice(1)});
+function card(n){var i=n.lastIndexOf(' · '),id=map[n]||(i>0?map[n.slice(0,i)]:null);return id?document.getElementById(id):null}
+function slice(n){return document.querySelector('svg.pie .pie-slice[data-name="'+CSS.escape(n)+'"]')}
+function paint(n){if(n)p.setAttribute('data-sel','');else p.removeAttribute('data-sel');segs.forEach(function(s){s.classList.toggle('on',s.dataset.name===n)})}
+function sync(){var a=document.querySelector('svg.pie .pie-slice.active[data-name]');paint(a&&segs.some(function(s){return s.dataset.name===a.dataset.name})?a.dataset.name:null)}
+document.addEventListener('click',function(){setTimeout(sync)},true);
+segs.forEach(function(s){s.addEventListener('click',function(e){e.stopPropagation();var n=s.dataset.name,t=Date.now();
+if(last===n&&t-at<450){last=null;var c=card(n);if(c)c.scrollIntoView({behavior:'smooth',block:'start'});return}
+last=n;at=t;var sl=slice(n);if(sl)sl.dispatchEvent(new MouseEvent('click',{bubbles:true}));else paint(s.classList.contains('on')?null:n)})})})();</script>"""
+
+
 def week_html(days, solo):
-    """The week page's "Usage by day" block: 7 columns, shared y-axis, caption."""
+    """The week page's "Usage by day" block: 8 columns, shared y-axis, caption, click script."""
     ymax = y_max([days])
     cols = "".join(_column(d, ymax, solo) for d in days)
     labels = "".join(f"<span>{d['label']}<br>{_md(d['date'])}</span>" for d in days)
-    return ('<div class="barchart-wrap"><h2 class="sub">Usage by day</h2><div class="bc">' + _y_axis(ymax)
+    return ('<div class="barchart-wrap"><h2 class="sub">Usage by day</h2><div class="bc bc-wk">' + _y_axis(ymax)
             + '<div class="bc-plot">' + _grid_lines(ymax) + cols + "</div>"
             + f'<div class="bc-x">{labels}</div></div>'
-            + '<div class="bc-cap">Colors match the projects pie above.</div></div>')
+            + '<div class="bc-cap">Colors match the projects pie above.</div>' + WEEK_JS + "</div>")
 
 
 def short_label(label):

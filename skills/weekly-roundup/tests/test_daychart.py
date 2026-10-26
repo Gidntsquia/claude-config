@@ -26,6 +26,9 @@ def test_week_chart():
     assert 'style="height:82.00%"' in h  # 12.3 / 15
     assert "Colors match the projects pie above." in h and "legend" not in h
     assert 'title="Alpha · 10.0%"' in daychart.week_html(DAYS, solo=True)
+    # segments carry the pie slice name; the week chart (not the archive) gets the click script
+    assert 'data-name="Alpha · Jet"' in h and 'data-name="Alpha"' in daychart.week_html(DAYS, solo=True)
+    assert 'class="bc bc-wk"' in h and h.count("<script>") == 1 and "scrollIntoView" in h
 
 
 def test_archive_chart_and_days_required(tmp_path):
@@ -34,7 +37,7 @@ def test_archive_chart_and_days_required(tmp_path):
     h = daychart.archive_html([{**old, "weekStart": "2026-10-04", "label": "Oct 4–11, 2026", "days": DAYS}, old])
     assert h.index("Sep 27–Oct 4<") < h.index("Oct 4–11<")  # oldest left, year dropped
     assert h.count("no daily data") == 1 and h.count('class="bc-week"') == 2
-    assert "scrollLeft=s.scrollWidth" in h
+    assert "scrollLeft=s.scrollWidth" in h and "bc-wk" not in h and "scrollIntoView" not in h
     week = tmp_path / "w.json"
     week.write_text(json.dumps({**old, "weekStart": "2026-10-04"}))
     base = tmp_path / "base.html"

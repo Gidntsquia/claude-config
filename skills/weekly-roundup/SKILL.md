@@ -252,7 +252,13 @@ if(last===n&&t-at<450){last=null;c.scrollIntoView({behavior:'smooth',block:'star
      a y-axis with labels every 5% up to the tallest day rounded up to the next 5%, dashed
      gridlines, 8 columns (opening Sunday, Mon..Sat, closing Sunday, each labeled with its date), each a stack of segment divs largest at the bottom with
      `title="<project> · <person> · <x.x>%"` (person omitted with one person), and the caption
-     "Colors match the projects pie above."; no legend). `--names` is a JSON file mapping the
+     "Colors match the projects pie above."; no legend), plus its own click script: tapping a
+     segment highlights that project (its segments on every day, the rest dimmed) and selects its
+     slice in the projects pie; tapping it again or anywhere else clears it, a pie or legend tap
+     moves the highlight too, and double-tapping a segment scrolls to the project's deep-dive card
+     (Misc highlights but goes nowhere). Each segment's `data-name` must equal its pie slice's
+     `data-name` for this to work, so the pie's slice names are `pie_slices` labels as given and the
+     pie's own select-on-click script stays as it is. `--names` is a JSON file mapping the
      output's project names to the names used on the page (`{"helper-agent-building": "Helper
      Agent"}`) so hover titles match the pie. `--part css` prints its CSS: paste it verbatim in
      `<style id="daychart">` right before the `desktop-layout` style. All heights are computed
@@ -444,6 +450,8 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
   deep-dive card.
 - "Usage by day" (`daychart.py` output, unedited) sits between the "Usage by model" pie and the
   total cost: 8 labeled columns, 5% gridlines, segment colors equal to the pie's, the caption.
+  Tapping a segment highlights that project in the chart and the projects pie; double-tapping it
+  lands on its deep-dive card.
 - Each card with `features` has the collapsed drawer (name + weekly % + by-model pie per
   feature; feature %s sum to the project's weekly %).
 - Title includes the date range, matching the eyebrow.
@@ -452,7 +460,7 @@ identically to a normal week: no report-type-specific notes, disclaimers, or wor
 - Desktop layout exactly as above: `section projects` / `section dives` classes, the
   `desktop-layout` style and `desktop-layout-js` script verbatim. Only classes beyond the base
   ones: `projects`, `dives`, `sources`, `who`, `people`, the `daychart.py` classes
-  (`barchart-wrap`, `bc`, `bc-y`, `bc-plot`, `bc-grid`, `bc-col`, `bc-bar`, `bc-seg`, `bc-x`,
+  (`barchart-wrap`, `bc`, `bc-wk`, `bc-y`, `bc-plot`, `bc-grid`, `bc-col`, `bc-bar`, `bc-seg`, `bc-x`,
   `bc-cap`), and script-created `mgrid`, `mcol`, `pgrid`, `pcol`, `pg`.
 - The collapsed "Data sources" drawer is present, lists every entry of `devices` with its
   person, and shows the cap % used.
