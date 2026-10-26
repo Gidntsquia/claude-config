@@ -8,15 +8,28 @@ My [Claude Code](https://claude.com/claude-code) setup: five agents, six skills,
 
 The agents split a project into planning, building and checking. The [wiki](https://github.com/Gidntsquia/claude-config/wiki) is a beginner's guide to that workflow, starting from a fresh Windows or Mac install.
 
-## Quickstart 🚀
+## Install in one sentence 🚀
 
-Requires Claude Code and bash.
+Paste this into Claude Code:
 
 ```
-git clone https://github.com/Gidntsquia/claude-config
-cd claude-config
-./install.sh   # Symlinks everything into ~/.claude (existing files are moved to <name>.pre-link)
+Install https://github.com/Gidntsquia/claude-config following its INSTALL.md
 ```
+
+Claude asks four questions (projects folder, terminal setup, status line, settings) and leaves your existing settings, agents and CLAUDE.md alone unless you say otherwise.
+
+## Manual install
+
+Requires Claude Code, git, bash and python3.
+
+```
+git clone https://github.com/Gidntsquia/claude-config ~/.claude-config
+cd ~/.claude-config
+./install.sh --projects ~/files --terminal --statusline squid --settings merge
+./install.sh --check   # one PASS/FAIL line per item
+```
+
+`./install.sh --help` lists every flag. Your choices are saved in `~/.claude/claude-config.json`, so a later `./install.sh` with no flags reapplies them. A file it replaces is kept as `<name>.pre-link`; if you already have an agent or skill with one of this repo's names, it stops and asks (`--agent-clash keep|replace|skip`).
 
 IMPORTANT: never add `.credentials.json`, `history.jsonl`, `projects/`, or any other session data. `~/.claude/skills/synced` is managed by Claude and stays out of the repo.
 
@@ -35,7 +48,7 @@ claude --agent report-checker  # Second set of eyes on a report (the writer runs
 Other commands:
 
 ```
-./install.sh --theme plane                   # Plane mascot and easter eggs in the status line
+./install.sh --statusline plane              # Plane mascot and easter eggs in the status line
 bash ~/.claude/statusline.sh --preview plane # Shows every plane easter egg
 ```
 
@@ -52,7 +65,7 @@ To update, tell Claude: "update my claude-config to the latest release, followin
 - `review-skill` audits a SKILL.md for correctness, edge cases, and token use. `test-speedup` sets up parallel runs and fast/slow tiers for a slow test suite.
 - `weekly-roundup` builds an artifact of what I worked on in the past week from git activity. `write-readme` writes a README like this one and moves the detail into the wiki.
 - `statusline.sh` draws the status line in the gruvbox colors from my starship prompt, with a different color for each model.
-- On WSL, `install.sh` makes new Windows Terminal tabs open tmux with 4 panes in `~/files`, sets up the starship prompt with JetBrainsMono Nerd Font, and keeps Windows Terminal at 18% volume after reboots. On macOS it points iTerm2 at `iterm2/` instead.
+- With `--terminal`, new terminal tabs open tmux with 4 panes in your projects folder and the starship prompt. On WSL that is the Windows Terminal profile for your distro (in JetBrainsMono Nerd Font, with Windows Terminal kept at 18% volume after reboots); on macOS it is an iTerm2 "Claude tmux" profile. `--default-profile` also makes it the profile new windows open with.
 - On WSL it also links `wsl/local-tools/`, scripts Claude uses to open, place, screenshot and close Windows windows.
 
 ## Documentation 📚

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# New tmux session with 4 equal panes, all starting in the projects folder chosen at install
+# ("projects" in ~/.claude/claude-config.json). Falls back to $HOME when that folder is missing,
+# and to a plain login shell when tmux is not installed, so a terminal profile that runs this never fails.
+export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"
+cfg="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/claude-config.json"
+dir=""
+[ -f "$cfg" ] && dir="$(sed -n 's/^ *"projects": *"\(.*\)",\{0,1\} *$/\1/p' "$cfg" | head -1)"
+case "$dir" in "~") dir="$HOME" ;; "~/"*) dir="$HOME/${dir#\~/}" ;; esac
+[ -n "$dir" ] && [ -d "$dir" ] || dir="$HOME"
+cd "$dir" || cd "$HOME" || exit 1
+if ! command -v tmux >/dev/null 2>&1; then
+  echo "tmux-quad: tmux is not installed (brew install tmux / sudo apt install tmux); opening a plain shell"
+  exec "${SHELL:-/bin/bash}" -l
+fi
+exec tmux new-session -c "$dir" \; \
+  split-window -h -c "$dir" \; \
+  split-window -v -c "$dir" \; \
+  select-pane -t 1 \; \
+  split-window -v -c "$dir" \; \
+  select-layout tiled \; \
+  select-pane -t 1
