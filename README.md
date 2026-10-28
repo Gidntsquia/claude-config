@@ -8,28 +8,26 @@ My [Claude Code](https://claude.com/claude-code) setup: five agents, six skills,
 
 The agents split a project into planning, building and checking. The [wiki](https://github.com/Gidntsquia/claude-config/wiki) is a beginner's guide to that workflow, starting from a fresh Windows or Mac install.
 
-## Install in one sentence 🚀
+## Quickstart 🚀
 
-Paste this into Claude Code:
+Requires Claude Code. Paste this sentence into it:
 
 ```
 Install https://github.com/Gidntsquia/claude-config following its INSTALL.md
 ```
 
-Claude asks four questions (projects folder, terminal setup, status line, settings) and leaves your existing settings, agents and CLAUDE.md alone unless you say otherwise.
+Claude asks four questions (projects folder, terminal setup, status line, settings) and keeps your existing settings, agents and CLAUDE.md unless you say otherwise. When it's done it gives a short tour.
 
-## Manual install
-
-Requires Claude Code, git, bash and python3.
+To install without Claude, you need git, bash and python3:
 
 ```
 git clone https://github.com/Gidntsquia/claude-config ~/.claude-config
 cd ~/.claude-config
-./install.sh --projects ~/files --terminal --statusline squid --settings merge
-./install.sh --check   # one PASS/FAIL line per item
+./install.sh --projects ~/files --terminal --statusline squid --settings merge   # Installs the choices you pass
+./install.sh --check   # Prints one PASS/FAIL line per item
 ```
 
-`./install.sh --help` lists every flag. Your choices are saved in `~/.claude/claude-config.json`, so a later `./install.sh` with no flags reapplies them. A file it replaces is kept as `<name>.pre-link`; if you already have an agent or skill with one of this repo's names, it stops and asks (`--agent-clash keep|replace|skip`).
+`./install.sh --help` lists every flag. Your choices are saved in `~/.claude/claude-config.json`, so a later `./install.sh` with no flags applies them again. A file it replaces is kept as `<name>.pre-link`. If you already have an agent or skill with one of this repo's names, it stops and asks (`--agent-clash keep|replace|skip`).
 
 IMPORTANT: never add `.credentials.json`, `history.jsonl`, `projects/`, or any other session data. `~/.claude/skills/synced` is managed by Claude and stays out of the repo.
 
