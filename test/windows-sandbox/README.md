@@ -12,3 +12,9 @@ Tests the install on a clean Windows with WSL, the way a new user's PC starts. I
 5. If `wsl --install` asks for a restart, the Sandbox cannot restart and keep its state: the run stops there and the log says so. Nested virtualization (WSL 2 inside the Sandbox) only works on some PCs; the log then shows `wsl --install exited ...`.
 6. Read `C:\claude-config-sandbox\install-test.log`. Its last line is `== result: PASSED` or `== result: FAILED (exit N)`, with each `ok` / `FAIL` line above it.
 7. Close the Sandbox window; everything in it is thrown away.
+
+## No Sandbox? (Windows Home)
+
+Run `test/windows-fresh-profile.ps1` instead; it needs only Git for Windows. From WSL or PowerShell:
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File <path>\test\windows-fresh-profile.ps1`
+It makes an empty profile folder, installs Claude Code into it, clones the repo, runs both install scenarios in Git Bash with that folder as HOME, and prints `== result: PASSED` when `install.sh --check` says "all checks passed".
