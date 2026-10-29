@@ -2,12 +2,14 @@
 """jobs.py: the scheduled-run store under ~/.claude/run-agent/ (RUN_AGENT_HOME overrides).
 
   write --run-at E --at-text T --cwd D --pane P --session S --socket SOCK --shown CMD --agent A --folder F
-        [--until E] -- <claude argv...>      -> writes jobs/<id>.json, prints "<id>\t<path>"
+        [--until E] [--server-pid N] -- <claude argv...>      -> writes jobs/<id>.json, prints "<id>\t<path>"
   setpid <id> <pid>                          -> records the runner's pid
   argv <id>                                  -> prints the claude argv NUL-separated
   get <id> <key>                             -> prints one field
   list                                       -> the --jobs listing
   pending                                    -> ids of pending jobs, one per line
+  stale                                      -> "<id>\tfuture|overdue" for pending jobs whose runner is gone
+  set <id> <key> <value>                     -> sets one string field ("" clears it)
   cancel [<id>]                              -> kills the runner, logs cancelled, moves the job to done/
   done <id> <outcome> [note]                 -> logs the outcome, moves the job to done/
   log <id> <outcome> [note]                  -> appends to jobs.log only
@@ -68,14 +70,22 @@ def pending():
 
 
 def alive(pid):
+    """True when pid is a live runner.sh. After a reboot or WSL restart the pid can belong to something else,
+    so on Linux the command line must name runner.sh."""
     if not pid:
         return False
     try:
         os.kill(pid, 0)
-        return True
     except ProcessLookupError:
         return False
     except PermissionError:
+        pass
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            return b"runner.sh" in f.read()
+    except FileNotFoundError:
+        return not os.path.isdir("/proc")
+    except OSError:
         return True
 
 
@@ -137,7 +147,8 @@ def main():
                "until": int(o["until"]) if o.get("until") else None, "at_text": o.get("at_text", ""),
                "window": 1 if o.get("window") == "1" else 0,
                "cwd": o.get("cwd", ""), "pane": o.get("pane", ""), "session": o.get("session", ""),
-               "socket": o.get("socket", ""), "agent": o.get("agent", ""), "folder": o.get("folder", ""),
+               "socket": o.get("socket", ""), "server_pid": o.get("server_pid", ""),
+               "agent": o.get("agent", ""), "folder": o.get("folder", ""),
                "argv": argv, "shown": o.get("shown", ""), "pid": 0}
         save(job)
         print(f"{job['id']}\t{path(job['id'])}")
@@ -151,6 +162,13 @@ def main():
     elif cmd == "pending":
         for j in pending():
             print(j)
+    elif cmd == "stale":
+        for jid in pending():
+            j = load(jid)
+            if not alive(j.get("pid")):
+                print(f"{jid}\t{'future' if j['run_at'] > now_ts() else 'overdue'}")
+    elif cmd == "set":
+        job = load(int(args[0])); job[args[1]] = args[2]; save(job)
     elif cmd == "list":
         ids = pending()
         if not ids:
@@ -161,7 +179,7 @@ def main():
             if j.get("until"):
                 line += f"  until {fmt_et(j['until'])}"
             if not alive(j.get("pid")):
-                line += "  [runner not running]"
+                line += "  [runner not running; a new terminal revives it]"
             print(line)
     elif cmd == "cancel":
         ids = pending()

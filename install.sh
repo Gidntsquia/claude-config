@@ -164,6 +164,8 @@ if [ -n "$CHECK" ]; then
     if command -v tmux >/dev/null 2>&1 && tmux -L claude-config-check -f "$HOME/.tmux.conf" start-server \; kill-server 2>/dev/null; then pass "tmux loads ~/.tmux.conf"
     else fail "tmux missing or ~/.tmux.conf has errors"; fi
     linked "$HOME/.config/starship.toml" "starship.toml"
+    if grep -qs 'run-agent.sh" --revive' "$HOME/$([ "$OS" = mac ] && echo .zshrc || echo .bashrc)"; then pass "shell rc revives scheduled /run-agent runs"
+    else fail "shell rc does not run run-agent.sh --revive (rerun install.sh)"; fi
     if [ "$OS" = wsl ]; then
       W="$(wslpath "$(cmd.exe /C 'echo %LOCALAPPDATA%' 2>/dev/null | tr -d '\r')" 2>/dev/null || true)"; wt=""
       for S in "$W"/Packages/Microsoft.WindowsTerminal*/LocalState/settings.json; do
@@ -341,6 +343,8 @@ elif [ "$TERMINAL" = true ]; then
   link "$R/wsl/starship.toml" "$HOME/.config/starship.toml"
   grep -qs "starship init $SH" "$RC" || printf '\neval "$(starship init %s)"\n' "$SH" >> "$RC"
   grep -qs 'CLAUDE_STATUSLINE_NF' "$RC" || echo 'export CLAUDE_STATUSLINE_NF=1' >> "$RC"
+  # A reboot or WSL restart kills the runners of scheduled /run-agent runs; each new terminal restarts them.
+  grep -qs 'run-agent.sh" --revive' "$RC" || printf '%s\n' '[[ $- == *i* ]] && [ -x "$HOME/.claude/skills/run-agent/scripts/run-agent.sh" ] && "$HOME/.claude/skills/run-agent/scripts/run-agent.sh" --revive --ask  # restart /run-agent runs a reboot or WSL restart stopped' >> "$RC"
   echo "  terminal: tmux-quad (4 panes in $PROJECTS), tmux.conf, starship prompt"
 
   if [ "$OS" = wsl ]; then
