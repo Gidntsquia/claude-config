@@ -2,8 +2,8 @@
 # runner.sh <job id>: the detached runner behind a scheduled /run-agent run. Started by run-agent.sh with
 # `setsid nohup`, so it survives the claude session and pane that scheduled it (not a reboot). Sleeps to
 # run_at, re-fetches the 5-hour window reset once for window runs (waits for it, one hour at most), then
-# respawns the recorded pane into the recorded claude command (target split/window: opens a new pane / window
-# next to it instead); pane gone -> a new window in the recorded
+# respawns the recorded pane into the recorded claude command (target split/window: opens a brand-new tmux
+# window after it instead, never a pane in an existing window); pane gone -> a new window in the recorded
 # tmux session; server gone -> a new detached session. Outcome -> ~/.claude/run-agent/jobs.log.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -47,9 +47,9 @@ TM=(tmux); [ -n "$socket" ] && TM=(tmux -S "$socket")
 wrap=(bash -c 'printf "%s\n" "$1"; "${@:3}"; exec "$2"' run-agent "$first" "${SHELL:-bash}" "${cmd[@]}")
 
 if [ -n "$pane" ] && [ -n "$target" ] && "${TM[@]}" display -p -t "$pane" '#{pane_id}' >/dev/null 2>&1; then
-  # split/window: a new pane next to the recorded one, or a new window after it; the recorded pane is left alone.
-  if RA_SOCKET="$socket" bash "$HERE/run-agent.sh" --open "$target" "$pane" "$cwd" "$agent: $folder" "${wrap[@]}" >/dev/null; then
-    log "fired in new $([ "$target" = split ] && echo pane || echo window)"; exit 0
+  # split/window: a brand-new window after the recorded pane's window; the recorded pane is left alone.
+  if RA_SOCKET="$socket" bash "$HERE/run-agent.sh" --open window "$pane" "$cwd" "$agent: $folder" "${wrap[@]}" >/dev/null; then
+    log "fired in new window"; exit 0
   fi
 elif [ -n "$pane" ] && "${TM[@]}" display -p -t "$pane" '#{pane_id}' >/dev/null 2>&1; then
   if "${TM[@]}" respawn-pane -k -t "$pane" -c "$cwd" "${wrap[@]}"; then log fired; exit 0; fi

@@ -47,7 +47,7 @@ files, run commands that change the repo, or commit; a worker does that from the
    and move on.
 5. Move any existing `plans/PLAN.md` and `plans/EVAL.md` into `plans/archive/` (as
    `PLAN-<YYYY-MM-DD>-<slug>.md` and `EVAL-<YYYY-MM-DD>-<slug>.md`, slug from the old spec's
-   title). Then write `plans/PLAN.md` and add `plans/` to `.gitignore`. Reply with one line naming the file, then the line `~/.claude/skills/run-agent/scripts/run-agent.sh --next worker "."` prints (`/run-agent worker "." <model> <effort>  (claude --agent …)`). Never repeat the plan.
+   title). Then write `plans/PLAN.md` and add `plans/` to `.gitignore`. Reply with one line naming the file, then the lines `~/.claude/skills/run-agent/scripts/run-agent.sh --next worker "."` prints, as printed (a sentence, the `/run-agent` line, a labelled `claude --agent` line). Never repeat the plan.
 
 PLAN.md: `# Spec: <one line>`; `## Ask` (the idea and the user's answers, verbatim); `## What
 to build` (one paragraph); `## Facts` (what you verified and how); `## Requirements`

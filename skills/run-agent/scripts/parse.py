@@ -198,7 +198,7 @@ class Parse:
         self.flags = []
         self.force = 0
         self.dry = 0
-        self.target = ""  # "" = replace this pane; "split" = new pane in this window; "window" = new tmux window
+        self.target = ""  # "" = replace this pane; "split" / "window" = a new tmux window (never an existing one)
         self.at = None
         self.at_text = ""
         self.at_kind = ""  # clock|delay|window
@@ -415,7 +415,8 @@ class Parse:
                 else:
                     self.set_flag(f, nxt); i += 2
                 continue
-            # ---- launch target: split / new pane / pane -> new pane here; window / new window / tab -> new window.
+            # ---- launch target: split / pane / window / tab (and "new ...") -> a new tmux window; the value kept is
+            # "split" for split/pane words, "window" otherwise (both open a new window).
             # A bare "window" is the target; the usage window needs "after/next/when/the window".
             tw = self.correct(w)[0]
             if tw == "new" and nl in ("pane", "window", "tab"):
@@ -506,9 +507,8 @@ class Parse:
             self.until, self.until_text = None, ""
 
     def set_target(self, target, text):
-        if self.target and self.target != target:
-            self.unsure.append(text)
-        else:
+        # split and window both open a new tmux window now, so "new window split" is not a conflict
+        if not self.target:
             self.target = target
 
     def set_at(self, ts, text, kind):

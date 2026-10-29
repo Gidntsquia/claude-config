@@ -12,9 +12,14 @@
                                     after rewriting an unsure word or choosing an agent). --here: the confirm already
                                     runs in its own new pane, so the run replaces that pane (target dropped).
   launch.py cli <words...>          bin/run-agent: the same steps in a terminal, asking with read (or a tmux popup).
-  launch.py next <agent> [prompt]   the next-step line an agent ends with: `/run-agent <agent> ["prompt"] <model>
-                                    <effort>  (claude --agent <agent> "prompt" --model <model> --effort <effort>)`,
-                                    model/effort read from this session's claude process (flags, then --name).
+  launch.py group [--here] '<raw>'  several runs joined by a lone `+` or `;` (`planner "A" in ~/a + planner "B" in
+                                    ~/b`): one new tmux window holding only their panes, tiled (four = 2x2); the
+                                    calling pane is left alone. --here: this pane (the confirm, alone in the window
+                                    it opened) becomes the first run. relaunch/cli confirm a group once.
+  launch.py next <agent> [prompt]   the closing next step an agent ends with: a sentence saying what the command does
+                                    and when to run it, the `/run-agent <agent> ["prompt"] <model> <effort>` line,
+                                    then a labelled line with the plain `claude --agent ...` form; model/effort read
+                                    from this session's claude process (flags, then --name).
 """
 import json
 import os
@@ -155,8 +160,127 @@ def decide(raw):
     return ("ask", "confirm", d, None)
 
 
+# ----------------------------------------------------------------- several runs in one call
+SEPS = ("+", ";")
+
+
+def split_runs(raw):
+    """raw split on a lone `+` or `;` outside quotes; one item when there is none"""
+    parts, cur, q = [], [], None
+    closing = {'"': '"', "'": "'", "\u201c": "\u201d"}
+    for tok in re.findall(r'\S+|\s+', raw):
+        if q is None and tok in SEPS:
+            parts.append("".join(cur).strip()); cur = []; continue
+        cur.append(tok)
+        for ch in tok:
+            if q is None and ch in closing:
+                q = closing[ch]
+            elif q is not None and ch == q:
+                q = None
+    parts.append("".join(cur).strip())
+    return [x for x in parts if x] if len(parts) > 1 else [raw.strip()]
+
+
+def decide_group(runs):
+    """("say", text, rc) | ("run", [d...]) | ("ask", "group", [d...], None) for two or more runs"""
+    ds = []
+    for n, r in enumerate(runs, 1):
+        st = decide(r)
+        if st[0] == "say":
+            if st[2] != 0 or not (st[1].startswith("command:")):
+                return ("say", f"run {n} ({r}): {st[1]}", st[2] or 2)
+            st = ("run", parse(r))
+        if st[0] == "ask":
+            kind, d, extra = st[1], st[2], st[3]
+            if kind == "unsure":
+                return ("say", f"run {n} ({r}): could not place `{extra}`; retype that run (or start it on its own)", 2)
+            if kind == "agent":
+                return ("say", f"run {n} ({r}): no agent named; start it with planner, worker, evaluator or helper", 2)
+            if kind == "cancel":
+                return ("say", f"run {n}: jobs and cancel cannot be combined with other runs", 2)
+        d = st[1] if st[0] == "run" else st[2]
+        if d.get("at") not in ("", None):
+            return ("say", f"run {n} ({r}): runs started together start now; schedule each run on its own", 2)
+        ds.append(d)
+    if any(d["dry"] for d in ds):
+        out = []
+        for n, d in enumerate(ds, 1):
+            out.append(f"run {n}:\n" + "\n".join("  " + x for x in dry_text(d).splitlines()
+                                                 if not x.startswith(("opens in:", "dry run:", "usage reset:"))))
+        out.append(f"opens in: one new tmux window, {len(ds)} panes tiled")
+        out.append("usage reset: " + next((d["reset_shown"] for d in ds if d.get("reset_shown")), "unavailable"))
+        out.append("dry run: nothing scheduled, nothing replaced")
+        return ("say", "\n".join(out), 0)
+    if any(d["force"] for d in ds):
+        return ("run", ds)
+    return ("ask", "group", ds, None)
+
+
+def group_question(ds):
+    items = []
+    for d in ds:
+        where = tilde(d["dir"] or os.getcwd()) + (", will be created" if d.get("dir_state") == "missing" else "")
+        items.append(f"{d['command']} (in {where})")
+    q = f"Start {len(ds)} sessions in one new tmux window, this one left as is: " + "; ".join(items) + "?"
+    return "Run?", q, f"Yes, start all {len(ds)}"
+
+
+def group_line(raw, here):
+    return f"{s_path()} --group{' --here' if here else ''} {sq(raw)}"
+
+
+def run_group(raw, here):
+    """launch every run of raw (no confirm): a new window with run 1, the rest split into it, tiled"""
+    st = decide_group(split_runs(raw))
+    if st[0] == "say":
+        print(st[1]); return st[2]
+    ds = st[1] if st[0] == "run" else st[2]
+    for d in ds:
+        if d.get("dir_state") == "missing":
+            os.makedirs(d["dir"], exist_ok=True)
+    if not os.environ.get("TMUX") or not os.environ.get("TMUX_PANE"):
+        print("not inside tmux; run each in its own terminal:")
+        for d in ds:
+            a = run_args(d, here=True)
+            r = subprocess.run([S_REAL, *a, "--dry-run"], capture_output=True, text=True)
+            print(next((x[len("command: "):] for x in r.stdout.splitlines() if x.startswith("command: ")), d["command"]))
+        return 1
+    me = os.environ["TMUX_PANE"]
+    if here:  # this pane is alone in the window the confirm opened: add runs 2.., then become run 1
+        for d in ds[1:]:
+            r = subprocess.run([S_REAL, *run_args(d, here=True), "--target", "into:" + me])
+            if r.returncode:
+                return r.returncode
+        subprocess.run(["tmux", "rename-window", "-t", me, f"{len(ds)} agents"], capture_output=True)
+        return subprocess.run([S_REAL, *run_args(ds[0], here=True)]).returncode
+    r = subprocess.run([S_REAL, *run_args(ds[0], here=True), "--target", "window"], capture_output=True, text=True)
+    print(r.stdout.rstrip("\n"), flush=True) if r.stdout.strip() else None
+    m = re.search(r"\((%\d+)\)", r.stdout)
+    if r.returncode or not m:
+        print(r.stderr.rstrip("\n")); return r.returncode or 2
+    first = m.group(1)
+    for d in ds[1:]:
+        r = subprocess.run([S_REAL, *run_args(d, here=True), "--target", "into:" + first])
+        if r.returncode:
+            return r.returncode
+    subprocess.run(["tmux", "rename-window", "-t", first, f"{len(ds)} agents"], capture_output=True)
+    return 0
+
+
 # ----------------------------------------------------------------- haiku instructions
 def instructions(raw, here):
+    if len(split_runs(raw)) > 1:
+        st = decide_group(split_runs(raw))
+        if st[0] == "say":
+            return "Reply with exactly these lines and stop:\n" + st[1]
+        if st[0] == "run":
+            return f"Run this Bash command exactly, then reply with its output and stop:\n{group_line(raw, here)}"
+        header, q, yes = group_question(st[2])
+        return (f'1. Call AskUserQuestion once: header "{header}", question text exactly:\n{q}\n'
+                f'   options: "{yes}" and "No".\n'
+                f"2. {yes}: run this Bash command exactly, then stop (this session ends when it works; if it prints "
+                f"an error, reply with that output):\n{group_line(raw, here)}\n"
+                "   No, or anything else: reply exactly `nothing changed` and stop.")
     st = decide(raw)
     sp = s_path()
     step = f"{sp} --step{' --here' if here else ''} "
@@ -200,9 +324,15 @@ HAIKU_HEAD = ("You are the /run-agent confirm step, a short session that does ex
 
 
 def relaunch(raw):
-    st = decide(raw)
+    group = len(split_runs(raw)) > 1
+    st = decide_group(split_runs(raw)) if group else decide(raw)
     if st[0] == "say":
         print(st[1]); return st[2]
+    if group:
+        if st[0] == "run" or not os.environ.get("TMUX") or not os.environ.get("TMUX_PANE"):
+            return run_group(raw, False)
+        st = ("ask", "group", {"target": "window", "agent": f"{len(st[2])} agents", "dir": "",
+                               "command": f"{len(st[2])} sessions"}, None)
     if st[0] == "run":
         d = st[1]
         if d.get("dir_state") == "missing":
@@ -226,15 +356,15 @@ def relaunch(raw):
             f"/run-agent {raw}", os.environ.get("SHELL", "bash"), *cmd]
     cwd = os.getcwd()
     if target:
-        folder = os.path.basename(d["dir"] or cwd)
-        r = subprocess.run([S_REAL, "--open", target, os.environ["TMUX_PANE"], cwd, f"{d['agent']}: {folder}", *wrap],
+        wname = d["agent"] if group else f"{d['agent']}: {os.path.basename(d['dir'] or cwd)}"
+        r = subprocess.run([S_REAL, "--open", "window", os.environ["TMUX_PANE"], cwd, wname, *wrap],
                            capture_output=True, text=True)
         if r.returncode != 0:
-            print(f"tmux could not open a {target}: {r.stderr.strip()}"); return 2
+            print(f"tmux could not open a window: {r.stderr.strip()}"); return 2
         new = r.stdout.strip()
         where = subprocess.run(["tmux", "display", "-p", "-t", new, "#{session_name}:#{window_index}.#{pane_index}"],
                                capture_output=True, text=True).stdout.strip() or new
-        print(f"opened {where} ({new}): confirm there to start {d['command']}")
+        print(f"opened new window {where} ({new}): confirm there to start {d['command']}")
         return 0
     print(f"this pane now asks to confirm: {d['command'] if d else raw}")
     sys.stdout.flush()
@@ -246,8 +376,8 @@ def relaunch(raw):
 def ask_line(prompt):
     """one line from the user: the terminal, else a tmux popup; None when neither exists"""
     try:
-        with open("/dev/tty", "r+") as tty:
-            tty.write(prompt); tty.flush()
+        with open("/dev/tty", "w") as out, open("/dev/tty") as tty:  # not "r+": a tty is not seekable (3.14)
+            out.write(prompt); out.flush()
             return tty.readline().strip()
     except OSError:
         pass
@@ -275,6 +405,17 @@ def words_to_raw(words):
 
 def cli(words):
     raw = words_to_raw(words)
+    if len(split_runs(raw)) > 1:
+        st = decide_group(split_runs(raw))
+        if st[0] == "say":
+            print(st[1]); return st[2]
+        if st[0] == "ask" and os.environ.get("TMUX"):
+            a = ask_line(group_question(st[2])[1] + " [y/N] ")
+            if a is None:
+                print("no terminal to confirm in; add `force` to run without asking"); return 2
+            if a.lower() not in ("y", "yes"):
+                print("nothing changed"); return 0
+        return run_group(raw, False)
     for _ in range(6):
         st = decide(raw)
         if st[0] == "say":
@@ -342,6 +483,21 @@ def claude_argv():
     return []
 
 
+def next_sentence(agent, prompt, caller):
+    """the plain sentence before the command: what it does and when to run it"""
+    tail = " Type this here (it replaces this session):"
+    if agent == "worker" and caller == "evaluator":
+        return "Next, once you have read this eval, rerun the worker to fix what plans/EVAL.md lists." + tail
+    if agent == "worker":
+        return "Next, once you are happy with the plan, start the worker to build plans/PLAN.md." + tail
+    if agent == "evaluator":
+        return ("Next, start the evaluator to check this work against plans/PLAN.md "
+                + ("on your phone" if prompt == "phone" else "with you at this screen") + "." + tail)
+    if agent == "planner" and "EVAL" in prompt:
+        return "Next, once you have read this eval, start the planner to replan from plans/EVAL.md." + tail
+    return f"Next, start the {agent} agent." + tail
+
+
 def next_line(args):
     agent = args[0] if args else "worker"
     prompt = args[1] if len(args) > 1 else NEXT_PROMPT.get(agent, "")
@@ -362,6 +518,7 @@ def next_line(args):
     if not model:
         m = re.search(r"\((\w+)\)\s*$", name)
         model = m.group(1) if m else ""
+    caller = next((argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--agent"), "")
     words = ["/run-agent", agent]
     plain = ["claude", "--agent", agent]
     if prompt:
@@ -369,7 +526,10 @@ def next_line(args):
     for flag, v in (("--model", model), ("--effort", effort)):
         if v:
             words.append(v); plain += [flag, v]
-    print(" ".join(words) + "  (" + " ".join(plain) + ")")
+    print(next_sentence(agent, prompt, caller))
+    print(" ".join(words))
+    print("Or from any terminal, without run-agent:")
+    print(" ".join(plain))
     return 0
 
 
@@ -386,6 +546,9 @@ def main():
         print(instructions(" ".join(rest), here)); return 0
     if mode == "cli":
         return cli(rest)
+    if mode == "group":
+        here = bool(rest) and rest[0] == "--here"
+        return run_group(" ".join(rest[1:] if here else rest), here)
     if mode == "next":
         return next_line(rest)
     print(__doc__); return 2

@@ -43,8 +43,8 @@ change to the repo state (if the user asks for one, record it as an amendment or
    on the same criterion, ask one question, with the evidence opened first per Opening; never re-ask anything settled.
 8. Write `plans/EVAL.md` (always: if the user cancels, stops or the session is compacted, write it with every answer so far in their
    words and the unjudged (user) criteria under "Fix next" as not yet judged, then stop) and tell the user in one line: ship, rerun
-   worker (any failed criterion) or replan, ending with the line `~/.claude/skills/run-agent/scripts/run-agent.sh --next worker "."` or `~/.claude/skills/run-agent/scripts/run-agent.sh --next planner "Replan based on
-   plans/EVAL.md"` prints (`/run-agent <agent> "<prompt>" <model> <effort>  (claude --agent …)`; phone runs keep `"phone"` for the evaluator). `evshow.sh end` if not yet run; close anything else you launched.
+   worker (any failed criterion) or replan, ending with the lines `~/.claude/skills/run-agent/scripts/run-agent.sh --next worker "."` or `~/.claude/skills/run-agent/scripts/run-agent.sh --next planner "Replan based on
+   plans/EVAL.md"` prints, as printed (a sentence saying what to run and when, the `/run-agent` line, a labelled `claude --agent` line). `evshow.sh end` if not yet run; close anything else you launched.
 
 ## Opening
 

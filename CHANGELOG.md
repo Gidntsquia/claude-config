@@ -2,9 +2,11 @@
 
 ## Unreleased
 
-- run-agent: `/run-agent` is one Bash call now. `SKILL.md` shrank to `run-agent.sh --relaunch '<args>'`, which answers `jobs`, `cancel`, `dry` and errors itself and hands every confirmation to a short `claude --model haiku --effort low` session in the same pane. `split` opens that session (and the agent) in a new pane of this window, `window` in a new tmux window, so four `/run-agent planner "…" in <dir> split` in a row give four live sessions. Scheduled runs record the target.
+- run-agent: `/run-agent` is one Bash call now. `SKILL.md` shrank to `run-agent.sh --relaunch '<args>'`, which answers `jobs`, `cancel`, `dry` and errors itself and hands every confirmation to a short `claude --model haiku --effort low` session in the same pane. A launch either replaces the calling pane or opens a brand-new tmux window: `split` and `window` both open a new window holding only the agent, and nothing is ever added to an existing window (scheduled runs too).
+- run-agent: several runs joined by `+` start together after one confirm, in one new tmux window tiled (four = 2x2), each in its own folder: `/run-agent planner "Plan part A" in ~/a + planner "Plan part B" in ~/b + …`. Works the same from the `run-agent` shell command.
 - `bin/run-agent` is the same thing as a shell command (confirms with `read`, or a tmux popup); install.sh links it into `~/.local/bin` and `--check` has a line for it.
-- The planner, worker and evaluator end with a copyable `/run-agent <agent> "<prompt>" <model> <effort>  (claude --agent …)` line (`run-agent.sh --next`).
+- The planner, worker and evaluator end with their next step (`run-agent.sh --next`): a sentence saying what to run and when, the `/run-agent <agent> "<prompt>" <model> <effort>` line on its own, then the plain `claude --agent …` form on its own labelled line.
+- `bin/run-agent` confirms in the terminal again on Python 3.14 (opening `/dev/tty` read-write failed, so it fell back to a popup and changed nothing).
 - run-agent: scheduled runs survive a reboot or WSL restart. `run-agent-revive.service` (a systemd user service install.sh enables; the shell rc on macOS) runs `run-agent.sh --revive` at boot, silently: a run still ahead gets a new runner, and one that came due while the machine was down is skipped and logged as `skipped` in `jobs.log`. After a tmux restart the run opens a new window instead of reusing an old pane id. `/run-agent jobs` marks runs whose runner is gone.
 
 ## v1.2.1 — 2026-10-26

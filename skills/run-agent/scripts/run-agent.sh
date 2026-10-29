@@ -8,9 +8,10 @@
 #        | --next <agent> [prompt] | --open <target> <pane> <dir> <name> <cmd...>
 # --relaunch does what needs no question at once (jobs, cancel, errors, dry, force runs) and otherwise hands the
 # confirmation to a haiku session (launch.py): the calling pane is respawned into it, or with split/window a new
-# pane/window opens with it, and that session replaces its own pane on Yes. --target split|window: open the
-# claude command in a new pane of this window (the largest pane is split; too small -> a new window) or a new
-# tmux window instead of replacing this pane.
+# tmux window opens with it, and that session replaces its own pane on Yes. --target split|window: open the
+# claude command in a brand-new tmux window instead of replacing this pane (never a pane in an existing window).
+# Several runs joined by a lone `+` (or `;`) in one /run-agent call open together in one new window, tiled
+# (four = 2x2): --group [--here] '<raw>' launches them (launch.py), into:<pane> adds each pane after the first.
 # --handoff is the worker's usage-limit handoff in one call: schedules the relaunch after the window, appends a
 # `## Stopped at usage limit` section (stdin = Done / In progress / Next) to plans/WORKER_NOTES.md, makes the WIP commit.
 # --parse hands the raw argument string to parse.py (loose phone typing -> one JSON block). --at schedules:
@@ -36,11 +37,12 @@ USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--target split|win
                          run when the window reset is later than that; --need-tmux refuses to schedule outside
                          tmux (exit 1, "not scheduled — not in tmux") and ends every outcome with a ready-made
                          "Relaunch: ..." line; used by the worker at the usage limit
-  --target split|window  open in a new pane of this window / a new tmux window instead of replacing this pane
+  --target split|window  open in a brand-new tmux window instead of replacing this pane (both words do the same)
+  --group [--here] '\''<raw>'\''  start runs joined by a lone + or ; in one new tmux window, tiled (no confirm)
   --relaunch '\''<raw>'\''     the /run-agent skill: answers jobs/cancel/dry/errors itself, runs force runs, and
                          hands every confirmation to a haiku session (launch.py)
   --cli <words...>       bin/run-agent: the same, confirming with read -p (or a tmux popup)
-  --next <agent> [prompt] print the agent'\''s next-step line: /run-agent <agent> ["prompt"] <model> <effort> (claude ...)
+  --next <agent> [prompt] print an agent'\''s closing next step: a sentence, the /run-agent line, a labelled claude line
   --dry-run ...          print the command, directory and run time; run and schedule nothing
   --handoff ...          usage-limit handoff in one call: schedule after the window (--need-tmux path), append a
                          "## Stopped at usage limit — <time> ET" section (stdin text, Uncommitted, Relaunch) to
@@ -105,29 +107,30 @@ list_agents() {
   printf '%s\n' "${BUILTINS[@]}"
 }
 
-# open_target <split|window> <pane> <dir> <window name> <cmd...>: start <cmd> in a new pane next to <pane>
-# (split) or in a new window after <pane>'s window, and print the new pane id. split takes the largest pane of
-# <pane>'s window and halves its longer side (a cell is about twice as tall as wide); when either half would be
-# under 40x8 it opens a new window instead, so other panes are never resized into slivers. Uses $RA_SOCKET when
-# set (the runner's recorded server). Exit 1 when tmux refuses.
+# open_target <split|window|into:<pane>> <pane> <dir> <window name> <cmd...>: start <cmd> and print the new pane id.
+# split and window both open a brand-new tmux window after <pane>'s window: a launch never adds a pane to the
+# caller's window or any other existing window. into:<p> is for a multi-run (launch.py group) only: it splits the
+# largest pane of <p>'s window, which the group itself opened, and re-tiles that window so its panes stay equal
+# (four panes = 2x2). Uses $RA_SOCKET when set (the runner's recorded server). Exit 1 when tmux refuses.
 open_target() {
-  local tgt="$1" pane="$2" d="$3" wname="$4" best="" area=0 w h a id flag
+  local tgt="$1" pane="$2" d="$3" wname="$4" best="" area=0 w h a id flag new
   shift 4
   local TM=(tmux); [ -n "${RA_SOCKET:-}" ] && TM=(tmux -S "$RA_SOCKET")
-  if [ "$tgt" = split ]; then
-    while read -r id w h; do
-      a=$((w * h)); [ "$a" -gt "$area" ] && { area=$a; best="$id $w $h"; }
-    done < <("${TM[@]}" list-panes -t "$pane" -F '#{pane_id} #{pane_width} #{pane_height}' 2>/dev/null)
-    if [ -n "$best" ]; then
+  case "$tgt" in
+    into:*)
+      pane="${tgt#into:}"
+      while read -r id w h; do
+        a=$((w * h)); [ "$a" -gt "$area" ] && { area=$a; best="$id $w $h"; }
+      done < <("${TM[@]}" list-panes -t "$pane" -F '#{pane_id} #{pane_width} #{pane_height}' 2>/dev/null)
+      [ -n "$best" ] || return 1
       read -r id w h <<<"$best"
-      if [ "$w" -ge $((h * 2)) ]; then flag=-h; [ $((w / 2)) -ge 40 ] && [ "$h" -ge 8 ] || flag=""
-      else flag=-v; [ $((h / 2)) -ge 8 ] && [ "$w" -ge 40 ] || flag=""; fi
-      if [ -n "$flag" ] && "${TM[@]}" split-window "$flag" -t "$id" -c "$d" -P -F '#{pane_id}' "$@" 2>/dev/null; then
-        return 0
-      fi
-    fi
-  fi
-  "${TM[@]}" new-window -a -t "$pane" -n "$wname" -c "$d" -P -F '#{pane_id}' "$@"
+      if [ "$w" -ge $((h * 2)) ]; then flag=-h; else flag=-v; fi
+      new=$("${TM[@]}" split-window "$flag" -t "$id" -c "$d" -P -F '#{pane_id}' "$@") || return 1
+      "${TM[@]}" select-layout -t "$pane" tiled >/dev/null 2>&1 || true
+      echo "$new" ;;
+    *) w=$("${TM[@]}" display -p -t "$pane" '#{session_id}:#{window_id}') || return 1
+       "${TM[@]}" new-window -a -t "$w" -n "$wname" -c "$d" -P -F '#{pane_id}' "$@" ;;
+  esac
 }
 
 # revive: silent, for a WSL-start service (run-agent-revive.service). Every pending job whose runner is gone gets
@@ -162,7 +165,7 @@ case "${1:-}" in
   --resolve) [ $# -eq 2 ] || { echo "$USAGE" >&2; exit 2; }
     resolve "$2"; printf '%s\t%s\n' "$RESOLVED" "$RES_STATE"; exit 0 ;;
   --parse) shift; exec python3 "$HERE/parse.py" "$@" ;;
-  --relaunch|--step|--cli|--next) mode="${1#--}"; shift; exec python3 "$HERE/launch.py" "$mode" "$@" ;;
+  --relaunch|--step|--cli|--next|--group) mode="${1#--}"; shift; exec python3 "$HERE/launch.py" "$mode" "$@" ;;
   --open) shift; open_target "$@"; exit $? ;;
   --jobs) exec python3 "$HERE/jobs.py" list ;;
   --cancel) shift; exec python3 "$HERE/jobs.py" cancel "$@" ;;
@@ -186,7 +189,7 @@ while [ $# -gt 0 ]; do
       shift 2 ;;
     --window) window=1; shift ;;
     --target)
-      [ $# -ge 2 ] && { [ "$2" = split ] || [ "$2" = window ] || [ "$2" = "" ]; } || { echo "$USAGE" >&2; exit 2; }
+      [ $# -ge 2 ] && case "$2" in split|window|into:%*|"") true ;; *) false ;; esac || { echo "$USAGE" >&2; exit 2; }
       target="$2"; shift 2 ;;
     --need-tmux) need_tmux=1; shift ;;
     --dry-run) dry=1; shift ;;

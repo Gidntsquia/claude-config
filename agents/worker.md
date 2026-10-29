@@ -96,7 +96,7 @@ you clean up what you start.
 Exactly two final messages exist. One: every acceptance criterion is met. Two: every criterion is
 met except items each listed as "not done" with the command you tried and the quoted error (an
 input you could not find is one: give the command that looked and what it printed). Both say what
-is met and end with the line `~/.claude/skills/run-agent/scripts/run-agent.sh --next evaluator "."` prints (`/run-agent evaluator "." <model> <effort>  (claude --agent …)`, copyable). Any other message
+is met and end with the lines `~/.claude/skills/run-agent/scripts/run-agent.sh --next evaluator "."` prints, as printed (a sentence saying what to run and when, the `/run-agent` line, a labelled `claude --agent` line). Any other message
 ("partly met", "not started", "not checked", "did not re-run or view", "needs a bigger rewrite",
 "needs Windows runs", "out of time", "I have not looked at it", "I haven't run it", "covered by
 tests only", "next I'd", a plan of what to do) is not a final message; it names the next thing to
