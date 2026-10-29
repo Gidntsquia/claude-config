@@ -6,7 +6,9 @@ argument-hint: <agent> ["prompt"] [in <dir>] [model/effort/claude flags...] [at 
 
 # /run-agent
 
-Run exactly one Bash call and then stop. Do not parse, reason about or confirm anything yourself: the script hands
+Normally this skill never reaches a model: the `UserPromptExpansion` hook in `settings.json` (matcher `run-agent`)
+runs `run-agent.sh --relaunch` on the typed words itself and shows its output. You are reading this only because the
+hook did not run (older settings, hook disabled): then run exactly one Bash call and then stop. Do not parse, reason about or confirm anything yourself: the script hands
 every question to a short haiku session (`claude --model haiku --effort low`) that asks, then runs or schedules.
 
 ```
@@ -22,6 +24,17 @@ Forms: `<agent> ["prompt"] [in <dir>] [split|window] [model/effort words] [at <t
 this session keeps going; without them the pane is replaced. A launch never adds a pane to an existing window.
 Runs joined by a lone `+` (`planner "Plan A" in ~/a + planner "Plan B" in ~/b + ...`) start together, after one
 confirm, in one new window tiled (four = 2x2), each in its own folder.
+
+Time words resolve in `parse.py` without a model: `at 9pm`, `in 2h`, `in 2 hours 10 min`, `tomorrow [at] 1am`,
+`1am tomorrow`, `tonight` / `this evening` (7 PM), `today at 5pm`, `noon`, `midnight`, a weekday name (the next one),
+`after window`, `N h|min before|after the window` (or `… the current window`, `… window ends/resets`), `N h before|after
+<clock>`. `jobs` shows each run's time and runner state (`sleeping (pid N)`, `dead`, `errored: <last log line>`,
+`waiting: no pane`). When the parser cannot place a time word the haiku confirm step reads it (it is told the current
+ET time and the window reset) and hands `--step '<words> | time: at <clock>'` back; it never asks the user when the
+window ends. From an agent session (worker, evaluator, planner, helper) `split`, `window` and `+` are answered
+`ignored: agents replace their own pane`: an agent only ever replaces its own pane, now or at the scheduled time; if
+that pane is gone at fire time the run waits (`jobs.log`: `waiting: no pane`) until a human `/run-agent` or `run-agent`
+call on that tmux server opens it in a new window.
 
 (Also: `S --parse '<raw>'` prints the parse as JSON; `S --handoff <agent> ["prompt"] [-- flags]` is the worker's
 usage-limit handoff; `S --next <agent> ["prompt"]` prints an agent's closing next step (short sentence, `/run-agent` line, `Without run-agent: claude …` line; no model/effort for worker and evaluator); `bin/run-agent` is

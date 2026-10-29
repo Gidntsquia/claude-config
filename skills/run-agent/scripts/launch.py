@@ -8,9 +8,21 @@
                                     pane is respawned into it, or with split/window a new pane/window opens with it
                                     and the calling session goes on. Yes there runs the command (which replaces the
                                     haiku pane); No leaves it saying `nothing changed`.
-  launch.py step [--here] '<raw>'   the instructions for the next step as text (what the haiku session follows
-                                    after rewriting an unsure word or choosing an agent). --here: the confirm already
-                                    runs in its own new pane, so the run replaces that pane (target dropped).
+  launch.py step [--here] '<raw>[ | <answer>]...'
+                                    the confirm's state machine. The haiku session owns no logic: it runs this with
+                                    the words it was given plus every user answer appended verbatim after ` | `, and
+                                    does what the output says (ask one question, or stop). The script applies the
+                                    answers in order (Yes -> run; No -> nothing changed; an unsure word -> the user's
+                                    reading, `Part of the prompt` or `Drop it`; an agent name; a job id) and either
+                                    runs the command itself or prints the next question. Time words the parser cannot
+                                    place are resolved by haiku itself (current time and window reset are in its
+                                    prompt) and handed back as `| time: at <clock>` / `| time: in <delay>`; it never
+                                    asks the user when the window ends. After three answers without a run: `nothing
+                                    changed` plus the words to type by hand. --here: the confirm already runs in its
+                                    own new pane, so the run replaces that pane (target dropped).
+  launch.py hook                    the UserPromptExpansion hook: reads the hook JSON on stdin, runs relaunch on
+                                    command_args, and blocks the expansion with that output as the reason (no model
+                                    turn, original prompt suppressed).
   launch.py cli <words...>          bin/run-agent: the same steps in a terminal, asking with read (or a tmux popup).
   launch.py group [--here] '<raw>'  several runs joined by a lone `+` or `;` (`planner "A" in ~/a + planner "B" in
                                     ~/b`): one new tmux window holding only their panes, tiled (four = 2x2); the
@@ -62,6 +74,35 @@ def S(*args, capture=True):
 def parse(raw):
     rc, out = S("--parse", raw)
     return json.loads(out)
+
+
+IGNORED = "ignored: agents replace their own pane"
+
+
+def from_agent():
+    """the agent name when this call comes from an agent session (worker/evaluator/planner/helper), else "" """
+    if os.environ.get("RUN_AGENT_HUMAN"):
+        return ""
+    if os.environ.get("RUN_AGENT_FROM"):
+        return os.environ["RUN_AGENT_FROM"]
+    argv = claude_argv()
+    if "--agent" in argv[:-1]:
+        return argv[argv.index("--agent") + 1]
+    name = next((argv[i + 1] for i, a in enumerate(argv[:-1]) if a in ("--name", "-n")), "")
+    m = re.match(r"^(planner|worker|evaluator|helper):", name)
+    return m.group(1) if m else ""
+
+
+def now_et():
+    import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(os.environ.get("RUN_AGENT_TZ", "America/New_York"))
+    except Exception:  # noqa: BLE001
+        tz = None
+    ts = float(os.environ.get("RUN_AGENT_NOW") or 0) or None
+    d = datetime.datetime.fromtimestamp(ts, tz) if ts else datetime.datetime.now(tz)
+    return d.strftime("%A %Y-%m-%d %-I:%M %p ET")
 
 
 def run_args(d, here=False):
@@ -154,7 +195,7 @@ def decide(raw):
     if d["unsure"]:
         return ("ask", "unsure", d, d["unsure"][0])
     if d["dry"]:
-        return ("say", dry_text(d), 0)
+        return ("say", (IGNORED + "\n" if d.get("target_ignored") else "") + dry_text(d), 0)
     if d["force"]:
         return ("run", d)
     return ("ask", "confirm", d, None)
@@ -231,6 +272,8 @@ def group_line(raw, here):
 
 def run_group(raw, here):
     """launch every run of raw (no confirm): a new window with run 1, the rest split into it, tiled"""
+    if agent_mode():
+        print(IGNORED); return 2
     st = decide_group(split_runs(raw))
     if st[0] == "say":
         print(st[1]); return st[2]
@@ -281,51 +324,206 @@ def instructions(raw, here):
                 f"2. {yes}: run this Bash command exactly, then stop (this session ends when it works; if it prints "
                 f"an error, reply with that output):\n{group_line(raw, here)}\n"
                 "   No, or anything else: reply exactly `nothing changed` and stop.")
-    st = decide(raw)
+    return step(raw, here)
+
+
+ANSWER_SEP = " | "
+TIMEY_RE = re.compile(r"\d|^(am|pm|h|hr|hrs|m|min|mins|hours?|minutes?|noon|midnight|tonight|tomorrow|today|window|"
+                      r"before|after|at|in|the|current|this|evening|morning|afternoon|night|week|next|"
+                      r"mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|"
+                      r"sunday|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|half|o'?clock|"
+                      r"early|late|around|by|later|reset|resets|ends|until|day|days|week|weeks|usage|my)$", re.I)
+
+
+def timey(extra):
+    """an unsure chunk made of time-ish words (digits, units, day words) that haiku may resolve itself"""
+    words = re.sub(r"\(already past\)$", "", extra).replace("--", "").split()
+    return bool(words) and all(TIMEY_RE.search(w.strip(",.")) for w in words)
+
+
+def apply_answer(cur, st, ans):
+    """fold one user answer into the words; returns (new raw, action) where action is None | "run" | "stop" |
+    ("cancel", id) | ("say", text)"""
+    kind, d, extra = st[1], st[2], st[3]
+    a = ans.strip()
+    low = a.lower()
+    if kind == "confirm":
+        if low.startswith("yes") or low in ("y", "run", "run it", "schedule", "schedule it", "ok", "go"):
+            return cur, "run"
+        if low in ("no", "n", "cancel", "stop", "nothing"):
+            return cur, "stop"
+        return cur + " " + a, None  # free text: more words for the command
+    if kind == "unsure":
+        if low.startswith("time:"):
+            # haiku resolved the time: every time-ish unsure chunk and the time the parser did read go, the answer stays
+            new = cur
+            for u in d.get("unsure") or [extra]:
+                u0 = re.sub(r" \(already past\)$", "", u)
+                if timey(u0):
+                    new = without(new, u0)
+            if d.get("at_text"):
+                new = without(new, d["at_text"])
+            return new + " " + a[5:].strip(), None
+        if low in ("drop it", "drop", "d"):
+            return without(cur, re.sub(r" \(already past\)$", "", extra)), None
+        if low in ("part of the prompt", "prompt", "p"):
+            return into_prompt(cur, d, re.sub(r" \(already past\)$", "", extra)), None
+        if low in ("no", "n", "stop", "nothing"):
+            return cur, "stop"
+        return cur.replace(re.sub(r" \(already past\)$", "", extra), a, 1), None
+    if kind == "agent":
+        if low in ("no", "n", "stop", "nothing", "none"):
+            return cur, "stop"
+        return a.split()[0] + " " + cur, None
+    if kind == "cancel":
+        m = re.search(r"\d+", a)
+        if not m or low in ("none", "no"):
+            return cur, "stop"
+        return cur, ("cancel", m.group(0))
+    return cur, "stop"
+
+
+def step(raw, here):
+    """the confirm state machine: apply the ` | answer` segments, then run, print the next question, or stop"""
+    agent_mode()
+    parts = raw.split(ANSWER_SEP)
+    cur, answers = parts[0].strip(), parts[1:]
     sp = s_path()
-    step = f"{sp} --step{' --here' if here else ''} "
+    stepcmd = f"{sp} --step{' --here' if here else ''} "
+    if len(split_runs(cur)) > 1:
+        return group_step(cur, answers, here)
+    st = decide(cur)
+    for ans in answers:
+        if st[0] != "ask":
+            break
+        cur, act = apply_answer(cur, st, ans)
+        if act == "stop":
+            return "Reply exactly `nothing changed` and stop."
+        if act == "run":
+            return do_run(st[2], here)
+        if isinstance(act, tuple) and act[0] == "cancel":
+            rc, out = S("--cancel", act[1]); return "Reply with exactly these lines and stop:\n" + out
+        st = decide(cur)
     if st[0] == "say":
         return "Reply with exactly these lines and stop:\n" + st[1]
     if st[0] == "run":
-        return f"Run this Bash command exactly, then reply with its output and stop:\n{run_line(st[1], here)}"
+        return do_run(st[1], here)
     kind, d, extra = st[1], st[2], st[3]
+    if len(answers) >= 3:
+        return ("Reply with exactly these lines and stop:\nnothing changed\n"
+                f"type it by hand with the time spelled out, e.g.: /run-agent {cur}")
+    def then(what):
+        return (f"2. Then run in Bash exactly (nothing else, no guessed command):\n"
+                f"   {stepcmd}{sq(cur + ANSWER_SEP)}<{what}>  -- i.e. the same words with ` | ` and {what} "
+                f"appended inside the quotes, verbatim; then follow what it prints, the same way.")
     if kind == "confirm":
         header, q, yes = question(d)
         return (f'1. Call AskUserQuestion once: header "{header}", question text exactly:\n{q}\n'
-                f'   options: "{yes}" and "No".\n'
-                f"2. {yes}: run this Bash command exactly, then stop (this session ends when it works; if it prints "
-                f"an error, reply with that output):\n{run_line(d, here)}\n"
-                "   No, or anything else: reply exactly `nothing changed` and stop.")
+                f'   options: "{yes}" and "No".\n' + then("the answer, Yes or No, or the free text the user typed"))
     if kind == "unsure":
-        drop, prm = without(raw, extra), into_prompt(raw, d, extra)
-        return (f'1. Call AskUserQuestion once: header "Unsure", question "I could not place `{extra}` in: {raw}. '
-                f'What is it?", options: your best reading first if you have one (e.g. "--effort low" for "efort lo"), '
-                f'then "Part of the prompt", then "Drop it".\n'
-                f"2. Then run in Bash and follow what it prints, the same way:\n"
-                f"   best reading: {step}<the line above with `{extra}` replaced by your reading, single-quoted>\n"
-                f"   Part of the prompt: {step}{sq(prm)}\n"
-                f"   Drop it: {step}{sq(drop)}\n"
-                "   No answer: reply exactly `nothing changed` and stop.")
+        if timey(extra):
+            tw = "`" + " ".join(re.sub(r" \(already past\)$", "", u) for u in d["unsure"] if timey(u)) + "`"
+            if d.get("at_text"):
+                tw += f" (and the parser's own reading `{d['at_text']}`, which your answer replaces)"
+            return (f"Resolve the time words {tw} in: {cur} yourself, as the user would (see the current time "
+                    f"and window reset above; no question to the user, never ask when the window ends). Then run in "
+                    f"Bash exactly:\n   {stepcmd}{sq(cur + ANSWER_SEP + 'time: ')}<at <clock>|in <delay>>  -- the "
+                    "words `at 5:30 AM` or `in 2h 10m` appended after `time: ` inside the quotes; then follow what it "
+                    "prints, the same way.")
+        return (f'1. Call AskUserQuestion once: header "Unsure", question "I could not place `{extra}` in: {cur}. '
+                f'What is it?", options: "Part of the prompt", "Drop it" (the user may also type a replacement).\n'
+                + then("the chosen option label or the typed text"))
     if kind == "agent":
         names = [x for x in extra.splitlines() if x]
         return (f'1. Call AskUserQuestion once: header "Agent", question "Which agent? (also: {", ".join(names[4:])})", '
-                'options "planner", "worker", "evaluator", "helper".\n'
-                f"2. Run in Bash: {step}'<agent> {raw.replace(chr(39), chr(39) + chr(92) + chr(39) + chr(39))}' "
-                "(the chosen agent first) and follow what it prints, the same way.")
+                'options "planner", "worker", "evaluator", "helper".\n' + then("the chosen agent name"))
     if kind == "cancel":
         return (f'1. Call AskUserQuestion once: header "Cancel?", question "Which scheduled run do you want to cancel?", '
                 f"one option per line below (label `#<id>`, description the rest of the line), plus \"None\":\n{extra}\n"
-                f"2. Run in Bash: {sp} --cancel <id> and reply with its output. None: reply exactly `nothing changed`.")
+                + then("the chosen label, e.g. #12 or None"))
     return "Reply exactly `nothing changed` and stop."
 
 
-HAIKU_HEAD = ("You are the /run-agent confirm step, a short session that does exactly the steps below and nothing "
-              "else: no other tools, no file reads, no commentary, no summary.\n\n")
+def group_step(cur, answers, here):
+    st = decide_group(split_runs(cur))
+    if st[0] == "say":
+        return "Reply with exactly these lines and stop:\n" + st[1]
+    if answers:
+        low = answers[0].strip().lower()
+        if not (low.startswith("yes") or low in ("y", "run", "ok", "go")):
+            return "Reply exactly `nothing changed` and stop."
+        st = ("run", st[2] if st[0] == "ask" else st[1])
+    if st[0] == "run":
+        drop_transcript()
+        sys.stdout.flush()
+        rc = run_group(cur, here)
+        return f"Reply with exactly these lines and stop:\n{'started' if rc == 0 else 'failed'}"
+    header, q, yes = group_question(st[2])
+    stepcmd = f"{s_path()} --step{' --here' if here else ''} "
+    return (f'1. Call AskUserQuestion once: header "{header}", question text exactly:\n{q}\n'
+            f'   options: "{yes}" and "No".\n'
+            f"2. Then run in Bash exactly: {stepcmd}{sq(cur + ANSWER_SEP)}<the answer>  -- the same words with "
+            "` | ` and the answer appended inside the quotes; then follow what it prints, the same way.")
+
+
+def drop_transcript():
+    """delete this confirm session's transcript (its id is RUN_AGENT_CONFIRM_ID) so the resume picker stays clean"""
+    sid = os.environ.get("RUN_AGENT_CONFIRM_ID", "")
+    if not re.fullmatch(r"[0-9a-f-]{36}", sid):
+        return
+    import glob
+    import shutil
+    base = os.path.expanduser("~/.claude/projects")
+    for f in glob.glob(os.path.join(base, "*", sid + ".jsonl")):
+        try:
+            os.remove(f)
+        except OSError:
+            pass
+    for d in glob.glob(os.path.join(base, "*", sid)):
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def do_run(d, here):
+    """run the confirmed command now (this replaces the haiku pane, or schedules and returns its line)"""
+    if d.get("dir_state") == "missing":
+        os.makedirs(d["dir"], exist_ok=True)
+    drop_transcript()
+    sys.stdout.flush()
+    r = subprocess.run([S_REAL, *run_args(d, here)], capture_output=True, text=True)
+    out = ((r.stdout or "") + (r.stderr or "")).rstrip("\n")
+    return "Reply with exactly these lines and stop:\n" + (out or ("started" if r.returncode == 0 else "failed"))
+
+
+def haiku_head():
+    rc, reset = S("--reset-shown")
+    reset = reset.strip() if rc == 0 and reset.strip() else "unknown"
+    return ("You are the /run-agent confirm step, a short session that does exactly the steps below and nothing "
+            "else. Tools: AskUserQuestion, and Bash only in the one form `run-agent.sh --step '<words>'` given to "
+            "you; no file reads, no grep, no other commands, no commentary, no summary. You never print a guessed "
+            "command, never offer \"say run it\", never read a word next to a time word as a flag.\n"
+            f"Current time: {now_et()}. The 5-hour usage window resets at {reset}. Read time words as the user "
+            "would: tomorrow = the next calendar day even if that clock time is still ahead today; before the window "
+            "= the reset time minus the span; after the window = the reset plus the span; tonight/this evening "
+            "with no clock = 7 PM. Never ask when the window ends: it is written above.\n\n")
+
+
+def agent_mode():
+    """an agent session is calling: every parse from here on drops split/window words (target_ignored)"""
+    who = from_agent()
+    if who:
+        os.environ["RUN_AGENT_IGNORE_TARGET"] = "1"
+    return who
 
 
 def relaunch(raw):
     group = len(split_runs(raw)) > 1
+    agent_caller = agent_mode()
+    if agent_caller and group:
+        print(IGNORED); return 2
     st = decide_group(split_runs(raw)) if group else decide(raw)
+    d0 = st[1] if st[0] == "run" else st[2] if st[0] == "ask" else None
+    if agent_caller and isinstance(d0, dict) and d0.get("target_ignored"):
+        print(IGNORED)
     if st[0] == "say":
         print(st[1]); return st[2]
     if group:
@@ -348,13 +546,22 @@ def relaunch(raw):
         return 1
     target = (d or {}).get("target", "")
     here = bool(target)
-    prompt = HAIKU_HEAD + instructions(raw, here)
-    cmd = ["claude", prompt, "--model", "haiku", "--effort", "low", "--name", "run-agent",
-           "--tools", "Bash,AskUserQuestion"]
-    shown = "claude --model haiku --effort low (run-agent confirm)"
-    wrap = ["bash", "-c", 'printf "%s\\n" "$1"; "${@:3}"; exec "$2"', "run-agent",
-            f"/run-agent {raw}", os.environ.get("SHELL", "bash"), *cmd]
+    prompt = haiku_head() + step(raw, here)
+    import uuid
+    sid = str(uuid.uuid4())
     cwd = os.getcwd()
+    if group:
+        sname = f"run-agent: {d['agent']}"
+    else:
+        sname = f"run-agent: {d['agent']} {os.path.basename(d['dir'] or cwd)}"
+        if d.get("at_shown"):
+            sname += " at " + d["at_shown"].split(" (")[0]
+    cmd = ["env", f"RUN_AGENT_CONFIRM_ID={sid}", "claude", prompt, "--model", "haiku", "--effort", "low",
+           "--session-id", sid, "--name", sname, "--tools", "Bash,AskUserQuestion"]
+    # on exit (No, or a scheduled run) the transcript goes; a Yes that respawns the pane deletes it first (do_run)
+    cleanup = ('rm -f ~/.claude/projects/*/"$3".jsonl; rm -rf ~/.claude/projects/*/"$3"')
+    wrap = ["bash", "-c", 'printf "%s\\n" "$1"; "${@:4}"; ' + cleanup + '; exec "$2"', "run-agent",
+            f"/run-agent {raw}", os.environ.get("SHELL", "bash"), sid, *cmd]
     if target:
         wname = d["agent"] if group else f"{d['agent']}: {os.path.basename(d['dir'] or cwd)}"
         r = subprocess.run([S_REAL, "--open", "window", os.environ["TMUX_PANE"], cwd, wname, *wrap],
@@ -405,6 +612,8 @@ def words_to_raw(words):
 
 def cli(words):
     raw = words_to_raw(words)
+    if agent_mode() and len(split_runs(raw)) > 1:
+        print(IGNORED); return 2
     if len(split_runs(raw)) > 1:
         st = decide_group(split_runs(raw))
         if st[0] == "say":
@@ -532,6 +741,21 @@ def next_line(args):
     return 0
 
 
+def hook():
+    """UserPromptExpansion hook: a typed `/run-agent <args>` runs relaunch with no model turn"""
+    try:
+        data = json.loads(sys.stdin.read() or "{}")
+    except ValueError:
+        data = {}
+    args = (data.get("command_args") or "").strip()
+    env = dict(os.environ, RUN_AGENT_HUMAN="1")  # a typed command is the human's, even inside an agent session
+    r = subprocess.run([S_REAL, "--relaunch", args], capture_output=True, text=True, env=env)
+    out = ((r.stdout or "") + (r.stderr or "")).strip() or ("done" if r.returncode == 0 else f"exit {r.returncode}")
+    print(json.dumps({"decision": "block", "reason": out,
+                      "hookSpecificOutput": {"hookEventName": "UserPromptExpansion", "suppressOriginalPrompt": True}}))
+    return 0
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__); return 2
@@ -542,7 +766,9 @@ def main():
         here = bool(rest) and rest[0] == "--here"
         if here:
             rest = rest[1:]
-        print(instructions(" ".join(rest), here)); return 0
+        print(step(" ".join(rest), here)); return 0
+    if mode == "hook":
+        return hook()
     if mode == "cli":
         return cli(rest)
     if mode == "group":

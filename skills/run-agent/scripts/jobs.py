@@ -6,9 +6,13 @@
   setpid <id> <pid>                          -> records the runner's pid
   argv <id>                                  -> prints the claude argv NUL-separated
   get <id> <key>                             -> prints one field
-  list                                       -> the --jobs listing
+  list                                       -> the --jobs listing (id, command, time, runner state)
   pending                                    -> ids of pending jobs, one per line
-  stale                                      -> "<id>\tfuture|overdue" for pending jobs whose runner is gone
+  state <id>                                 -> runner state: sleeping (pid N) | dead | errored: <last logs/<id>.log line>
+                                                | waiting: no pane (an agent's job whose pane was gone at fire time)
+  health                                     -> one line per pending job; exit 1 when any runner is dead or errored
+  waiting [<socket>]                         -> ids of waiting jobs (on that tmux server)
+  stale                                      -> "<id>\tfuture|overdue" for pending jobs whose runner is gone (not waiting)
   set <id> <key> <value>                     -> sets one string field ("" clears it)
   cancel [<id>]                              -> kills the runner, logs cancelled, moves the job to done/
   done <id> <outcome> [note]                 -> logs the outcome, moves the job to done/
@@ -25,6 +29,7 @@ HOME = os.environ.get("RUN_AGENT_HOME") or os.path.join(os.path.expanduser("~"),
 JOBS = os.path.join(HOME, "jobs")
 DONE = os.path.join(HOME, "done")
 LOG = os.path.join(HOME, "jobs.log")
+LOGS = os.path.join(HOME, "logs")  # logs/<id>.log: that job's runner output (empty unless it errored)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from parse import fmt_et, fmt_in, now_ts  # noqa: E402
@@ -33,6 +38,22 @@ from parse import fmt_et, fmt_in, now_ts  # noqa: E402
 def ensure():
     os.makedirs(JOBS, exist_ok=True)
     os.makedirs(DONE, exist_ok=True)
+    os.makedirs(LOGS, exist_ok=True)
+
+
+def state(job):
+    """the runner's state as the listing shows it"""
+    if str(job.get("waiting", "")) == "1":
+        return "waiting: no pane"
+    pid = job.get("pid")
+    if alive(pid):
+        return f"sleeping (pid {pid})"
+    try:
+        with open(os.path.join(LOGS, f"{job['id']}.log"), encoding="utf-8", errors="replace") as f:
+            lines = [x.rstrip("\n") for x in f if x.strip()]
+    except OSError:
+        lines = []
+    return f"errored: {lines[-1]}" if lines else "dead"
 
 
 def path(jid):
@@ -119,6 +140,10 @@ def finish(jid, outcome, note=""):
         os.remove(path(jid))
     except FileNotFoundError:
         pass
+    try:
+        os.remove(os.path.join(LOGS, f"{jid}.log"))
+    except OSError:
+        pass
     return line
 
 
@@ -149,6 +174,7 @@ def main():
                "cwd": o.get("cwd", ""), "pane": o.get("pane", ""), "session": o.get("session", ""),
                "socket": o.get("socket", ""), "server_pid": o.get("server_pid", ""),
                "agent": o.get("agent", ""), "folder": o.get("folder", ""), "target": o.get("target", ""),
+               "from_agent": 1 if o.get("from_agent") == "1" else 0,
                "argv": argv, "shown": o.get("shown", ""), "pid": 0}
         save(job)
         print(f"{job['id']}\t{path(job['id'])}")
@@ -165,8 +191,24 @@ def main():
     elif cmd == "stale":
         for jid in pending():
             j = load(jid)
-            if not alive(j.get("pid")):
+            if str(j.get("waiting", "")) != "1" and not alive(j.get("pid")):
                 print(f"{jid}\t{'future' if j['run_at'] > now_ts() else 'overdue'}")
+    elif cmd == "state":
+        print(state(load(int(args[0]))))
+    elif cmd == "waiting":
+        for jid in pending():
+            j = load(jid)
+            if str(j.get("waiting", "")) == "1" and (not args or j.get("socket", "") == args[0]):
+                print(jid)
+    elif cmd == "health":
+        bad = 0
+        for jid in pending():
+            j = load(jid)
+            s = state(j)
+            ok = s.startswith(("sleeping", "waiting"))
+            bad += not ok
+            print(f"{'ok' if ok else 'FAIL'}  #{jid}  {s}  {j['shown']}  at {fmt_et(j['run_at'])}")
+        sys.exit(1 if bad else 0)
     elif cmd == "set":
         job = load(int(args[0])); job[args[1]] = args[2]; save(job)
     elif cmd == "list":
@@ -178,9 +220,7 @@ def main():
             line = f"#{jid}  {j['shown']}  at {fmt_et(j['run_at'])} ({j['at_text']}, {fmt_in(j['run_at'])})"
             if j.get("until"):
                 line += f"  until {fmt_et(j['until'])}"
-            if not alive(j.get("pid")):
-                line += "  [runner not running]"
-            print(line)
+            print(line + f"  [{state(j)}]")
     elif cmd == "cancel":
         ids = pending()
         if args:
@@ -207,6 +247,10 @@ def main():
                 except Exception:  # noqa: BLE001
                     pass
         print(finish(jid, "cancelled"))
+        try:
+            os.remove(os.path.join(LOGS, f"{jid}.log"))
+        except OSError:
+            pass
     elif cmd == "done":
         print(finish(int(args[0]), args[1], args[2] if len(args) > 2 else ""))
     elif cmd == "log":

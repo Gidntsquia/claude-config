@@ -153,9 +153,62 @@ revive() {
     TM=(tmux); [ -n "$socket" ] && TM=(tmux -S "$socket")
     cur=$("${TM[@]}" display -p '#{pid}' 2>/dev/null || true)
     [ -n "$spid" ] && [ "$spid" = "$cur" ] || python3 "$HERE/jobs.py" set "$id" pane ""
-    setsid nohup bash "$HERE/runner.sh" "$id" >> "$STATE/runner.log" 2>&1 < /dev/null 9>&- &   # 9>&-: not the lock
-    python3 "$HERE/jobs.py" setpid "$id" "$!"   # now, so a second revive sees it alive before runner.sh starts
-    disown
+    start_runner "$id" "$(python3 "$HERE/jobs.py" get "$id" run_at)"   # pid recorded at once (a second revive sees it)
+  done
+}
+
+# start_runner <id> <run_at>: the detached sleeper behind a scheduled run. A fixed 5-line `bash -c` loop sleeps to
+# run_at (never a negative sleep) and then execs the repo's runner.sh as it is at fire time, so editing or committing
+# anything under skills/run-agent while jobs sleep changes nothing until they fire. $0 is "runner.sh" so jobs.py's
+# alive() recognises it; its output goes to logs/<id>.log (empty unless it errored). Records the pid.
+start_runner() {
+  mkdir -p "$STATE/logs"
+  setsid nohup bash -c 'id=$1; at=$2; r=$3
+while :; do t=$(( at - $(date +%s) )); [ "$t" -le 0 ] && break; sleep "$t"; done
+exec bash "$r" "$id"' runner.sh "$1" "$2" "$HERE/runner.sh" >> "$STATE/logs/$1.log" 2>&1 < /dev/null 9>&- &
+  python3 "$HERE/jobs.py" setpid "$1" "$!"
+  disown
+}
+
+# Was this script called from an agent session (worker, evaluator, planner, helper)? Set by the launch wrapper
+# (RUN_AGENT_FROM=<agent>) or read from the parent claude process's --agent flag. Prints the agent name or nothing.
+from_agent() {
+  [ -n "${RUN_AGENT_HUMAN:-}" ] && return 0   # the hook: a typed /run-agent is the human's, even in an agent session
+  if [ -n "${RUN_AGENT_FROM:-}" ]; then echo "$RUN_AGENT_FROM"; return; fi
+  python3 - <<'PY' 2>/dev/null
+import os
+pid = os.getppid()
+while pid > 1:
+    try:
+        argv = [a.decode(errors="replace") for a in open(f"/proc/{pid}/cmdline", "rb").read().split(b"\0") if a]
+        if argv and os.path.basename(argv[0]) == "claude":
+            if "--agent" in argv[:-1]:
+                print(argv[argv.index("--agent") + 1])
+            break
+        pid = int(open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[1])
+    except (OSError, ValueError, IndexError):
+        break
+PY
+}
+
+# fire_waiting: an agent's scheduled job whose pane was gone at fire time waits (jobs.log `waiting: no pane`) for a
+# human run-agent call on the same tmux server; that call opens it in a brand-new window (the human may open windows).
+fire_waiting() {
+  local id cwd agent folder shown socket cmd wrap first
+  [ -n "${TMUX:-}" ] && [ -n "${TMUX_PANE:-}" ] || return 0
+  [ -z "$(from_agent)" ] || return 0
+  socket="${TMUX%%,*}"
+  for id in $(python3 "$HERE/jobs.py" waiting "$socket" 2>/dev/null); do
+    cwd=$(python3 "$HERE/jobs.py" get "$id" cwd); agent=$(python3 "$HERE/jobs.py" get "$id" agent)
+    folder=$(python3 "$HERE/jobs.py" get "$id" folder); shown=$(python3 "$HERE/jobs.py" get "$id" shown)
+    [ -d "$cwd" ] || cwd="$PWD"
+    mapfile -d '' -t cmd < <(python3 "$HERE/jobs.py" argv "$id")
+    first="scheduled run #$id fired at $(python3 "$HERE/parse.py" --fmt "$(date +%s)") (was waiting: no pane): $shown"
+    wrap=(bash -c 'printf "%s\n" "$1"; RUN_AGENT_FROM="$3" "${@:4}"; exec "$2"' run-agent "$first" "${SHELL:-bash}" "$agent" "${cmd[@]}")
+    if open_target window "$TMUX_PANE" "$cwd" "$agent: $folder" "${wrap[@]}" >/dev/null 2>&1; then
+      python3 "$HERE/jobs.py" done "$id" "fired in new window" "was waiting: no pane" >/dev/null
+      echo "waiting job #$id started in a new window: $shown"
+    fi
   done
 }
 
@@ -165,9 +218,14 @@ case "${1:-}" in
   --resolve) [ $# -eq 2 ] || { echo "$USAGE" >&2; exit 2; }
     resolve "$2"; printf '%s\t%s\n' "$RESOLVED" "$RES_STATE"; exit 0 ;;
   --parse) shift; exec python3 "$HERE/parse.py" "$@" ;;
-  --relaunch|--step|--cli|--next|--group) mode="${1#--}"; shift; exec python3 "$HERE/launch.py" "$mode" "$@" ;;
+  --relaunch|--cli|--group) fire_waiting; mode="${1#--}"; shift; exec python3 "$HERE/launch.py" "$mode" "$@" ;;
+  --step|--next|--hook) mode="${1#--}"; shift; exec python3 "$HERE/launch.py" "$mode" "$@" ;;
+  --from-agent) from_agent; exit 0 ;;
+  --reset-shown) r=$(python3 "$HERE/parse.py" --reset 2>/dev/null) && python3 "$HERE/parse.py" --fmt "$r"; exit 0 ;;
+  --fire-waiting) fire_waiting; exit 0 ;;
   --open) shift; open_target "$@"; exit $? ;;
-  --jobs) exec python3 "$HERE/jobs.py" list ;;
+  --jobs) fire_waiting; exec python3 "$HERE/jobs.py" list ;;
+  --health) exec python3 "$HERE/jobs.py" health ;;
   --cancel) shift; exec python3 "$HERE/jobs.py" cancel "$@" ;;
   --revive) revive; exit 0 ;;
   --dry-run) shift; dry=1 ;;
@@ -179,13 +237,13 @@ dry="${dry:-0}"; handoff="${handoff:-0}"
 agent="$1"; shift
 
 # Arguments after the agent: [prompt] and [--cwd|-C <dir>] in any order, then [-- flags...].
-prompt=""; have_prompt=0; dir=""; have_dir=0; target=""; at=""; at_text=""; window=0; until_at=""; need_tmux=0
+prompt=""; have_prompt=0; dir=""; have_dir=0; target=""; at=""; at_text=""; at_shown=""; window=0; until_at=""; need_tmux=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --) shift; break ;;
-    --at|--at-text|--until)
+    --at|--at-text|--at-shown|--until)
       [ $# -ge 2 ] || { echo "$USAGE" >&2; exit 2; }
-      case "$1" in --at) at="$2" ;; --at-text) at_text="$2" ;; --until) until_at="$2" ;; esac
+      case "$1" in --at) at="$2" ;; --at-text) at_text="$2" ;; --at-shown) at_shown="$2" ;; --until) until_at="$2" ;; esac
       shift 2 ;;
     --window) window=1; shift ;;
     --target)
@@ -207,6 +265,15 @@ while [ $# -gt 0 ]; do
   esac
 done
 flags=("$@")
+
+# An agent session (worker/evaluator/planner) never opens a tmux window: split/window are ignored, its run replaces
+# its own pane, and its scheduled job is marked from_agent (the runner then never opens a window or session either).
+caller_agent=$(from_agent)
+[ -z "$caller_agent" ] && [ "$dry" = 0 ] && fire_waiting
+if [ -n "$caller_agent" ] && [ -n "$target" ]; then
+  echo "ignored: agents replace their own pane"
+  target=""
+fi
 
 if [ "$have_dir" = 1 ]; then
   resolve "$dir"
@@ -305,7 +372,7 @@ if [ "$dry" = 1 ]; then
   echo "command: $shown"
   echo "dir: ${dir:-$PWD}"
   if [ -n "$at" ]; then
-    echo "run at: $(fmt "$at") (${at_text:-at $(fmt "$at")}, $(in_from_now "$at"))"
+    echo "run at: ${at_shown:-$(fmt "$at") (${at_text:-at $(fmt "$at")}, $(in_from_now "$at"))}"
     [ -n "$until_at" ] && echo "until: $(fmt "$until_at")"
   else
     echo "run at: now"
@@ -346,11 +413,10 @@ if [ -n "$at" ]; then
   mkdir -p "$STATE"
   IFS=$'\t' read -r id jobfile < <(python3 "$HERE/jobs.py" write --run-at "$at" --at-text "$at_text" --window "$window" \
     ${until_at:+--until "$until_at"} --cwd "${dir:-$PWD}" --target "$target" --pane "$pane" --session "$session" --socket "$socket" \
-    --server-pid "$server_pid" \
+    --server-pid "$server_pid" --from-agent "$([ -n "$caller_agent" ] && echo 1 || echo 0)" \
     --shown "$shown" --agent "$agent" --folder "$folder" -- "${cmd[@]}")
-  setsid nohup bash "$HERE/runner.sh" "$id" >> "$STATE/runner.log" 2>&1 < /dev/null &
-  disown
-  echo "scheduled #$id: $shown at $(fmt "$at") ($at_text, $(in_from_now "$at"))"
+  start_runner "$id" "$at"
+  echo "scheduled #$id: $shown at ${at_shown:-$(fmt "$at") ($at_text, $(in_from_now "$at"))}"
   [ "$need_tmux" = 1 ] && echo "Relaunch: $(fmt "$at") (job #$id)"
   exit 0
 fi
@@ -361,7 +427,7 @@ if [ -z "${TMUX:-}" ] || [ -z "${TMUX_PANE:-}" ]; then
   exit 1
 fi
 
-wrap=(bash -c 'printf "running: %s\n" "$1"; "${@:3}"; exec "$2"' run-agent "$shown" "${SHELL:-bash}" "${cmd[@]}")
+wrap=(bash -c 'printf "running: %s\n" "$1"; RUN_AGENT_FROM="$3" "${@:4}"; exec "$2"' run-agent "$shown" "${SHELL:-bash}" "$agent" "${cmd[@]}")
 if [ -n "$target" ]; then
   new=$(open_target "$target" "$TMUX_PANE" "${dir:-$PWD}" "$agent: $folder" "${wrap[@]}") || { echo "tmux could not open a $target" >&2; exit 2; }
   where=$(tmux display -p -t "$new" '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || echo "$new")

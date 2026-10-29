@@ -6,6 +6,9 @@
 # scheduling suite (fire into the pane, --jobs, --cancel, until skipping, --handoff, pane-gone, server-gone, --revive).
 # Never touches your tmux or ~/.claude/run-agent. Prints "N passed, M failed"; exit 1 on any failure.
 set -uo pipefail
+# test.sh usually runs inside a worker/evaluator session (`claude --agent …`), which run-agent.sh would take for an
+# agent caller; the tests are the human's unless a case sets RUN_AGENT_FROM itself (env -u RUN_AGENT_HUMAN).
+export RUN_AGENT_HUMAN=1; unset RUN_AGENT_FROM
 
 S="$(cd "$(dirname "$0")" && pwd)/run-agent.sh"
 pass=0; fail=0
@@ -178,6 +181,41 @@ pcheck "time: dir + at 9pm" 'worker in ../../sibling at 9pm' "{\"dir\":\"$T/sibl
 pcheck "time: dry with model, effort, at" 'worker fable low effort at 9pm dry' "{$FLOW,\"dry\":1,\"at\":1792717200,\"at_text\":\"at 9pm\",\"at_shown\":\"9:00 PM ET (at 9pm, in 3h 0m)\",$RESET,\"run\":\"S worker . --at 1792717200 --at-text 'at 9pm' -- --model fable --effort low\"}"
 pcheck "time: dry run alone fetches the reset" 'worker dry run' "{\"dry\":1,$RESET}"
 pcheck "time: --dry-run" 'worker --dry-run' "{\"dry\":1,$RESET}"
+# day / relative phrases (Amendment 2026-10-29: the three sessions' exact inputs first). Frozen clock Thu 10-22 6 PM.
+ep() { TZ=America/New_York date -d "$1" +%s; }
+tcheck() {  # tcheck <label> <raw> <epoch> <at_text> <derive or ""> [<extra json>]: an at + at_shown + run (+ --at-shown)
+  local label="$1" raw="$2" at="$3" text="$4" derive="$5" extra="${6:-}" shown run
+  shown="$(python3 "$(dirname "$S")/parse.py" --fmt "$at") (${derive:-$text}, $(python3 -c "import sys; sys.path.insert(0,sys.argv[1]); from parse import fmt_in; print(fmt_in(int(sys.argv[2]), int(sys.argv[3])))" "$(dirname "$S")" "$at" "$RUN_AGENT_NOW"))"
+  run="S worker . --at $at --at-text $(python3 -c 'import shlex,sys; print(shlex.quote(sys.argv[1]))' "$text")"; [ -n "$derive" ] && run+=" --at-shown '$shown'"
+  pcheck "$label" "$raw" "{\"at\":$at,\"at_text\":\"$text\",\"at_shown\":\"$shown\",\"run\":\"$run${extra:+ }${extra:+$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("_run",""))' "$extra")}\",$RESET${extra:+,}$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); d.pop("_run",None); print(json.dumps(d)[1:-1])' "${extra:-{\}}")}"
+}
+FLJ='"flags":"--model fable --effort low","command":"claude --agent worker \".\" --model fable --effort low --name \"worker: repo (fable)\"","_run":"-- --model fable --effort low"'
+tcheck "time: session 'tomorrow at 1am' (next calendar day)" 'worker fable low tomorrow at 1am' "$(ep '2026-10-23 01:00')" 'tomorrow at 1am' '' "{$FLJ}"
+tcheck "time: session 'two hours before the window force'" 'worker fable low two hours before the window force' $(( 1792714800 - 7200 )) 'two hours before the window' 'two hours before window 8:20 PM' "{$FLJ,\"force\":1}"
+tcheck "time: session '1 hr before the current window'" 'worker "." 1 hr before the current window' $(( 1792714800 - 3600 )) '1 hr before the current window' '1 hr before window 8:20 PM'
+tcheck "time: 2 h after the window resets" 'worker 2 h after the window resets' $(( 1792714800 + 7200 )) '2 h after the window resets' '2 h after window 8:20 PM'
+tcheck "time: 30 min before window ends" 'worker 30 min before window ends' $(( 1792714800 - 1800 )) '30 min before window ends' '30 min before window 8:20 PM'
+tcheck "time: 1 hr before 9pm" 'worker 1 hr before 9pm' "$(ep '2026-10-22 20:00')" '1 hr before 9pm' '1 hr before 9:00 PM'
+tcheck "time: 2 hours after 9pm" 'worker 2 hours after 9pm' "$(ep '2026-10-22 23:00')" '2 hours after 9pm' '2 hours after 9:00 PM'
+tcheck "time: tomorrow (default 9 AM)" 'worker tomorrow' "$(ep '2026-10-23 09:00')" 'tomorrow' 'tomorrow, default 9:00 AM'
+tcheck "time: tomorrow 7am" 'worker tomorrow 7am' "$(ep '2026-10-23 07:00')" 'tomorrow 7am' ''
+tcheck "time: at 1am tomorrow" 'worker at 1am tomorrow' "$(ep '2026-10-23 01:00')" 'at 1am tomorrow' ''
+tcheck "time: 3pm tomorrow" 'worker 3pm tomorrow' "$(ep '2026-10-23 15:00')" '3pm tomorrow' ''
+tcheck "time: tonight (default 7 PM)" 'worker tonight' "$(ep '2026-10-22 19:00')" 'tonight' 'tonight, default 7:00 PM'
+tcheck "time: tonight at 9 (PM)" 'worker tonight at 9' "$(ep '2026-10-22 21:00')" 'tonight at 9' ''
+tcheck "time: this evening (default 7 PM)" 'worker this evening' "$(ep '2026-10-22 19:00')" 'this evening' 'this evening, default 7:00 PM'
+tcheck "time: today at 9pm" 'worker today at 9pm' "$(ep '2026-10-22 21:00')" 'today at 9pm' ''
+tcheck "time: noon (next = tomorrow)" 'worker noon' "$(ep '2026-10-23 12:00')" 'noon' ''
+tcheck "time: at midnight" 'worker at midnight' "$(ep '2026-10-23 00:00')" 'at midnight' ''
+tcheck "time: friday at 3pm (tomorrow is Friday)" 'worker friday at 3pm' "$(ep '2026-10-23 15:00')" 'friday at 3pm' ''
+tcheck "time: monday (next Monday, default 9 AM)" 'worker monday' "$(ep '2026-10-26 09:00')" 'monday' 'monday, default 9:00 AM'
+tcheck "time: next thursday = a week ahead" 'worker next thursday 8am' "$(ep '2026-10-29 08:00')" 'next thursday 8am' ''
+tcheck "time: in 2 hours 10 min" 'worker in 2 hours 10 min' "$(ep '2026-10-22 20:10')" 'in 2 hours 10 min' ''
+tcheck "time: in an hour" 'worker in an hour' "$(ep '2026-10-22 19:00')" 'in an hour' ''
+pcheck "time: today alone -> unsure" 'worker today' '{"unsure":["today"]}'
+pcheck "time: tomorrow at 25pm -> unsure" 'worker tomorrow at 25pm' '{"unsure":["tomorrow at 25pm"]}'
+pcheck "time: today at 5pm (already past) -> unsure" 'worker today at 5pm' '{"unsure":["today at 5pm (already past)"]}'
+pcheck "time: 3 hours before the window (already past) -> at_error" 'worker 3 hours before the window' "{\"at_text\":\"3 hours before the window\",\"at_error\":\"3 hours before the window = 5:20 PM ET, already past (window resets 8:20 PM ET)\",$RESET}"
 # usage API unreachable
 RUN_AGENT_USAGE_FILE="$T/no-such-usage.json" pcheck "time: after window with the API unreachable -> at_error" 'worker after window' \
   '{"at_text":"after window","at_error":"usage API: FileNotFoundError: [Errno 2] No such file or directory: '"'"''"$T"'/no-such-usage.json'"'"'; open any claude session to refresh the token"}'
@@ -249,7 +287,7 @@ EOF
   [ -f "$RUN_AGENT_HOME/jobs/1.json" ] && ok "sched: job file written" || bad "sched: job file written" "$(ls "$RUN_AGENT_HOME/jobs" 2>&1)"
   python3 -c "import json,sys; j=json.load(open(sys.argv[1])); assert j['run_at']==int(sys.argv[2]) and j['at_text']=='after window' and j['window']==1 and j['pane'].startswith('%') and j['session']=='t' and j['argv'][:3]==['claude','--agent','worker'] and j['cwd']=='$T/repo/sub', j" "$RUN_AGENT_HOME/jobs/1.json" "$R" \
     && ok "sched: job fields" || bad "sched: job fields" "$(cat "$RUN_AGENT_HOME/jobs/1.json")"
-  grep -q "^#1  $SHOWN  at .* ET (after window, in 0m)$" "$T/jobs1.out" && ok "sched: --jobs lists it" || bad "sched: --jobs lists it" "$(cat "$T/jobs1.out")"
+  grep -q "^#1  $SHOWN  at .* ET (after window, in 0m)  \[sleeping (pid [0-9]*)\]$" "$T/jobs1.out" && ok "sched: --jobs lists it" || bad "sched: --jobs lists it" "$(cat "$T/jobs1.out")"
   wait_for 10 grep -q "arg=worker: repo (fable)" "$RA_OUT" && ok "sched: fired into the pane (claude ran)" || bad "sched: fired into the pane" "$(cat "$RA_OUT")"
   sleep 0.5
   TM capture-pane -p -J -t t -S - | grep -q "^scheduled run #1 fired at .* ET: $SHOWN" && ok "sched: first pane line" || bad "sched: first pane line" "$(TM capture-pane -p -t t -S - | grep -v '^$' | tail -5)"
@@ -318,7 +356,7 @@ EOF
     && ok "handoff: note section (heading with time, stdin, Uncommitted, Relaunch)" || bad "handoff: note section" "$n"
   [ "$(git -C "$H" log -1 --format=%s)" = "WIP: stopped at usage limit — y" ] && [ -z "$(git -C "$H" status --porcelain)" ] \
     && git -C "$H" log -1 --format=%b | grep -q "^Co-Authored-By: Claude <noreply@anthropic.com>$" && ok "handoff: WIP commit, tree clean, plans/ not committed" || bad "handoff: WIP commit" "$(git -C "$H" log -1; git -C "$H" status --porcelain)"
-  grep -q '^#[0-9]*  claude --agent worker "." --model haiku --name "worker: handoff (haiku)"  at .* ET (after window, in 2m)$' <<<"$("$S" --jobs)" && ok "handoff: --jobs lists the relaunch" || bad "handoff: --jobs" "$("$S" --jobs)"
+  grep -q '^#[0-9]*  claude --agent worker "." --model haiku --name "worker: handoff (haiku)"  at .* ET (after window, in 2m)  \[sleeping (pid [0-9]*)\]$' <<<"$("$S" --jobs)" && ok "handoff: --jobs lists the relaunch" || bad "handoff: --jobs" "$("$S" --jobs)"
   "$S" --cancel >/dev/null 2>&1
   # outside tmux: note and commit still written, Relaunch says not scheduled
   echo b > "$H/b.txt"
@@ -385,7 +423,7 @@ EOF
     echo "$id"
   }
   id=$(sched_r "$T/sched8.out")
-  grep -q "^#$id  .*\[runner not running\]$" <<<"$("$S" --jobs)" && ok "revive: --jobs flags the dead runner" || bad "revive: --jobs dead runner" "$("$S" --jobs)"
+  grep -q "^#$id  .*\[dead\]$" <<<"$("$S" --jobs)" && ok "revive: --jobs flags the dead runner" || bad "revive: --jobs dead runner" "$("$S" --jobs)"
   pane=$(python3 "$J" get "$id" pane)
   out=$("$S" --revive 2>&1); rc=$?
   [ "$rc" = 0 ] && [ -z "$out" ] && ok "revive: silent, exit 0" || bad "revive: silent" "rc=$rc $out"
@@ -403,6 +441,80 @@ EOF
   [ -z "$out" ] && [ ! -f "$RUN_AGENT_HOME/jobs/$id.json" ] && grep -q "  #$id  skipped  .*(was due .* ET; its runner stopped)$" "$LOG" \
     && ok "revive: overdue run skipped and logged" || bad "revive: overdue skipped" "$out / $(tail -2 "$LOG")"
   sleep 1; [ ! -s "$RA_OUT" ] && ok "revive: overdue run did not start claude" || bad "revive: overdue started claude" "$(cat "$RA_OUT")"
+
+  # (9) a sleeping job is a fixed loop: rewriting runner.sh while it sleeps changes nothing until it fires, and the
+  # job picks up the file as it is at fire time. Run from a copy of the scripts so the repo's files stay untouched.
+  TM kill-server 2>/dev/null; sleep 0.3
+  C2="$T/scripts2"; cp -r "$(dirname "$S")" "$C2"; S2="$C2/run-agent.sh"
+  env PATH="$T/bin:$PATH" RA_OUT="$RA_OUT" SHELL="$T/bin/sh-norc" TMUX= tmux -L "$SOCK" -f /dev/null new-session -d -s t -c "$T/repo/sub" "$PANE_ENV bash --norc --noprofile"; sleep 0.5
+  R=$(( $(date +%s) + 4 )); : > "$RA_OUT"
+  keys "'$S2' worker '.' --at $R --at-text 'in 4s' > '$T/sched12.out' 2>&1"
+  wait_for 3 grep -q '^scheduled #' "$T/sched12.out"; id=$(sed -n 's/^scheduled #\([0-9]*\):.*/\1/p' "$T/sched12.out")
+  wait_for 3 bash -c "[ \"\$(python3 '$J' get $id pid)\" != 0 ]"
+  pid=$(python3 "$J" get "$id" pid)
+  grep -q "^#$id  .*\[sleeping (pid $pid)\]$" <<<"$("$S2" --jobs)" && ok "loop: --jobs shows sleeping (pid N)" || bad "loop: sleeping state" "$("$S2" --jobs)"
+  tr -d '\0' < "/proc/$pid/cmdline" | grep -q 'exec bash "$r" "$id"' && [ "$(tr '\0' ' ' < "/proc/$pid/cmdline" | grep -o 'runner.sh' | head -1)" = runner.sh ] \
+    && ok "loop: the sleeper is the fixed bash -c loop, named runner.sh" || bad "loop: sleeper cmdline" "$(tr '\0' ' ' < "/proc/$pid/cmdline")"
+  cp "$C2/runner.sh" "$T/runner.bak"
+  printf 'sleep -1\nreturn\n}\n}\nthis is junk\n' > "$C2/runner.sh"; sleep 1
+  { echo '# restored'; cat "$T/runner.bak"; } > "$C2/runner.sh"   # shifted lines: the old incremental-read bug
+  wait_for 10 grep -q "  #$id  fired  " "$LOG" && ok "loop: job fired after runner.sh was rewritten and restored" || bad "loop: fired after rewrite" "$(tail -3 "$LOG"; cat "$RUN_AGENT_HOME/logs/$id.log" 2>/dev/null)"
+  wait_for 5 grep -q "arg=worker: repo" "$RA_OUT" && ok "loop: claude ran" || bad "loop: claude ran" "$(cat "$RA_OUT")"
+  [ ! -s "$RUN_AGENT_HOME/logs/$id.log" ] && ok "loop: logs/<id>.log empty (no error)" || bad "loop: log not empty" "$(cat "$RUN_AGENT_HOME/logs/$id.log")"
+  # fire time, runner.sh broken: the loop execs it, it errors -> `errored: <last log line>`, health exits 1
+  R=$(( $(date +%s) + 3 ))
+  keys "'$S2' worker '.' --at $R --at-text 'in 3s' > '$T/sched13.out' 2>&1"
+  wait_for 3 grep -q '^scheduled #' "$T/sched13.out"; id=$(sed -n 's/^scheduled #\([0-9]*\):.*/\1/p' "$T/sched13.out")
+  printf '#!/usr/bin/env bash\necho "runner.sh: boom" >&2\nexit 3\n' > "$C2/runner.sh"
+  wait_for 8 grep -q "^#$id  .*\[errored: runner.sh: boom\]$" <<<"$("$S2" --jobs)" || true
+  grep -q "^#$id  .*\[errored: runner.sh: boom\]$" <<<"$("$S2" --jobs)" && ok "loop: --jobs shows errored: <last log line>" || bad "loop: errored state" "$("$S2" --jobs)"
+  out=$("$S2" --health 2>&1); rc=$?
+  [ "$rc" = 1 ] && grep -q "^FAIL  #$id  errored: runner.sh: boom" <<<"$out" && ok "loop: --health exit 1 with a FAIL line" || bad "loop: health" "rc=$rc $out"
+  "$S2" --cancel "$id" >/dev/null; [ ! -e "$RUN_AGENT_HOME/logs/$id.log" ] && ok "loop: cancel drops the log" || bad "loop: cancel drops the log"
+  cp "$T/runner.bak" "$C2/runner.sh"
+  # late wake: a loop whose time is already past (< 1 h) fires at once, logged `fired late`, never a negative sleep
+  R=$(( $(date +%s) - 120 )); : > "$RA_OUT"
+  keys "'$S2' worker '.' --at $R --at-text 'in 10m' > '$T/sched14.out' 2>&1"
+  wait_for 3 grep -q '^scheduled #' "$T/sched14.out"; id=$(sed -n 's/^scheduled #\([0-9]*\):.*/\1/p' "$T/sched14.out")
+  wait_for 20 grep -q "  #$id  fired late  " "$LOG" && ok "loop: woke late (< 1 h) -> fires at once, logged 'fired late'" || bad "loop: fired late" "$(tail -3 "$LOG")"
+  wait_for 5 grep -q "arg=worker: repo" "$RA_OUT" && ok "loop: late run started claude" || bad "loop: late claude" "$(cat "$RA_OUT")"
+  rm -rf "$C2"
+
+  # (10) agent callers: split/window ignored, own pane replaced; a scheduled job whose pane is gone waits for a human
+  AG="env -u RUN_AGENT_HUMAN RUN_AGENT_FROM=worker"
+  out=$($AG "$S" --relaunch "planner \"x\" in $T/sibling split dry" 2>&1)
+  [ "$(sed -n 1p <<<"$out")" = "ignored: agents replace their own pane" ] && grep -q '^command: claude --agent planner' <<<"$out" && ! grep -q '^opens in' <<<"$out" && ok "agent: split from an agent -> ignored line, then the dry text (own pane)" || bad "agent: split ignored" "$out"
+  out=$($AG "$S" --relaunch "planner \"A\" in $T/ga + planner \"B\" in $T/gb" 2>&1); rc=$?
+  [ "$rc" = 2 ] && [ "$out" = "ignored: agents replace their own pane" ] && ok "agent: + group from an agent -> ignored, exit 2" || bad "agent: group ignored" "rc=$rc $out"
+  out=$( (exec -a claude bash -c "env -u RUN_AGENT_HUMAN -u RUN_AGENT_FROM '$S' --from-agent; true" _ --agent evaluator --model opus) )
+  [ "$out" = evaluator ] && ok "agent: caller detected from the parent claude --agent flag" || bad "agent: --from-agent" "$out"
+  [ -z "$(env -u RUN_AGENT_FROM "$S" --from-agent)" ] && ok "agent: RUN_AGENT_HUMAN=1 means a human caller" || bad "agent: human"
+  nwin=$(TM list-windows -t t | wc -l); : > "$RA_OUT"
+  keys "$AG '$S' worker '.' --target split > '$T/ag1.out' 2>&1"
+  wait_for 8 grep -q "arg=worker: repo" "$RA_OUT" && [ "$(TM list-windows -t t | wc -l)" = "$nwin" ] && grep -q '^ignored: agents replace their own pane$' "$T/ag1.out" \
+    && [ "$(TM list-panes -t t:0 | wc -l)" = 1 ] && ok "agent: split in tmux -> own pane replaced, no new window or pane" || bad "agent: split in tmux" "$(cat "$T/ag1.out"; TM list-windows -t t)"
+  wait_for 3 TM display -p -t t '#{pane_dead}' >/dev/null
+  TM new-window -t t -n agentwin -c "$T/repo/sub" "$PANE_ENV bash --norc --noprofile"; sleep 0.5
+  R=$(( $(date +%s) + 3 )); : > "$RA_OUT"
+  TARGET=t:agentwin keys "$AG '$S' worker '.' --at $R --at-text 'in 3s' --target split > '$T/ag2.out' 2>&1"
+  wait_for 3 grep -q '^scheduled #' "$T/ag2.out"; id=$(sed -n 's/^scheduled #\([0-9]*\):.*/\1/p' "$T/ag2.out")
+  grep -q '^ignored: agents replace their own pane$' "$T/ag2.out" && [ "$(python3 "$J" get "$id" from_agent)" = 1 ] && [ -z "$(python3 "$J" get "$id" target)" ] \
+    && ok "agent: scheduled run from an agent is marked from_agent, target dropped" || bad "agent: job fields" "$(cat "$T/ag2.out"; cat "$RUN_AGENT_HOME/jobs/$id.json")"
+  TM kill-window -t t:agentwin; nwin=$(TM list-windows -t t | wc -l); nses=$(TM list-sessions | wc -l)
+  wait_for 10 grep -q "  #$id  waiting: no pane  " "$LOG" && ok "agent: pane gone at fire time -> jobs.log 'waiting: no pane'" || bad "agent: waiting" "$(tail -3 "$LOG")"
+  sleep 1
+  [ -f "$RUN_AGENT_HOME/jobs/$id.json" ] && grep -q "^#$id  .*\[waiting: no pane\]$" <<<"$($AG "$S" --jobs)" && ok "agent: waiting job stays pending, --jobs shows it" || bad "agent: waiting pending" "$("$S" --jobs)"
+  [ "$(TM list-windows -t t | wc -l)" = "$nwin" ] && [ "$(TM list-sessions | wc -l)" = "$nses" ] && [ ! -s "$RA_OUT" ] && ok "agent: no window, session or claude for the waiting job" || bad "agent: nothing opened" "$(TM list-windows -t t; TM list-sessions)"
+  "$S" --health >/dev/null 2>&1 && ok "agent: --health treats waiting as ok" || bad "agent: health waiting" "$("$S" --health 2>&1)"
+  [ -z "$("$S" --revive 2>&1)" ] && [ -f "$RUN_AGENT_HOME/jobs/$id.json" ] && ok "agent: --revive leaves a waiting job alone" || bad "agent: revive waiting" "$("$S" --jobs)"
+  # a human run-agent call on that tmux server starts it in a brand-new window (the caller pane is a shell again)
+  TM respawn-pane -k -t t:0 -c "$T/repo/sub" "$PANE_ENV bash --norc --noprofile"; sleep 0.5
+  keys "'$S' --jobs > '$T/ag3.out' 2>&1"
+  wait_for 8 grep -q "  #$id  fired in new window  " "$LOG" && grep -q "^waiting job #$id started in a new window: " "$T/ag3.out" \
+    && ok "agent: a human run-agent call fires the waiting job in a new window" || bad "agent: fire waiting" "$(cat "$T/ag3.out"; tail -3 "$LOG")"
+  wait_for 5 grep -q "arg=worker: repo" "$RA_OUT" && [ "$(TM list-windows -t t | wc -l)" = $(( nwin + 1 )) ] && [ "$(TM list-panes -t t:0 | wc -l)" = 1 ] \
+    && ok "agent: waiting job's claude ran in the new window, caller window unchanged" || bad "agent: waiting claude" "$(cat "$RA_OUT"; TM list-windows -t t)"
+  [ "$($AG "$S" --fire-waiting 2>&1)" = "" ] && ok "agent: an agent's call never fires waiting jobs" || bad "agent: agent fire-waiting"
 else
   echo "SKIP tmux checks (tmux not installed)"
 fi
@@ -431,6 +543,53 @@ grep -qx '/run-agent evaluator "."' <<<"$out" && grep -qx 'Without run-agent: cl
   && ok "next evaluator: no model/effort even from an opus high session" || bad "next: evaluator flags" "$out"
 out=$( (exec -a claude bash -c "'$S' --next planner 'Replan based on plans/EVAL.md'; true" _ --agent evaluator --model opus --effort high) )
 grep -qx '/run-agent planner "Replan based on plans/EVAL.md" opus high' <<<"$out" && ok "next planner: keeps the session's model/effort" || bad "next: planner flags" "$out"
+# the confirm state machine (--step): the script applies the answers, haiku only asks
+export RUN_AGENT_NOW=$(TZ=America/New_York date -d '2026-10-22 18:00' +%s)
+printf '{"five_hour":{"utilization":29.0,"resets_at":"2026-10-23T00:20:00.251269+00:00"}}' > "$RUN_AGENT_USAGE_FILE"
+for i in $(python3 "$(dirname "$S")/jobs.py" pending); do "$S" --cancel "$i" >/dev/null 2>&1; done
+out=$("$S" --step 'worker zzqx')
+grep -q 'AskUserQuestion once: header "Unsure", question "I could not place `zzqx` in: worker zzqx' <<<"$out" && grep -q '"Part of the prompt", "Drop it"' <<<"$out" \
+  && grep -qF -- "--step 'worker zzqx | '<the chosen option label or the typed text>" <<<"$out" && ! grep -qi 'best reading\|--effort' <<<"$out" \
+  && ok "step: unsure word -> one question, answer appended after ' | ', no guessed reading" || bad "step: unsure" "$out"
+out=$("$S" --step 'worker zzqx | Drop it')
+grep -q 'header "Run?"' <<<"$out" && grep -q 'Replace this session with: claude --agent worker "." --name "worker: repo"' <<<"$out" && grep -qF -- "--step 'worker | '" <<<"$out" \
+  && ok "step: 'Drop it' -> the confirm question for the rest" || bad "step: drop it" "$out"
+out=$("$S" --step 'worker zzqx | Part of the prompt')
+grep -q 'claude --agent worker "zzqx"' <<<"$out" && ok "step: 'Part of the prompt' -> word moved into the prompt" || bad "step: prompt" "$out"
+out=$("$S" --step 'worker zzqx | Drop it | No'); [ "$out" = 'Reply exactly `nothing changed` and stop.' ] && ok "step: No -> nothing changed" || bad "step: No" "$out"
+out=$("$S" --step 'worker zzqx | foo1 | foo2 | foo3')
+grep -q '^nothing changed$' <<<"$out" && grep -q '^type it by hand' <<<"$out" && ok "step: three answers without a run -> nothing changed + type by hand" || bad "step: three rounds" "$out"
+out=$("$S" --step 'fable low'); grep -q 'header "Agent"' <<<"$out" && grep -qF -- "--step 'fable low | '<the chosen agent name>" <<<"$out" && ok "step: no agent -> agent question" || bad "step: agent" "$out"
+out=$("$S" --step 'fable low | worker'); grep -q 'header "Run?"' <<<"$out" && grep -q -- '--model fable --effort low' <<<"$out" && ok "step: agent answer -> confirm" || bad "step: agent answer" "$out"
+out=$("$S" --step 'worker fable low tomorrow at 1am')
+grep -q 'header "Schedule?"' <<<"$out" && grep -q 'at 1:00 AM ET (tomorrow at 1am, in 7h 0m)' <<<"$out" && ! grep -q AskUserQuestion <<<"$(sed 1d <<<"$out")" \
+  && ok "step: session 'tomorrow at 1am' -> one Schedule? question" || bad "step: tomorrow" "$out"
+out=$("$S" --step 'worker fable low two hours before the window force' 2>&1)
+grep -q '^scheduled #[0-9]*: claude --agent worker "." --model fable --effort low --name "worker: repo (fable)" at 6:20 PM ET (two hours before window 8:20 PM, in 20m)$' <<<"$out" \
+  && ok "step: session 'two hours before the window force' -> scheduled, no question" || bad "step: before window force" "$out"
+"$S" --cancel >/dev/null 2>&1
+# parser fails on a time phrase -> haiku resolves it (no question), hands back `| time: …`, which replaces the time words
+out=$("$S" --step 'worker fable low the day after tomorrow 3pm')
+grep -q "^Resolve the time words \`the day after\` (and the parser's own reading \`tomorrow 3pm\`, which your answer replaces) in: worker fable low the day after tomorrow 3pm yourself" <<<"$out" \
+  && grep -qF -- "--step 'worker fable low the day after tomorrow 3pm | time: '<at <clock>|in <delay>>" <<<"$out" && ! grep -q 'AskUserQuestion\|header "' <<<"$out" \
+  && ok "step: unparsed time words -> haiku resolves, no question to the user" || bad "step: time fallback" "$out"
+out=$("$S" --step 'worker fable low the day after tomorrow 3pm | time: in 45h')
+grep -q 'header "Schedule?"' <<<"$out" && grep -q 'at 3:00 PM ET (in 45h, in 45h 0m)' <<<"$out" && grep -qF -- "--step 'worker fable low in 45h | '" <<<"$out" \
+  && ok "step: 'time: in 45h' replaces the time words and the parser's reading -> Schedule? question" || bad "step: time answer" "$out"
+unset RUN_AGENT_NOW
+out=$("$S" --step 'worker in 10m | Yes' 2>&1); grep -q '^scheduled #[0-9]*: ' <<<"$out" && ok "step: Yes -> the script schedules (no command handed to haiku)" || bad "step: Yes schedules" "$out"
+"$S" --cancel >/dev/null 2>&1
+out=$("$S" --step 'worker in 10m | Yes | ignored' 2>&1); grep -q '^scheduled #' <<<"$out" && ok "step: answers after a run are not read" || bad "step: trailing" "$out"; "$S" --cancel >/dev/null 2>&1
+# the UserPromptExpansion hook: block + reason + suppressOriginalPrompt, no model turn
+out=$(printf '{"command_name":"run-agent","command_args":"worker \\"x\\" in %s dry","prompt":"/run-agent worker"}' "$T/sibling" | env -u TMUX -u TMUX_PANE "$S" --hook)
+python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert d['decision']=='block' and d['hookSpecificOutput']=={'hookEventName':'UserPromptExpansion','suppressOriginalPrompt':True} and d['reason'].startswith('command: claude --agent worker \"x\"') and 'dry run' in d['reason'], d" "$out" \
+  && ok "hook: --hook blocks the expansion with the script's output, prompt suppressed" || bad "hook: output" "$out"
+out=$(printf '{"command_args":"jobs"}' | "$S" --hook); python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert d['reason']=='no scheduled runs', d" "$out" && ok "hook: jobs" || bad "hook: jobs" "$out"
+out=$(printf '{"command_args":"worker"}' | env -u TMUX -u TMUX_PANE "$S" --hook); python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert d['reason'].startswith('not inside tmux'), d" "$out" && ok "hook: outside tmux -> the run-agent line to type" || bad "hook: no tmux" "$out"
+out=$( (exec -a claude bash -c "printf '{\"command_args\":\"planner \\\\\"x\\\\\" in $T/sibling split dry\"}' | env -u RUN_AGENT_HUMAN -u RUN_AGENT_FROM '$S' --hook" _ --agent worker) )
+python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert not d['reason'].startswith('ignored'), d" "$out" && ok "hook: a typed /run-agent inside an agent session is the human's (split kept)" || bad "hook: human in agent" "$out"
+python3 -c "import json,sys; s=json.load(open(sys.argv[1])); hs=s['hooks']['UserPromptExpansion']; h=[x for x in hs if x['matcher']=='run-agent'][0]['hooks'][0]; assert h['command'].endswith('run-agent.sh --hook') and h['timeout']>=60, h" "$(dirname "$S")/../../../settings.json" \
+  && ok "hook: settings.json has the run-agent UserPromptExpansion hook, timeout >= 60 s" || bad "hook: settings.json"
 # several runs joined by +
 out=$("$S" --relaunch "planner \"Plan A\" in $T + planner \"Plan B\" in $T dry")
 [ "$(grep -c '^run [12]:' <<<"$out")" = 2 ] && grep -q '^opens in: one new tmux window, 2 panes tiled' <<<"$out" && ok "group: dry lists each run and the one window" || bad "group: dry" "$out"
@@ -451,7 +610,28 @@ if command -v tmux >/dev/null 2>&1; then
   [ "$(tmux -S "$TS" list-panes -t sp:0 -F '#{pane_id}')" = "$caller" ] && [ "$wins" = "1 1 1 1 1" ] \
     && [ "$(grep -c '^opened new window' "$T/split.out")" = 4 ] \
     && ok "split: four launches give four new one-pane windows, caller window unchanged" || bad "split: new windows" "windows=$wins $(cat "$T/split.out")"
+  # the confirm session: named run-agent: <agent> <folder>, --session-id, transcript deleted on exit, time + reset in its prompt
+  mkdir -p "$T/recbin" "$T/fakehome/.claude/projects/p1"; ln -s "$HOME/.claude/agents" "$T/fakehome/.claude/agents"
+  cat > "$T/recbin/claude" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$REC_OUT"; echo "$RUN_AGENT_CONFIRM_ID" >> "$REC_OUT"
+touch "$HOME/.claude/projects/p1/$RUN_AGENT_CONFIRM_ID.jsonl"; cp "$HOME/.claude/projects/p1/$RUN_AGENT_CONFIRM_ID.jsonl" "$REC_OUT.transcript-seen"
+EOF
+  chmod +x "$T/recbin/claude"
   tmux -S "$TS" kill-server 2>/dev/null
+  TC="$T/confirm.sock"   # its own server: new windows run with the server's environment (fake claude, fake HOME)
+  env PATH="$T/recbin:$PATH" HOME="$T/fakehome" REC_OUT="$T/rec.out" TMUX= tmux -S "$TC" -f /dev/null new-session -d -x 200 -y 60 -s sp "bash --norc --noprofile"
+  caller=$(tmux -S "$TC" list-panes -t sp:0 -F '#{pane_id}')
+  tmux -S "$TC" send-keys -t "$caller" "'$S' --relaunch 'planner \"Plan A\" in $T/ga at 9pm split' > '$T/rec.launch' 2>&1" Enter
+  wait_for 8 test -s "$T/rec.out"; sleep 1
+  [ -s "$T/rec.out" ] || bad "confirm: fake claude never ran" "$(cat "$T/rec.launch" 2>/dev/null; tmux -S "$TC" list-windows -t sp; tmux -S "$TC" capture-pane -p -t sp:1 2>/dev/null | grep -v '^$' | tail -5)"
+  sid=$(tail -1 "$T/rec.out")
+  grep -qx -- '--session-id' "$T/rec.out" && grep -qxF -- "$sid" "$T/rec.out" && [[ "$sid" =~ ^[0-9a-f-]{36}$ ]] && ok "confirm: claude --session-id <uuid>" || bad "confirm: session-id" "$(cat "$T/rec.out")"
+  grep -qx -- 'run-agent: planner ga at 9:00 PM ET' "$T/rec.out" && grep -qx -- '--name' "$T/rec.out" && ok "confirm: --name 'run-agent: planner ga at 9:00 PM ET'" || bad "confirm: name" "$(cat "$T/rec.out")"
+  head -1 "$T/rec.out" | grep -q '^You are the /run-agent confirm step' && grep -q '^Current time: [A-Z][a-z]* 20[0-9-]* [0-9:]* [AP]M ET\. The 5-hour usage window resets at .* ET\.' "$T/rec.out" \
+    && grep -q 'tomorrow = the next calendar day' "$T/rec.out" && grep -q 'Never ask when the window ends' "$T/rec.out" && ok "confirm: prompt carries current time, reset time and the time rules" || bad "confirm: prompt head" "$(head -3 "$T/rec.out")"
+  [ -e "$T/rec.out.transcript-seen" ] && [ ! -e "$T/fakehome/.claude/projects/p1/$sid.jsonl" ] && ok "confirm: transcript deleted when the confirm exits" || bad "confirm: transcript" "$(ls "$T/fakehome/.claude/projects/p1")"
+  tmux -S "$TC" kill-server 2>/dev/null
   # own socket: a new server on split.sock right after its kill-server can hit "server exited unexpectedly"
   TG="$T/group.sock"
   # one call, four planners: a new window split 2x2, each pane in its own folder, caller window unchanged
@@ -460,6 +640,7 @@ if command -v tmux >/dev/null 2>&1; then
   raw="planner \\\"Plan A\\\" in $T/ga + planner \\\"Plan B\\\" in $T/gb + planner \\\"Plan C\\\" in $T/gc + planner \\\"Plan D\\\" in $T/gd"
   tmux -S "$TG" send-keys -t "$caller" "PATH=$T/fakebin:\$PATH '$S' --group \"$raw\" > '$T/group.out' 2>&1" Enter
   wait_for 10 bash -c "[ \$(tmux -S '$TG' list-panes -t gp:1 2>/dev/null | wc -l) = 4 ] && [ \$(grep -c '^opened' '$T/group.out') = 4 ]"
+  wait_for 5 bash -c "! tmux -S '$TG' list-panes -t gp:1 -F '#{pane_current_path}' | grep -q 'repo/sub'"   # each pane's cd has run
   panes=$(tmux -S "$TG" list-panes -t gp:1 -F '#{pane_left},#{pane_top} #{pane_current_path}' 2>/dev/null)
   lefts=$(cut -d, -f1 <<<"$panes" | sort -u | wc -l); tops=$(cut -d' ' -f1 <<<"$panes" | cut -d, -f2 | sort -u | wc -l)
   dirs=$(awk '{print $2}' <<<"$panes" | xargs -n1 basename 2>/dev/null | sort | paste -sd' ')

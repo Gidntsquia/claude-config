@@ -20,6 +20,20 @@
     ],
     "defaultMode": "auto"
   },
+  "hooks": {
+    "UserPromptExpansion": [
+      {
+        "matcher": "run-agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/skills/run-agent/scripts/run-agent.sh --hook",
+            "timeout": 90
+          }
+        ]
+      }
+    ]
+  },
   "model": "sonnet",
   "skillOverrides": {
     "anthropic-skills:chrome-browser": "off",

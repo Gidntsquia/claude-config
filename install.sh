@@ -160,6 +160,12 @@ if [ -n "$CHECK" ]; then
   if [ "$OS" != windows ]; then
     if in_clone "$HOME/.local/bin/run-agent"; then pass "run-agent shell command (~/.local/bin/run-agent)"
     else fail "run-agent shell command missing (rerun install.sh)"; fi
+    # a typed /run-agent runs through this hook with no model turn (zero tokens); the skill is the fallback
+    if "$PY" -c 'import json,sys; s=json.load(open(sys.argv[1])); hs=s.get("hooks",{}).get("UserPromptExpansion",[]); sys.exit(0 if any(h.get("matcher")=="run-agent" and any("run-agent.sh" in x.get("command","") and "--hook" in x.get("command","") and int(x.get("timeout",0))>=60 for x in h.get("hooks",[])) for h in hs) else 1)' "$C/settings.json" 2>/dev/null; then
+      pass "/run-agent hook (UserPromptExpansion, matcher run-agent, timeout >= 60 s) in settings.json"
+    else fail "/run-agent hook missing from settings.json (rerun install.sh with --settings merge or replace)"; fi
+    if out="$(bash "$C/skills/run-agent/scripts/run-agent.sh" --health 2>&1)"; then pass "scheduled /run-agent runs: $(grep -c '^ok' <<<"$out" || true) pending, every runner sleeping"
+    else fail "a scheduled /run-agent run's runner is dead or errored: $(grep '^FAIL' <<<"$out" | head -1) (cancel it or run run-agent.sh --revive)"; fi
   fi
   if [ "$TERMINAL" = true ] && [ "$OS" != windows ]; then
     if [ "$(command -v tmux-quad 2>/dev/null)" ] && in_clone "$(command -v tmux-quad)"; then pass "tmux-quad on PATH"
