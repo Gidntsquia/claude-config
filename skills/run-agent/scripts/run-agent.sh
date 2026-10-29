@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 # run-agent.sh: replace this tmux pane's claude session with `claude --agent <agent> ["<prompt>"] [flags]`.
 # No prompt: worker/evaluator/helper get "."; planner and built-ins start with no prompt argument.
-# Usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--at <epoch> [--at-text <text>] [--window] [--until <epoch>]]
+# Usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--target split|window] [--at <epoch> [--at-text <text>] [--window] [--until <epoch>]]
 #        [-- claude flags...] | --parse '<raw $ARGUMENTS>' | --dry-run <same as a run> | --jobs | --cancel [id]
 #        | --handoff <agent> [prompt] [-- claude flags...] | --revive | --resolve <dir> | --list | --help
+#        | --relaunch '<raw>' (the /run-agent skill) | --step [--here] '<raw>' | --cli <words...> (bin/run-agent)
+#        | --next <agent> [prompt] | --open <target> <pane> <dir> <name> <cmd...>
+# --relaunch does what needs no question at once (jobs, cancel, errors, dry, force runs) and otherwise hands the
+# confirmation to a haiku session (launch.py): the calling pane is respawned into it, or with split/window a new
+# pane/window opens with it, and that session replaces its own pane on Yes. --target split|window: open the
+# claude command in a new pane of this window (the largest pane is split; too small -> a new window) or a new
+# tmux window instead of replacing this pane.
 # --handoff is the worker's usage-limit handoff in one call: schedules the relaunch after the window, appends a
 # `## Stopped at usage limit` section (stdin = Done / In progress / Next) to plans/WORKER_NOTES.md, makes the WIP commit.
 # --parse hands the raw argument string to parse.py (loose phone typing -> one JSON block). --at schedules:
@@ -18,7 +25,7 @@
 # (outside a repo: of $PWD). `.`/`..` segments are collapsed; symlinks are left as given.
 set -euo pipefail
 
-USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--at <epoch> [--at-text <text>] [--window] [--until <epoch>]] [-- claude flags...]
+USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--target split|window] [--at <epoch> [--at-text <text>] [--window] [--until <epoch>]] [-- claude flags...]
        run-agent.sh --parse '\''<raw arguments>'\'' | --dry-run <run args> | --jobs | --cancel [id] | --resolve <dir> | --list | --help
        run-agent.sh --handoff <agent> [prompt] [-- claude flags...]  < "Done / In progress / Next" text
   adds --name "<agent>: <folder> (<model>)" to the claude command unless --name/-n is among the flags
@@ -29,6 +36,11 @@ USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--at <epoch> [--at
                          run when the window reset is later than that; --need-tmux refuses to schedule outside
                          tmux (exit 1, "not scheduled — not in tmux") and ends every outcome with a ready-made
                          "Relaunch: ..." line; used by the worker at the usage limit
+  --target split|window  open in a new pane of this window / a new tmux window instead of replacing this pane
+  --relaunch '\''<raw>'\''     the /run-agent skill: answers jobs/cancel/dry/errors itself, runs force runs, and
+                         hands every confirmation to a haiku session (launch.py)
+  --cli <words...>       bin/run-agent: the same, confirming with read -p (or a tmux popup)
+  --next <agent> [prompt] print the agent'\''s next-step line: /run-agent <agent> ["prompt"] <model> <effort> (claude ...)
   --dry-run ...          print the command, directory and run time; run and schedule nothing
   --handoff ...          usage-limit handoff in one call: schedule after the window (--need-tmux path), append a
                          "## Stopped at usage limit — <time> ET" section (stdin text, Uncommitted, Relaunch) to
@@ -93,6 +105,31 @@ list_agents() {
   printf '%s\n' "${BUILTINS[@]}"
 }
 
+# open_target <split|window> <pane> <dir> <window name> <cmd...>: start <cmd> in a new pane next to <pane>
+# (split) or in a new window after <pane>'s window, and print the new pane id. split takes the largest pane of
+# <pane>'s window and halves its longer side (a cell is about twice as tall as wide); when either half would be
+# under 40x8 it opens a new window instead, so other panes are never resized into slivers. Uses $RA_SOCKET when
+# set (the runner's recorded server). Exit 1 when tmux refuses.
+open_target() {
+  local tgt="$1" pane="$2" d="$3" wname="$4" best="" area=0 w h a id flag
+  shift 4
+  local TM=(tmux); [ -n "${RA_SOCKET:-}" ] && TM=(tmux -S "$RA_SOCKET")
+  if [ "$tgt" = split ]; then
+    while read -r id w h; do
+      a=$((w * h)); [ "$a" -gt "$area" ] && { area=$a; best="$id $w $h"; }
+    done < <("${TM[@]}" list-panes -t "$pane" -F '#{pane_id} #{pane_width} #{pane_height}' 2>/dev/null)
+    if [ -n "$best" ]; then
+      read -r id w h <<<"$best"
+      if [ "$w" -ge $((h * 2)) ]; then flag=-h; [ $((w / 2)) -ge 40 ] && [ "$h" -ge 8 ] || flag=""
+      else flag=-v; [ $((h / 2)) -ge 8 ] && [ "$w" -ge 40 ] || flag=""; fi
+      if [ -n "$flag" ] && "${TM[@]}" split-window "$flag" -t "$id" -c "$d" -P -F '#{pane_id}' "$@" 2>/dev/null; then
+        return 0
+      fi
+    fi
+  fi
+  "${TM[@]}" new-window -a -t "$pane" -n "$wname" -c "$d" -P -F '#{pane_id}' "$@"
+}
+
 # revive: silent, for a WSL-start service (run-agent-revive.service). Every pending job whose runner is gone gets
 # a new runner if it is still ahead; an overdue one is skipped (jobs.log: skipped). A changed tmux server pid
 # means the recorded pane id may now name someone else's pane, so it is cleared (the run opens a new window).
@@ -125,6 +162,8 @@ case "${1:-}" in
   --resolve) [ $# -eq 2 ] || { echo "$USAGE" >&2; exit 2; }
     resolve "$2"; printf '%s\t%s\n' "$RESOLVED" "$RES_STATE"; exit 0 ;;
   --parse) shift; exec python3 "$HERE/parse.py" "$@" ;;
+  --relaunch|--step|--cli|--next) mode="${1#--}"; shift; exec python3 "$HERE/launch.py" "$mode" "$@" ;;
+  --open) shift; open_target "$@"; exit $? ;;
   --jobs) exec python3 "$HERE/jobs.py" list ;;
   --cancel) shift; exec python3 "$HERE/jobs.py" cancel "$@" ;;
   --revive) revive; exit 0 ;;
@@ -137,7 +176,7 @@ dry="${dry:-0}"; handoff="${handoff:-0}"
 agent="$1"; shift
 
 # Arguments after the agent: [prompt] and [--cwd|-C <dir>] in any order, then [-- flags...].
-prompt=""; have_prompt=0; dir=""; have_dir=0; at=""; at_text=""; window=0; until_at=""; need_tmux=0
+prompt=""; have_prompt=0; dir=""; have_dir=0; target=""; at=""; at_text=""; window=0; until_at=""; need_tmux=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --) shift; break ;;
@@ -146,6 +185,9 @@ while [ $# -gt 0 ]; do
       case "$1" in --at) at="$2" ;; --at-text) at_text="$2" ;; --until) until_at="$2" ;; esac
       shift 2 ;;
     --window) window=1; shift ;;
+    --target)
+      [ $# -ge 2 ] && { [ "$2" = split ] || [ "$2" = window ] || [ "$2" = "" ]; } || { echo "$USAGE" >&2; exit 2; }
+      target="$2"; shift 2 ;;
     --need-tmux) need_tmux=1; shift ;;
     --dry-run) dry=1; shift ;;
     --cwd|-C|--cwd=*)
@@ -300,7 +342,7 @@ if [ -n "$at" ]; then
   fi
   mkdir -p "$STATE"
   IFS=$'\t' read -r id jobfile < <(python3 "$HERE/jobs.py" write --run-at "$at" --at-text "$at_text" --window "$window" \
-    ${until_at:+--until "$until_at"} --cwd "${dir:-$PWD}" --pane "$pane" --session "$session" --socket "$socket" \
+    ${until_at:+--until "$until_at"} --cwd "${dir:-$PWD}" --target "$target" --pane "$pane" --session "$session" --socket "$socket" \
     --server-pid "$server_pid" \
     --shown "$shown" --agent "$agent" --folder "$folder" -- "${cmd[@]}")
   setsid nohup bash "$HERE/runner.sh" "$id" >> "$STATE/runner.log" 2>&1 < /dev/null &
@@ -316,8 +358,14 @@ if [ -z "${TMUX:-}" ] || [ -z "${TMUX_PANE:-}" ]; then
   exit 1
 fi
 
+wrap=(bash -c 'printf "running: %s\n" "$1"; "${@:3}"; exec "$2"' run-agent "$shown" "${SHELL:-bash}" "${cmd[@]}")
+if [ -n "$target" ]; then
+  new=$(open_target "$target" "$TMUX_PANE" "${dir:-$PWD}" "$agent: $folder" "${wrap[@]}") || { echo "tmux could not open a $target" >&2; exit 2; }
+  where=$(tmux display -p -t "$new" '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || echo "$new")
+  echo "opened $where ($new): $shown"
+  exit 0
+fi
 echo "running: $shown"
 # Only this pane is touched. The wrapper runs claude with its arguments passed verbatim (no shell
 # re-evaluation), then keeps an interactive shell in the pane so it does not close.
-tmux respawn-pane -k -t "$TMUX_PANE" -c "${dir:-$PWD}" \
-  bash -c 'printf "running: %s\n" "$1"; "${@:3}"; exec "$2"' run-agent "$shown" "${SHELL:-bash}" "${cmd[@]}"
+tmux respawn-pane -k -t "$TMUX_PANE" -c "${dir:-$PWD}" "${wrap[@]}"

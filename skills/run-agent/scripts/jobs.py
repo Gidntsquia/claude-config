@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """jobs.py: the scheduled-run store under ~/.claude/run-agent/ (RUN_AGENT_HOME overrides).
 
-  write --run-at E --at-text T --cwd D --pane P --session S --socket SOCK --shown CMD --agent A --folder F
+  write --run-at E --at-text T --cwd D [--target split|window] --pane P --session S --socket SOCK --shown CMD --agent A --folder F
         [--until E] [--server-pid N] -- <claude argv...>      -> writes jobs/<id>.json, prints "<id>\t<path>"
   setpid <id> <pid>                          -> records the runner's pid
   argv <id>                                  -> prints the claude argv NUL-separated
@@ -148,7 +148,7 @@ def main():
                "window": 1 if o.get("window") == "1" else 0,
                "cwd": o.get("cwd", ""), "pane": o.get("pane", ""), "session": o.get("session", ""),
                "socket": o.get("socket", ""), "server_pid": o.get("server_pid", ""),
-               "agent": o.get("agent", ""), "folder": o.get("folder", ""),
+               "agent": o.get("agent", ""), "folder": o.get("folder", ""), "target": o.get("target", ""),
                "argv": argv, "shown": o.get("shown", ""), "pid": 0}
         save(job)
         print(f"{job['id']}\t{path(job['id'])}")

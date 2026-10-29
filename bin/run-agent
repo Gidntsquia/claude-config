@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# run-agent: the /run-agent skill as a shell command. Same parser, scheduling, jobs/cancel; confirms with read -p
+# (or a tmux popup). Outside tmux it prints the command to run.
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+exec "$(dirname "$SELF")/../skills/run-agent/scripts/run-agent.sh" --cli "$@"

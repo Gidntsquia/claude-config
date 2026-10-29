@@ -165,7 +165,7 @@ pcheck "time: in 1h30" 'worker in 1h30' "{\"at\":1792711800,\"at_text\":\"in 1h3
 pcheck "time: in 2 hours" 'worker in 2 hours' "{\"at\":1792713600,\"at_text\":\"in 2 hours\",\"at_shown\":\"8:00 PM ET (in 2 hours, in 2h 0m)\",\"run\":\"S worker . --at 1792713600 --at-text 'in 2 hours'\",$RESET}"
 pcheck "time: in 45 min" 'worker in 45 min' "{\"at\":1792709100,\"at_text\":\"in 45 min\",\"at_shown\":\"6:45 PM ET (in 45 min, in 45m)\",\"run\":\"S worker . --at 1792709100 --at-text 'in 45 min'\",$RESET}"
 WIN='"at":1792714800,"at_shown":"8:20 PM ET (%s, in 2h 20m)","at_text":"%s","run":"S worker . --at 1792714800 --at-text %s --window"'
-for phrase in 'after window' 'after the window' 'next window' 'when the window resets' 'after reset' 'window'; do
+for phrase in 'after window' 'after the window' 'next window' 'when the window resets' 'after reset'; do
   q="'$phrase'"; [ "$phrase" = window ] && q=window
   pcheck "time: $phrase" "worker $phrase" "{$(printf "$WIN" "$phrase" "$phrase" "$q"),$RESET}"
 done
@@ -405,6 +405,29 @@ EOF
   sleep 1; [ ! -s "$RA_OUT" ] && ok "revive: overdue run did not start claude" || bad "revive: overdue started claude" "$(cat "$RA_OUT")"
 else
   echo "SKIP tmux checks (tmux not installed)"
+fi
+
+# ---- launch targets, shell command, next-step line
+out=$("$S" --parse 'planner "Plan A" in /tmp split')
+python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert d['target']=='split' and '--target split' in d['run'] and d['dir']=='/tmp' and not d['unsure'], d" "$out" && ok "target: split parsed" || bad "target: split" "$out"
+out=$("$S" --parse 'worker new window')
+python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert d['target']=='window', d" "$out" && ok "target: new window parsed" || bad "target: window" "$out"
+out=$("$S" --parse 'worker after window')
+python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert 'target' not in d and d['at_text']=='after window', d" "$out" && ok "target: 'after window' stays a time" || bad "target: after window" "$out"
+out=$("$(dirname "$S")/../../../bin/run-agent" worker "." in "$T" dry </dev/null 2>&1)
+grep -q "^command: claude --agent worker" <<<"$out" && grep -q "^dir: " <<<"$out" && grep -q "^run at: now" <<<"$out" && ok "bin/run-agent: dry prints command, dir, time" || bad "bin/run-agent dry" "$out"
+out=$("$S" --next planner "Replan based on plans/EVAL.md")
+grep -q '^/run-agent planner "Replan based on plans/EVAL.md"' <<<"$out" && grep -q '(claude --agent planner "Replan based on plans/EVAL.md"' <<<"$out" && ok "next: line has /run-agent and plain form" || bad "next: line" "$out"
+if command -v tmux >/dev/null 2>&1; then
+  TS="$T/split.sock"; mkdir -p "$T/fakebin"; printf '#!/bin/bash\nsleep 20\n' > "$T/fakebin/claude"; chmod +x "$T/fakebin/claude"
+  tmux -S "$TS" -f /dev/null new-session -d -x 200 -y 60 -s sp "bash"
+  for p in A B C D; do
+    tmux -S "$TS" send-keys -t sp:0.0 "PATH=$T/fakebin:\$PATH '$S' --relaunch 'planner \"Plan $p\" in $T split' >> '$T/split.out' 2>&1" Enter; sleep 1.2
+  done
+  sleep 2
+  n=$(tmux -S "$TS" list-panes -t sp -F '#{pane_id}' | wc -l)
+  [ "$n" = 5 ] && [ "$(grep -c '^opened' "$T/split.out")" = 4 ] && ok "split: four launches give four new panes, caller kept" || bad "split: four panes" "panes=$n $(cat "$T/split.out")"
+  tmux -S "$TS" kill-server 2>/dev/null
 fi
 
 echo "$pass passed, $fail failed"

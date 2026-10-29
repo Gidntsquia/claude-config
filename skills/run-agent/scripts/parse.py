@@ -27,7 +27,7 @@ FORCE_WORDS = ["force", "now", "go", "yolo-run"]
 TIME_WORDS = ["window", "at", "in", "after", "until", "next", "reset", "resets", "when", "the", "ends"]
 KEYWORDS = ["effort", "model", "dry", "run", "using", "with", "on", "resume", "continue", "yolo", "claude",
             "permissions", "skipped", "skip", "confirm", "just", "do", "it", "no", "hours", "hour", "min",
-            "minutes", "noon", "midnight", "am", "pm"]
+            "minutes", "noon", "midnight", "am", "pm", "split", "pane", "new", "tab"]
 NOVALUE_FLAGS = {"--continue", "-c", "--dangerously-skip-permissions", "--verbose", "--debug", "--force",
                  "--dry-run", "--print", "-p", "--yolo"}
 DELAY_RE = re.compile(r"^(\d+(?:\.\d+)?)(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)?(?:(\d{1,2})(m|min|mins)?)?$", re.I)
@@ -198,6 +198,7 @@ class Parse:
         self.flags = []
         self.force = 0
         self.dry = 0
+        self.target = ""  # "" = replace this pane; "split" = new pane in this window; "window" = new tmux window
         self.at = None
         self.at_text = ""
         self.at_kind = ""  # clock|delay|window
@@ -369,6 +370,8 @@ class Parse:
                     self.force = 1; i += 1; continue
                 if f in ("--dry-run", "--dry"):
                     self.dry = 1; i += 1; continue
+                if f in ("--split", "--new-pane", "--new-window", "--tab"):
+                    self.set_target("split" if f in ("--split", "--new-pane") else "window", w); i += 1; continue
                 if f in ("--cwd", "-c") and w == "-C" or f == "--cwd":
                     pending_dir = True; i += 1; continue
                 if f in ("--model", "-m"):
@@ -412,6 +415,13 @@ class Parse:
                 else:
                     self.set_flag(f, nxt); i += 2
                 continue
+            # ---- launch target: split / new pane / pane -> new pane here; window / new window / tab -> new window.
+            # A bare "window" is the target; the usage window needs "after/next/when/the window".
+            tw = self.correct(w)[0]
+            if tw == "new" and nl in ("pane", "window", "tab"):
+                self.set_target("split" if nl == "pane" else "window", w + " " + nxt); i += 2; continue
+            if tw in ("split", "pane", "window", "tab"):
+                self.set_target("split" if tw in ("split", "pane") else "window", w); i += 1; continue
             # ---- time words
             n = self.take_time(words, quoted, i, None)
             if n:
@@ -494,6 +504,12 @@ class Parse:
         if self.until is not None and self.at_kind != "window":
             self.unsure.append(self.until_text)
             self.until, self.until_text = None, ""
+
+    def set_target(self, target, text):
+        if self.target and self.target != target:
+            self.unsure.append(text)
+        else:
+            self.target = target
 
     def set_at(self, ts, text, kind):
         if self.at is not None:
@@ -668,6 +684,9 @@ def main():
             run.append("--window")
         if out["until"] != "":
             run += ["--until", str(out["until"])]
+    if p.target:
+        out["target"] = p.target  # only present when given, so the parse of every older string is unchanged
+        run += ["--target", p.target]
     if p.flags:
         run.append("--")
         run += p.flags

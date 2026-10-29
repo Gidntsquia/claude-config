@@ -157,6 +157,10 @@ if [ -n "$CHECK" ]; then
   fi
   if out="$(bash "$R/bin/find-personal-paths.sh" "$R")"; then pass "no personal paths in the clone"
   else fail "personal paths in: $(echo "$out" | tr '\n' ' ')"; fi
+  if [ "$OS" != windows ]; then
+    if in_clone "$HOME/.local/bin/run-agent"; then pass "run-agent shell command (~/.local/bin/run-agent)"
+    else fail "run-agent shell command missing (rerun install.sh)"; fi
+  fi
   if [ "$TERMINAL" = true ] && [ "$OS" != windows ]; then
     if [ "$(command -v tmux-quad 2>/dev/null)" ] && in_clone "$(command -v tmux-quad)"; then pass "tmux-quad on PATH"
     else fail "tmux-quad not on PATH (open a new terminal, or add ~/.local/bin to PATH)"; fi
@@ -323,6 +327,12 @@ if [ "$OS" = mac ]; then
   for f in "$D"/*.json; do [ -L "$f" ] && [ ! -e "$f" ] && rm "$f" && echo "  iTerm2: removed broken profile link $(basename "$f")"; done
   [ "$(defaults read com.googlecode.iterm2 'Default Bookmark Guid' 2>/dev/null || true)" = "september""-trip-tmux-autostart" ] && \
     defaults delete com.googlecode.iterm2 'Default Bookmark Guid' 2>/dev/null && echo "  iTerm2: default profile reset to iTerm2's own"
+fi
+
+# 7b. run-agent as a shell command.
+if [ "$OS" != windows ]; then
+  mkdir -p "$HOME/.local/bin"
+  link "$R/bin/run-agent" "$HOME/.local/bin/run-agent"
 fi
 
 # 8. Terminal setup.
