@@ -364,7 +364,7 @@ done
 
 fmt() { python3 "$HERE/parse.py" --fmt "$1"; }
 in_from_now() {  # "in 3h 12m"
-  local m=$(( ($1 - $(date +%s) + 30) / 60 )); [ "$m" -lt 0 ] && m=0
+  local m=$(( ($1 - ${RUN_AGENT_NOW:-$(date +%s)} + 30) / 60 )); [ "$m" -lt 0 ] && m=0
   if [ $((m / 60)) -gt 0 ]; then echo "in $((m / 60))h $((m % 60))m"; else echo "in ${m}m"; fi
 }
 
@@ -411,9 +411,10 @@ if [ -n "$at" ]; then
     server_pid=$(tmux display -p '#{pid}' 2>/dev/null || true)
   fi
   mkdir -p "$STATE"
-  IFS=$'\t' read -r id jobfile < <(python3 "$HERE/jobs.py" write --run-at "$at" --at-text "$at_text" --window "$window" \
+  # at_text in the job carries the derivation ("two hours before window 8:20 PM") so `jobs` names it the same way
+  IFS=$'\t' read -r id jobfile < <(python3 "$HERE/jobs.py" write --run-at "$at" --at-text "$([ -n "$at_shown" ] && sed 's/^[^(]*(//; s/, in [^,]*)$//' <<<"$at_shown" || printf %s "$at_text")" --window "$window" \
     ${until_at:+--until "$until_at"} --cwd "${dir:-$PWD}" --target "$target" --pane "$pane" --session "$session" --socket "$socket" \
-    --server-pid "$server_pid" --from-agent "$([ -n "$caller_agent" ] && echo 1 || echo 0)" \
+    --server-pid "$server_pid" --from-agent "$([ -n "$caller_agent" ] && echo 1 || echo 0)" ${at_shown:+--at-text-raw "$at_text"} \
     --shown "$shown" --agent "$agent" --folder "$folder" -- "${cmd[@]}")
   start_runner "$id" "$at"
   echo "scheduled #$id: $shown at ${at_shown:-$(fmt "$at") ($at_text, $(in_from_now "$at"))}"

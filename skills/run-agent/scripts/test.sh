@@ -567,6 +567,7 @@ grep -q 'header "Schedule?"' <<<"$out" && grep -q 'at 1:00 AM ET (tomorrow at 1a
 out=$("$S" --step 'worker fable low two hours before the window force' 2>&1)
 grep -q '^scheduled #[0-9]*: claude --agent worker "." --model fable --effort low --name "worker: repo (fable)" at 6:20 PM ET (two hours before window 8:20 PM, in 20m)$' <<<"$out" \
   && ok "step: session 'two hours before the window force' -> scheduled, no question" || bad "step: before window force" "$out"
+grep -q 'at 6:20 PM ET (two hours before window 8:20 PM, in 20m)  \[sleeping' <<<"$("$S" --jobs)" && ok "step: jobs names the derivation too" || bad "step: jobs derivation" "$("$S" --jobs)"
 "$S" --cancel >/dev/null 2>&1
 # parser fails on a time phrase -> haiku resolves it (no question), hands back `| time: …`, which replaces the time words
 out=$("$S" --step 'worker fable low the day after tomorrow 3pm')
