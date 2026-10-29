@@ -14,7 +14,7 @@ bad() { fail=$((fail+1)); echo "FAIL $1"; [ -n "${2:-}" ] && printf '     %s\n' 
 
 T=$(mktemp -d); T=$(cd "$T" && pwd -P)
 SOCK="run-agent-test-$$"
-cleanup() { tmux -L "$SOCK" kill-server 2>/dev/null; rm -rf "$T"; }
+cleanup() { tmux -L "$SOCK" kill-server 2>/dev/null; for s in "$T/split.sock" "$T/group.sock"; do [ -S "$s" ] && tmux -S "$s" kill-server 2>/dev/null; done; rm -rf "$T"; }
 trap cleanup EXIT
 
 # Layout: $T/repo (git repo, cwd for the tests) with repo/sub; siblings $T/sibling and "$T/my project".
@@ -418,14 +418,19 @@ out=$("$(dirname "$S")/../../../bin/run-agent" worker "." in "$T" dry </dev/null
 grep -q "^command: claude --agent worker" <<<"$out" && grep -q "^dir: " <<<"$out" && grep -q "^run at: now" <<<"$out" && ok "bin/run-agent: dry prints command, dir, time" || bad "bin/run-agent dry" "$out"
 out=$("$S" --next planner "Replan based on plans/EVAL.md")
 mapfile -t nl <<<"$out"
-[ "${#nl[@]}" = 4 ] && [[ "${nl[0]}" == Next,*replan* ]] && [[ "${nl[0]}" == *: ]] \
+[ "${#nl[@]}" = 3 ] && [[ "${nl[0]}" == Next,*replan* ]] && [[ "${nl[0]}" == *: ]] && [ "${#nl[0]}" -le 60 ] \
   && [[ "${nl[1]}" == '/run-agent planner "Replan based on plans/EVAL.md"'* ]] && [[ "${nl[1]}" != *claude* ]] \
-  && [[ "${nl[2]}" == *without\ run-agent:* ]] && [[ "${nl[3]}" == 'claude --agent planner "Replan based on plans/EVAL.md"'* ]] \
-  && ok "next: sentence, /run-agent line, labelled claude line, each on its own line" || bad "next: lines" "$out"
-out=$("$S" --next evaluator phone); grep -q '^Next, start the evaluator .*on your phone' <<<"$out" && ok "next: evaluator phone sentence" || bad "next: phone" "$out"
+  && [[ "${nl[2]}" == 'Without run-agent: claude --agent planner "Replan based on plans/EVAL.md"'* ]] \
+  && ok "next: short sentence, /run-agent line, labelled claude line, three lines" || bad "next: lines" "$out"
+out=$("$S" --next evaluator phone); grep -q '^Next, .*evaluator on your phone:$' <<<"$out" && ok "next: evaluator phone sentence" || bad "next: phone" "$out"
 out=$( (exec -a claude bash -c "'$S' --next worker .; true" _ --agent evaluator --model opus --effort high) )
-grep -q '^Next, .*rerun the worker to fix what plans/EVAL.md lists' <<<"$out" && grep -qx '/run-agent worker "." opus high' <<<"$out" \
-  && grep -qx 'claude --agent worker "." --model opus --effort high' <<<"$out" && ok "next: from an evaluator, model/effort from its flags" || bad "next: evaluator caller" "$out"
+[ "$(wc -l <<<"$out")" = 3 ] && grep -q '^Next, after reading this eval, rerun the worker' <<<"$out" && grep -qx '/run-agent worker "."' <<<"$out" \
+  && grep -qx 'Without run-agent: claude --agent worker "."' <<<"$out" && ok "next worker: no model/effort even from an opus high session" || bad "next: worker flags" "$out"
+out=$( (exec -a claude bash -c "'$S' --next evaluator .; true" _ --agent worker --model opus --effort high) )
+grep -qx '/run-agent evaluator "."' <<<"$out" && grep -qx 'Without run-agent: claude --agent evaluator "."' <<<"$out" \
+  && ok "next evaluator: no model/effort even from an opus high session" || bad "next: evaluator flags" "$out"
+out=$( (exec -a claude bash -c "'$S' --next planner 'Replan based on plans/EVAL.md'; true" _ --agent evaluator --model opus --effort high) )
+grep -qx '/run-agent planner "Replan based on plans/EVAL.md" opus high' <<<"$out" && ok "next planner: keeps the session's model/effort" || bad "next: planner flags" "$out"
 # several runs joined by +
 out=$("$S" --relaunch "planner \"Plan A\" in $T + planner \"Plan B\" in $T dry")
 [ "$(grep -c '^run [12]:' <<<"$out")" = 2 ] && grep -q '^opens in: one new tmux window, 2 panes tiled' <<<"$out" && ok "group: dry lists each run and the one window" || bad "group: dry" "$out"
@@ -447,34 +452,36 @@ if command -v tmux >/dev/null 2>&1; then
     && [ "$(grep -c '^opened new window' "$T/split.out")" = 4 ] \
     && ok "split: four launches give four new one-pane windows, caller window unchanged" || bad "split: new windows" "windows=$wins $(cat "$T/split.out")"
   tmux -S "$TS" kill-server 2>/dev/null
+  # own socket: a new server on split.sock right after its kill-server can hit "server exited unexpectedly"
+  TG="$T/group.sock"
   # one call, four planners: a new window split 2x2, each pane in its own folder, caller window unchanged
-  tmux -S "$TS" -f /dev/null new-session -d -x 200 -y 60 -s gp "bash --norc --noprofile"
-  caller=$(tmux -S "$TS" list-panes -t gp:0 -F '#{pane_id}')
+  tmux -S "$TG" -f /dev/null new-session -d -x 200 -y 60 -s gp "bash --norc --noprofile"
+  caller=$(tmux -S "$TG" list-panes -t gp:0 -F '#{pane_id}')
   raw="planner \\\"Plan A\\\" in $T/ga + planner \\\"Plan B\\\" in $T/gb + planner \\\"Plan C\\\" in $T/gc + planner \\\"Plan D\\\" in $T/gd"
-  tmux -S "$TS" send-keys -t "$caller" "PATH=$T/fakebin:\$PATH '$S' --group \"$raw\" > '$T/group.out' 2>&1" Enter
-  wait_for 10 bash -c "[ \$(tmux -S '$TS' list-panes -t gp:1 2>/dev/null | wc -l) = 4 ] && [ \$(grep -c '^opened' '$T/group.out') = 4 ]"
-  panes=$(tmux -S "$TS" list-panes -t gp:1 -F '#{pane_left},#{pane_top} #{pane_current_path}' 2>/dev/null)
+  tmux -S "$TG" send-keys -t "$caller" "PATH=$T/fakebin:\$PATH '$S' --group \"$raw\" > '$T/group.out' 2>&1" Enter
+  wait_for 10 bash -c "[ \$(tmux -S '$TG' list-panes -t gp:1 2>/dev/null | wc -l) = 4 ] && [ \$(grep -c '^opened' '$T/group.out') = 4 ]"
+  panes=$(tmux -S "$TG" list-panes -t gp:1 -F '#{pane_left},#{pane_top} #{pane_current_path}' 2>/dev/null)
   lefts=$(cut -d, -f1 <<<"$panes" | sort -u | wc -l); tops=$(cut -d' ' -f1 <<<"$panes" | cut -d, -f2 | sort -u | wc -l)
   dirs=$(awk '{print $2}' <<<"$panes" | xargs -n1 basename 2>/dev/null | sort | paste -sd' ')
-  [ "$(tmux -S "$TS" list-panes -t gp:0 -F '#{pane_id}')" = "$caller" ] && [ "$(wc -l <<<"$panes")" = 4 ] \
+  [ "$(tmux -S "$TG" list-panes -t gp:0 -F '#{pane_id}')" = "$caller" ] && [ "$(wc -l <<<"$panes")" = 4 ] \
     && [ "$lefts" = 2 ] && [ "$tops" = 2 ] && [ "$dirs" = "ga gb gc gd" ] \
-    && [ "$(tmux -S "$TS" list-windows -t gp | wc -l)" = 2 ] \
+    && [ "$(tmux -S "$TG" list-windows -t gp | wc -l)" = 2 ] \
     && ok "group: one call gives a new 2x2 window, one planner per folder, caller window unchanged" \
     || bad "group: 2x2" "panes=[$panes] lefts=$lefts tops=$tops dirs=$dirs $(cat "$T/group.out")"
   # the confirm path: --relaunch opens a new window holding only the confirm; Yes there (--group --here) fills it
-  tmux -S "$TS" send-keys -t "$caller" "PATH=$T/fakebin:\$PATH '$S' --relaunch \"$raw\" > '$T/group2.out' 2>&1" Enter
+  tmux -S "$TG" send-keys -t "$caller" "PATH=$T/fakebin:\$PATH '$S' --relaunch \"$raw\" > '$T/group2.out' 2>&1" Enter
   wait_for 8 grep -q '^opened new window' "$T/group2.out"
   cp=$(grep -o '(%[0-9]*)' "$T/group2.out" | tr -d '()')
-  w=$(tmux -S "$TS" display -p -t "$cp" '#{window_id}')
-  [ "$(tmux -S "$TS" list-panes -t gp:0 -F '#{pane_id}')" = "$caller" ] && [ "$(tmux -S "$TS" list-panes -t "$w" | wc -l)" = 1 ] \
-    && [ "$(tmux -S "$TS" list-windows -t gp | wc -l)" = 3 ] \
+  w=$(tmux -S "$TG" display -p -t "$cp" '#{window_id}')
+  [ "$(tmux -S "$TG" list-panes -t gp:0 -F '#{pane_id}')" = "$caller" ] && [ "$(tmux -S "$TG" list-panes -t "$w" | wc -l)" = 1 ] \
+    && [ "$(tmux -S "$TG" list-windows -t gp | wc -l)" = 3 ] \
     && ok "group: confirm opens alone in a new window" || bad "group: confirm window" "$w $(cat "$T/group2.out")"
-  tmux -S "$TS" respawn-pane -k -t "$cp" "bash --norc --noprofile"; sleep 0.5
-  tmux -S "$TS" send-keys -t "$cp" "PATH=$T/fakebin:\$PATH '$S' --group --here \"$raw\"" Enter
-  wait_for 10 bash -c "[ \$(tmux -S '$TS' list-panes -t '$w' | wc -l) = 4 ]"
-  [ "$(tmux -S "$TS" list-panes -t "$w" | wc -l)" = 4 ] && [ "$(tmux -S "$TS" list-panes -t gp:0 -F '#{pane_id}')" = "$caller" ] \
-    && ok "group: Yes fills the confirm's own window with four panes" || bad "group: --here" "$(tmux -S "$TS" list-panes -t "$w")"
-  tmux -S "$TS" kill-server 2>/dev/null
+  tmux -S "$TG" respawn-pane -k -t "$cp" "bash --norc --noprofile"; sleep 0.5
+  tmux -S "$TG" send-keys -t "$cp" "PATH=$T/fakebin:\$PATH '$S' --group --here \"$raw\"" Enter
+  wait_for 10 bash -c "[ \$(tmux -S '$TG' list-panes -t '$w' | wc -l) = 4 ]"
+  [ "$(tmux -S "$TG" list-panes -t "$w" | wc -l)" = 4 ] && [ "$(tmux -S "$TG" list-panes -t gp:0 -F '#{pane_id}')" = "$caller" ] \
+    && ok "group: Yes fills the confirm's own window with four panes" || bad "group: --here" "$(tmux -S "$TG" list-panes -t "$w")"
+  tmux -S "$TG" kill-server 2>/dev/null
 fi
 
 echo "$pass passed, $fail failed"

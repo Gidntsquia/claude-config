@@ -484,18 +484,16 @@ def claude_argv():
 
 
 def next_sentence(agent, prompt, caller):
-    """the plain sentence before the command: what it does and when to run it"""
-    tail = " Type this here (it replaces this session):"
+    """one short sentence before the command: what it runs and when"""
     if agent == "worker" and caller == "evaluator":
-        return "Next, once you have read this eval, rerun the worker to fix what plans/EVAL.md lists." + tail
+        return "Next, after reading this eval, rerun the worker here:"
     if agent == "worker":
-        return "Next, once you are happy with the plan, start the worker to build plans/PLAN.md." + tail
+        return "Next, once the plan looks right, start the worker here:"
     if agent == "evaluator":
-        return ("Next, start the evaluator to check this work against plans/PLAN.md "
-                + ("on your phone" if prompt == "phone" else "with you at this screen") + "." + tail)
+        return "Next, check this work with the evaluator" + (" on your phone:" if prompt == "phone" else " here:")
     if agent == "planner" and "EVAL" in prompt:
-        return "Next, once you have read this eval, start the planner to replan from plans/EVAL.md." + tail
-    return f"Next, start the {agent} agent." + tail
+        return "Next, after reading this eval, replan here:"
+    return f"Next, start the {agent} agent here:"
 
 
 def next_line(args):
@@ -523,13 +521,14 @@ def next_line(args):
     plain = ["claude", "--agent", agent]
     if prompt:
         words.append('"%s"' % prompt); plain.append('"%s"' % prompt)
+    if agent in ("worker", "evaluator"):
+        model = effort = ""  # workers and evaluators run on the default model and effort
     for flag, v in (("--model", model), ("--effort", effort)):
         if v:
             words.append(v); plain += [flag, v]
     print(next_sentence(agent, prompt, caller))
     print(" ".join(words))
-    print("Or from any terminal, without run-agent:")
-    print(" ".join(plain))
+    print("Without run-agent: " + " ".join(plain))
     return 0
 
 

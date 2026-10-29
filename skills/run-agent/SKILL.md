@@ -24,5 +24,5 @@ Runs joined by a lone `+` (`planner "Plan A" in ~/a + planner "Plan B" in ~/b + 
 confirm, in one new window tiled (four = 2x2), each in its own folder.
 
 (Also: `S --parse '<raw>'` prints the parse as JSON; `S --handoff <agent> ["prompt"] [-- flags]` is the worker's
-usage-limit handoff; `S --next <agent> ["prompt"]` prints an agent's closing next step (sentence, `/run-agent` line, `claude` line); `bin/run-agent` is
+usage-limit handoff; `S --next <agent> ["prompt"]` prints an agent's closing next step (short sentence, `/run-agent` line, `Without run-agent: claude …` line; no model/effort for worker and evaluator); `bin/run-agent` is
 the same skill as a shell command.)
