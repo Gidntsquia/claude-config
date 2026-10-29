@@ -1,0 +1,11 @@
+[Unit]
+Description=Restart the runners of scheduled /run-agent runs after a reboot or WSL restart (overdue runs are skipped)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash %h/.claude/skills/run-agent/scripts/run-agent.sh --revive
+# The runners outlive this oneshot; the default control-group kill would stop them when it exits.
+KillMode=process
+
+[Install]
+WantedBy=default.target

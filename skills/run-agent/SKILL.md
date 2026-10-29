@@ -13,8 +13,8 @@ step 5 is skipped and step 6 runs at once.
 ## 0. Scheduled runs: `jobs` / `cancel`
 If `$ARGUMENTS` is `jobs` (or the user asks what is scheduled / pending): run `S --jobs` and relay the output as is
 (`#<id>  <command>  at <time> ET (<words>, in Nh Mm)  [until <time>]`, or `no scheduled runs`). A
-`[runner not running; ...]` tag means a reboot or WSL restart stopped it: the next new terminal runs `S --revive --ask`
-(from `~/.bashrc`), which restarts it, or for an overdue run asks `Run it now? [y/N]` (no -> logged `missed`). Stop.
+`[runner not running]` tag means a reboot or WSL restart stopped it; `run-agent-revive.service` runs `S --revive` at
+boot, which restarts it, or skips it if it is already overdue (`skipped` in `~/.claude/run-agent/jobs.log`). Stop.
 If it is `cancel [id]` (or the user asks to cancel a scheduled run): with an id run `S --cancel <id>`; with none and
 `S --jobs` showing one run, run `S --cancel`; with several and no id, AskUserQuestion which one (options from `S --jobs`),
 then `S --cancel <id>`. Relay the script's line (`... #<id>  cancelled  <command>`). Stop.

@@ -374,48 +374,35 @@ EOF
   wait_for 3 bash -c "tmux -L '$SOCK' list-sessions -F '#{session_name}' | grep -qx 'worker repo'" && ok "sched: new session 'worker repo'" || bad "sched: new session" "$(TM list-sessions 2>&1)"
   wait_for 5 grep -q "arg=worker: repo" "$RA_OUT" && ok "sched: claude ran in the new session" || bad "sched: claude in new session" "$(cat "$RA_OUT")"
 
-  # (8) revive: the runner dies (reboot, WSL restart) -> --revive starts a new one; overdue runs wait for --ask
+  # (8) revive: the runner dies (reboot, WSL restart) -> --revive starts a new one, silently; overdue runs are skipped
   J="$(dirname "$S")/jobs.py"
   TM new-session -d -s r -c "$T/repo/sub" "$PANE_ENV bash --norc --noprofile"; sleep 0.5
   sched_r() {  # sched_r <out file>: schedule 10 min ahead from pane r, kill its runner, print the id
-    keys_r "'$S' worker '.' --at $(( $(date +%s) + 600 )) --at-text 'in 10m' > '$1' 2>&1"
+    TARGET=r keys "'$S' worker '.' --at $(( $(date +%s) + 600 )) --at-text 'in 10m' > '$1' 2>&1"
     wait_for 5 grep -q "^scheduled #" "$1"; local id; id=$(sed -n 's/^scheduled #\([0-9]*\):.*/\1/p' "$1")
     wait_for 3 bash -c "[ \"\$(python3 '$J' get $id pid)\" != 0 ]"
     kill -9 "$(python3 "$J" get "$id" pid)"; wait_for 3 bash -c "! kill -0 $(python3 "$J" get "$id" pid)"
     echo "$id"
   }
-  keys_r() { TARGET=r keys "$1"; }
-  overdue() { python3 -c "import json,sys,time; p=sys.argv[1]; j=json.load(open(p)); j['run_at']=int(time.time())-60; json.dump(j,open(p,'w'))" "$RUN_AGENT_HOME/jobs/$1.json"; }
   id=$(sched_r "$T/sched8.out")
-  grep -q "^#$id  .*\[runner not running; a new terminal revives it\]$" <<<"$("$S" --jobs)" && ok "revive: --jobs flags the dead runner" || bad "revive: --jobs dead runner" "$("$S" --jobs)"
+  grep -q "^#$id  .*\[runner not running\]$" <<<"$("$S" --jobs)" && ok "revive: --jobs flags the dead runner" || bad "revive: --jobs dead runner" "$("$S" --jobs)"
   pane=$(python3 "$J" get "$id" pane)
-  out=$("$S" --revive 2>&1)
-  grep -q "^run-agent: revived #$id: claude --agent worker .* at .* ET$" <<<"$out" && ok "revive: future run gets a new runner" || bad "revive: future run" "$out"
-  pid=$(python3 "$J" get "$id" pid); kill -0 "$pid" 2>/dev/null && ok "revive: new runner alive, pid recorded" || bad "revive: runner alive" "pid=$pid"
+  out=$("$S" --revive 2>&1); rc=$?
+  [ "$rc" = 0 ] && [ -z "$out" ] && ok "revive: silent, exit 0" || bad "revive: silent" "rc=$rc $out"
+  pid=$(python3 "$J" get "$id" pid); kill -0 "$pid" 2>/dev/null && ok "revive: future run gets a new runner, pid recorded" || bad "revive: runner alive" "pid=$pid"
   [ "$(python3 "$J" get "$id" pane)" = "$pane" ] && ok "revive: same tmux server keeps the pane" || bad "revive: pane kept" "$(python3 "$J" get "$id" pane)"
-  [ -z "$("$S" --revive 2>&1)" ] && ok "revive: live runner left alone" || bad "revive: live runner left alone" "$("$S" --revive 2>&1)"
+  "$S" --revive; [ "$(python3 "$J" get "$id" pid)" = "$pid" ] && ok "revive: live runner left alone" || bad "revive: live runner left alone"
   python3 "$J" set "$id" server_pid 1; kill -9 "$pid"; wait_for 3 bash -c "! kill -0 $pid"
-  "$S" --revive >/dev/null 2>&1
+  "$S" --revive
   [ -z "$(python3 "$J" get "$id" pane)" ] && ok "revive: new tmux server clears the stale pane id" || bad "revive: pane cleared" "$(python3 "$J" get "$id" pane)"
   "$S" --cancel "$id" >/dev/null
-  # overdue, not on a terminal: nothing happens, the job stays for the next terminal
-  id=$(sched_r "$T/sched9.out"); overdue "$id"
-  out=$("$S" --revive --ask 2>&1)
-  [ -z "$out" ] && [ -f "$RUN_AGENT_HOME/jobs/$id.json" ] && ! kill -0 "$(python3 "$J" get "$id" pid)" 2>/dev/null \
-    && ok "revive: overdue run without a terminal stays pending" || bad "revive: overdue no tty" "$out"
-  # overdue, --ask in a pane, answer n -> logged missed
-  keys_r "clear; '$S' --revive --ask"
-  wait_for 5 bash -c "tmux -L '$SOCK' capture-pane -p -J -t r | grep -q 'run-agent: missed #$id: .* was due .* ET (its runner stopped, e.g. a WSL restart). Run it now? \[y/N\]'" \
-    && ok "revive: --ask prompts for the overdue run" || bad "revive: --ask prompt" "$(TM capture-pane -p -t r | grep -v '^$' | tail -3)"
-  keys_r "n"
-  wait_for 5 grep -q "  #$id  missed  .*(was due .* ET)$" "$LOG" && [ ! -f "$RUN_AGENT_HOME/jobs/$id.json" ] && ok "revive: answer n -> logged missed" || bad "revive: missed" "$(tail -3 "$LOG")"
-  # overdue, answer y -> fires now
-  id=$(sched_r "$T/sched10.out"); overdue "$id"; : > "$RA_OUT"
-  keys_r "clear; '$S' --revive --ask"
-  wait_for 5 bash -c "tmux -L '$SOCK' capture-pane -p -J -t r | grep -q 'missed #$id: '"
-  keys_r "y"
-  wait_for 10 grep -q "  #$id  fired  " "$LOG" && ok "revive: answer y -> fired" || bad "revive: answer y" "$(tail -3 "$LOG")"
-  wait_for 5 grep -q "arg=worker: repo" "$RA_OUT" && ok "revive: claude ran after y" || bad "revive: claude after y" "$(cat "$RA_OUT")"
+  # overdue: skipped and logged, never run
+  id=$(sched_r "$T/sched9.out"); : > "$RA_OUT"
+  python3 -c "import json,sys,time; p=sys.argv[1]; j=json.load(open(p)); j['run_at']=int(time.time())-60; json.dump(j,open(p,'w'))" "$RUN_AGENT_HOME/jobs/$id.json"
+  out=$("$S" --revive 2>&1)
+  [ -z "$out" ] && [ ! -f "$RUN_AGENT_HOME/jobs/$id.json" ] && grep -q "  #$id  skipped  .*(was due .* ET; its runner stopped)$" "$LOG" \
+    && ok "revive: overdue run skipped and logged" || bad "revive: overdue skipped" "$out / $(tail -2 "$LOG")"
+  sleep 1; [ ! -s "$RA_OUT" ] && ok "revive: overdue run did not start claude" || bad "revive: overdue started claude" "$(cat "$RA_OUT")"
 else
   echo "SKIP tmux checks (tmux not installed)"
 fi

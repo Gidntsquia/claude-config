@@ -179,7 +179,7 @@ def main():
             if j.get("until"):
                 line += f"  until {fmt_et(j['until'])}"
             if not alive(j.get("pid")):
-                line += "  [runner not running; a new terminal revives it]"
+                line += "  [runner not running]"
             print(line)
     elif cmd == "cancel":
         ids = pending()

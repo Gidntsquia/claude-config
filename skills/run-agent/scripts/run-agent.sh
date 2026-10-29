@@ -3,13 +3,13 @@
 # No prompt: worker/evaluator/helper get "."; planner and built-ins start with no prompt argument.
 # Usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--at <epoch> [--at-text <text>] [--window] [--until <epoch>]]
 #        [-- claude flags...] | --parse '<raw $ARGUMENTS>' | --dry-run <same as a run> | --jobs | --cancel [id]
-#        | --handoff <agent> [prompt] [-- claude flags...] | --revive [--ask] | --resolve <dir> | --list | --help
+#        | --handoff <agent> [prompt] [-- claude flags...] | --revive | --resolve <dir> | --list | --help
 # --handoff is the worker's usage-limit handoff in one call: schedules the relaunch after the window, appends a
 # `## Stopped at usage limit` section (stdin = Done / In progress / Next) to plans/WORKER_NOTES.md, makes the WIP commit.
 # --parse hands the raw argument string to parse.py (loose phone typing -> one JSON block). --at schedules:
 # a job file under ~/.claude/run-agent/jobs/ and a detached runner (runner.sh) that respawns this pane into
 # the command at that time (pane gone -> new window; server gone -> new session). --jobs / --cancel manage them.
-# A reboot or WSL restart kills the runners; --revive (run from ~/.bashrc by install.sh) restarts them.
+# A reboot or WSL restart kills the runners; --revive (run-agent-revive.service, at WSL start) restarts them.
 # The new session is named `--name "<agent>: <folder>"` (plus ` (<model>)` when --model is given)
 # unless the flags already carry --name/-n. <folder> = basename of --cwd's dir when given, else of the git
 # root, else of $PWD. With --cwd the pane (shell and claude) restarts in <dir>; the dir must already exist
@@ -35,8 +35,8 @@ USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--at <epoch> [--at
                          plans/WORKER_NOTES.md, commit project files as "WIP: stopped at usage limit — ...",
                          print "Note: / Commit: / Relaunch:" lines; exit 0 whether or not scheduling worked
   --jobs, --cancel [id]  list pending scheduled runs / cancel one (the only one when no id is given)
-  --revive [--ask]       restart the runner of each pending run whose runner is gone (reboot, WSL restart);
-                         an overdue run waits for --ask on a terminal: "Run it now? [y/N]", no -> logged missed
+  --revive               restart the runner of each pending run whose runner is gone (reboot, WSL restart);
+                         skip (and log) the ones already overdue. Prints nothing
   --cwd <dir>, -C <dir>  start the new session in <dir> (must exist; <folder> = its basename);
                          outside tmux the printed command starts with cd '\''<dir>'\'' &&
   --resolve <dir>        print "<absolute dir><TAB>exists|missing" by the --cwd rules (exit 2 on a
@@ -93,37 +93,29 @@ list_agents() {
   printf '%s\n' "${BUILTINS[@]}"
 }
 
-# revive [--ask]: a new runner for every pending job whose runner is gone. A job still ahead just gets one.
-# An overdue job is left alone unless --ask runs on a terminal: it asks, yes -> a runner that fires at once,
-# no -> logged as missed, no answer in 5 min -> stays pending for the next terminal. A changed tmux server pid
+# revive: silent, for a WSL-start service (run-agent-revive.service). Every pending job whose runner is gone gets
+# a new runner if it is still ahead; an overdue one is skipped (jobs.log: skipped). A changed tmux server pid
 # means the recorded pane id may now name someone else's pane, so it is cleared (the run opens a new window).
-# flock keeps it to one shell at a time, so tmux-quad's four panes ask once.
+# flock keeps two revives from starting two runners for one job.
 revive() {
-  local ask=0 line id state shown when socket spid cur ans pid TM
-  [ "${1:-}" = --ask ] && [ -t 0 ] && [ -t 1 ] && ask=1
+  local line id state socket spid cur TM stale
   mkdir -p "$STATE"
   if command -v flock >/dev/null 2>&1; then exec 9>"$STATE/revive.lock"; flock -n 9 || return 0; fi
-  local stale; mapfile -t stale < <(python3 "$HERE/jobs.py" stale)
+  mapfile -t stale < <(python3 "$HERE/jobs.py" stale)
   for line in ${stale[@]+"${stale[@]}"}; do
     IFS=$'\t' read -r id state <<<"$line"
-    shown=$(python3 "$HERE/jobs.py" get "$id" shown)
-    when=$(python3 "$HERE/parse.py" --fmt "$(python3 "$HERE/jobs.py" get "$id" run_at)")
     if [ "$state" = overdue ]; then
-      [ "$ask" = 1 ] || continue
-      printf 'run-agent: missed #%s: %s was due %s (its runner stopped, e.g. a WSL restart). Run it now? [y/N] ' \
-        "$id" "$shown" "$when"
-      if ! read -r -t 300 ans; then echo; echo "run-agent: #$id left pending; the next terminal asks again"; continue; fi
-      case "$ans" in y|Y|yes|Yes|YES) ;; *) python3 "$HERE/jobs.py" done "$id" missed "was due $when"; continue ;; esac
+      python3 "$HERE/jobs.py" done "$id" skipped \
+        "was due $(python3 "$HERE/parse.py" --fmt "$(python3 "$HERE/jobs.py" get "$id" run_at)"); its runner stopped" >/dev/null
+      continue
     fi
     socket=$(python3 "$HERE/jobs.py" get "$id" socket); spid=$(python3 "$HERE/jobs.py" get "$id" server_pid)
     TM=(tmux); [ -n "$socket" ] && TM=(tmux -S "$socket")
     cur=$("${TM[@]}" display -p '#{pid}' 2>/dev/null || true)
     [ -n "$spid" ] && [ "$spid" = "$cur" ] || python3 "$HERE/jobs.py" set "$id" pane ""
     setsid nohup bash "$HERE/runner.sh" "$id" >> "$STATE/runner.log" 2>&1 < /dev/null 9>&- &   # 9>&-: not the lock
-    pid=$!; disown
-    python3 "$HERE/jobs.py" setpid "$id" "$pid"   # now, so a second shell sees it alive before runner.sh starts
-    if [ "$state" = overdue ]; then echo "run-agent: #$id starting now: $shown"
-    else echo "run-agent: revived #$id: $shown at $when"; fi
+    python3 "$HERE/jobs.py" setpid "$id" "$!"   # now, so a second revive sees it alive before runner.sh starts
+    disown
   done
 }
 
@@ -135,7 +127,7 @@ case "${1:-}" in
   --parse) shift; exec python3 "$HERE/parse.py" "$@" ;;
   --jobs) exec python3 "$HERE/jobs.py" list ;;
   --cancel) shift; exec python3 "$HERE/jobs.py" cancel "$@" ;;
-  --revive) shift; revive "$@"; exit 0 ;;
+  --revive) revive; exit 0 ;;
   --dry-run) shift; dry=1 ;;
   --handoff) shift; handoff=1 ;;
   ""|--*) echo "$USAGE" >&2; exit 2 ;;

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- run-agent: a reboot or WSL restart no longer drops scheduled runs without a word. Each new terminal runs `run-agent.sh --revive --ask` (install.sh adds it to `~/.bashrc` or `~/.zshrc`): a run still ahead gets a new runner, and an overdue one asks `Run it now? [y/N]` (no logs it as `missed`). After a tmux restart the run opens a new window instead of reusing an old pane id. `/run-agent jobs` marks runs whose runner is gone.
+- run-agent: scheduled runs survive a reboot or WSL restart. `run-agent-revive.service` (a systemd user service install.sh enables; the shell rc on macOS) runs `run-agent.sh --revive` at boot, silently: a run still ahead gets a new runner, and one that came due while the machine was down is skipped and logged as `skipped` in `jobs.log`. After a tmux restart the run opens a new window instead of reusing an old pane id. `/run-agent jobs` marks runs whose runner is gone.
 
 ## v1.2.1 — 2026-10-26
 
