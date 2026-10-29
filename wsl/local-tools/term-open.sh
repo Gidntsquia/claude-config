@@ -10,6 +10,7 @@ set -e
 # WSL only: needs wt.exe, wsl.exe and win.sh (PowerShell window control); Windows and macOS have none of these.
 grep -qi microsoft /proc/version 2>/dev/null || { echo "term-open.sh: WSL only (this is $(uname))"; exit 1; }
 t="$1"; dir="$2"; shift 2
+"$HOME/.claude/local-tools/game-guard.sh" "term-open.sh $t $dir $*" >/dev/null && { echo "not opened: a full-screen game is running (game-guard.sh)"; exit 3; }
 W="$HOME/.claude/local-tools/win.sh"
 WT="${EVSHOW_WT:-$(bash "$HOME/.claude/local-tools/win-app.sh" --path wt)}"
 [ -x "$WT" ] || { echo "wt.exe not found: $WT"; exit 1; }

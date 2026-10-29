@@ -20,16 +20,128 @@ public class W {
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
   [DllImport("user32.dll", EntryPoint="GetWindowLongW")] public static extern int GetWindowLong(IntPtr h, int i);
   [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int n);
+  [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr h, int a, ref int v, int n);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint f);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("kernel32.dll")] public static extern uint GetTickCount();
+  public static int SetCloak(IntPtr h, int on) { return DwmSetWindowAttribute(h, 13, ref on, 4); }   // DWMWA_CLOAK (E_ACCESSDENIED on another process's window here; kept as a logged attempt)
+  public static uint Pid(IntPtr h) { uint p; GetWindowThreadProcessId(h, out p); return p; }
+  [DllImport("user32.dll", EntryPoint="SetWindowLongW")] public static extern int SetWindowLong(IntPtr h, int i, int v);
+  [DllImport("user32.dll")] public static extern bool SetLayeredWindowAttributes(IntPtr h, uint key, byte alpha, uint flags);
+  [DllImport("user32.dll")] public static extern bool GetLayeredWindowAttributes(IntPtr h, out uint key, out byte alpha, out uint flags);
+  public static HashSet<IntPtr> Reg = new HashSet<IntPtr>();   // this session's registered windows: listed even while hidden
+  // "cloaked" = hidden by --hidden: not WS_VISIBLE (a registered window), or layered with alpha 0, or DWM-cloaked
+  public static bool Hidden(IntPtr h) { if (Reg.Contains(h) && (GetWindowLong(h, -20) & 0x80) != 0 && (OffScreen(h) || EmptyRgn(h))) return true; int ex = GetWindowLong(h, -20); if ((ex & 0x80000) != 0) { uint k, f; byte a; if (GetLayeredWindowAttributes(h, out k, out a, out f) && (f & 2) != 0 && a == 0) return true; }
+    return Cloaked(h) != 0; }
+  // hide: layered alpha 0 (DWM composes nothing of it) + tool window (no taskbar button) + off-screen; it stays WS_VISIBLE so the
+  // app keeps loading (VS Code's workbench waits for a frame; a SW_HIDE'd window never gets one, so its title never loads)
+  [DllImport("gdi32.dll")] public static extern IntPtr CreateRectRgn(int a, int b, int c, int d);
+  [DllImport("user32.dll")] public static extern int SetWindowRgn(IntPtr h, IntPtr rgn, bool redraw);
+  [DllImport("user32.dll")] public static extern int GetWindowRgn(IntPtr h, IntPtr rgn);
+  [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr o);
+  // mode 1 (Firefox, WT): layered alpha 0 + tool window (no taskbar button) + off-screen (-6000,0).
+  // mode 2 (VS Code): Chromium cannot composite a layered window and treats an off-screen one as occluded (the workbench never
+  //   loads and VS Code recreates the window), so it stays on screen with an EMPTY window region (DWM composes nothing) + tool window.
+  public static string hideT = "";
+  public static void Hide(IntPtr h, bool layered) { int ex = GetWindowLong(h, -20); var w = System.Diagnostics.Stopwatch.StartNew(); long a, b;
+    if (layered) { SetWindowLong(h, -20, ex | 0x80080); a = w.ElapsedMilliseconds; SetLayeredWindowAttributes(h, 0, 0, 2); b = w.ElapsedMilliseconds; SetWindowPos(h, IntPtr.Zero, -6000, 0, 0, 0, 0x0015); }   // NOSIZE|NOZORDER|NOACTIVATE
+    else { SetWindowLong(h, -20, ex | 0x80); a = w.ElapsedMilliseconds; SetWindowRgn(h, CreateRectRgn(0, 0, 0, 0), false); b = w.ElapsedMilliseconds; }
+    hideT = "style " + a + " attr " + (b - a) + " pos " + (w.ElapsedMilliseconds - b); }
+  public static bool OffScreen(IntPtr h) { R r; GetWindowRect(h, out r); return r.Rt <= -3000; }
+  public static bool EmptyRgn(IntPtr h) { IntPtr g = CreateRectRgn(0, 0, 1, 1); int k = GetWindowRgn(h, g); DeleteObject(g); return k == 1; }   // NULLREGION
+  public static void Unhide(IntPtr h) { int ex = GetWindowLong(h, -20); if ((ex & 0x80000) != 0) SetLayeredWindowAttributes(h, 0, 255, 2); SetWindowLong(h, -20, ex & ~(0x80000 | 0x80)); if (EmptyRgn(h)) SetWindowRgn(h, IntPtr.Zero, true); }
   public static int Cloaked(IntPtr h) { int v = 0; DwmGetWindowAttribute(h, 14, out v, 4); return v; }
   public static string Title(IntPtr h) { var s = new StringBuilder(512); GetWindowText(h, s, 512); return s.ToString(); }
   public static List<IntPtr> All() {
     var r = new List<IntPtr>();
-    EnumWindows((h, l) => { if (IsWindowVisible(h) && Title(h).Length > 0) r.Add(h); return true; }, IntPtr.Zero);
+    EnumWindows((h, l) => { if ((IsWindowVisible(h) || Reg.Contains(h)) && Title(h).Length > 0) r.Add(h); return true; }, IntPtr.Zero);
     return r; }
+}
+
+public class Hider {
+  // One WinEvent hook (out of context, no polling): every NEW top-level captioned window of the app's processes is cloaked
+  // (DWMWA_CLOAK) and moved to -6000,0 inside the CREATE/SHOW handler; FOREGROUND steals are given back to the previous
+  // foreground window; NAMECHANGE tells us when the title has loaded. The thread sleeps in GetMessage between events.
+  public delegate void WinEventDelegate(IntPtr hook, uint ev, IntPtr hwnd, int idObject, int idChild, uint thread, uint time);
+  [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint min, uint max, IntPtr mod, WinEventDelegate cb, uint pid, uint tid, uint flags);
+  [DllImport("user32.dll")] static extern bool UnhookWinEvent(IntPtr h);
+  [StructLayout(LayoutKind.Sequential)] public struct MSG { public IntPtr hwnd; public uint message; public IntPtr wParam; public IntPtr lParam; public uint time; public int px, py; }
+  [DllImport("user32.dll")] static extern int GetMessage(out MSG m, IntPtr h, uint min, uint max);
+  [DllImport("user32.dll")] static extern bool TranslateMessage(ref MSG m);
+  [DllImport("user32.dll")] static extern IntPtr DispatchMessage(ref MSG m);
+  [DllImport("user32.dll")] static extern UIntPtr SetTimer(IntPtr h, UIntPtr id, uint ms, IntPtr fn);
+  [DllImport("user32.dll")] static extern bool KillTimer(IntPtr h, UIntPtr id);
+  static WinEventDelegate keep;
+  public HashSet<uint> pids = new HashSet<uint>();
+  public string[] names; public string want; public string[] generic;
+  public Dictionary<IntPtr, string> hidden = new Dictionary<IntPtr, string>();   // hwnd -> "create-ms cloak-ms"
+  public List<string> log = new List<string>();
+  public bool layered = true; public int moved; public int pending; public IntPtr fg0; public bool done; public uint t0; public long lastRefresh = -1000; public int fgRestored;
+  public System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+  [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint acc, bool inh, uint pid);
+  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode)] static extern bool QueryFullProcessImageName(IntPtr h, uint fl, System.Text.StringBuilder sb, ref int n);
+  public Dictionary<uint, bool> fam = new Dictionary<uint, bool>();   // pid -> is it the app family (by image name; Firefox/WT hand the window to an already running process)
+  public void Refresh() { foreach (var n in names) foreach (var pr in System.Diagnostics.Process.GetProcessesByName(n)) { fam[(uint)pr.Id] = true; pr.Dispose(); } lastRefresh = sw.ElapsedMilliseconds; }
+  bool Mine(IntPtr h) {   // one OpenProcess+QueryFullProcessImageName per NEW pid (~0.1 ms); nothing per event once known
+    uint p = W.Pid(h); bool r; if (fam.TryGetValue(p, out r)) return r; lock (pids) if (pids.Contains(p)) return fam[p] = true;
+    IntPtr hp = OpenProcess(0x1000, false, p); r = false;
+    if (hp != IntPtr.Zero) { var sb = new System.Text.StringBuilder(1024); int n = 1024; if (QueryFullProcessImageName(hp, 0, sb, ref n)) {
+        string f = System.IO.Path.GetFileNameWithoutExtension(sb.ToString()); foreach (var nm in names) if (string.Equals(f, nm, StringComparison.OrdinalIgnoreCase)) r = true; } CloseHandle(hp); }
+    fam[p] = r; return r; }
+  bool Captioned(IntPtr h) { int st = W.GetWindowLong(h, -16); return (st & 0x00C00000) == 0x00C00000; }   // WS_CAPTION: a real app window, not a tooltip/popup
+  bool Loaded(string t) { if (t.Length == 0) return false; if (want.Length > 0) return t.IndexOf(want, StringComparison.OrdinalIgnoreCase) >= 0;
+    foreach (var g in generic) if (string.Equals(t.Trim(), g, StringComparison.OrdinalIgnoreCase)) return false; return true; }
+  void Cb(IntPtr hook, uint ev, IntPtr h, int idObject, int idChild, uint thread, uint time) {
+    if (idObject != 0 || idChild != 0 || h == IntPtr.Zero) return;
+    if (ev == 0x8000 || ev == 0x8002) {   // CREATE / SHOW
+      if (hidden.ContainsKey(h)) { if (ev == 0x8002) W.Hide(h, layered); return; }   // the app showed it again: hide again (it is layered alpha 0 and off-screen meanwhile)
+      if (W.GetAncestor(h, 2) != h || !Captioned(h) || !Mine(h)) return;
+      long cr = (long)(time - t0); string kind = ev == 0x8000 ? "CREATE" : "SHOW"; bool vis = W.IsWindowVisible(h);
+      lock (hidden) hidden[h] = cr + " ?";
+      // the hide itself runs on a pool thread per window: SetWindowLong/SetWindowRgn synchronise with the window's own thread, and a
+      // helper window of a busy thread (Firefox: 137 ms, Code: 254 ms) must not hold up the hook thread when the real window appears
+      System.Threading.Interlocked.Increment(ref pending);
+      System.Threading.ThreadPool.QueueUserWorkItem(_ => { try {
+        W.Hide(h, layered); var cw = System.Diagnostics.Stopwatch.StartNew(); int hr = W.SetCloak(h, 1); string ht = W.hideT + " cloak " + cw.ElapsedMilliseconds;
+        long cl = (long)(W.GetTickCount() - t0);   // same clock as the event stamp (1 ms after timeBeginPeriod)
+        lock (hidden) { hidden[h] = cr + " " + cl; log.Add("event " + kind + " " + h.ToInt64() + " create-ms " + cr + " cloak-ms " + cl + " sw-ms " + sw.ElapsedMilliseconds + " vis " + vis + " cloak-hr " + hr + " [" + ht + "]"); }
+      } finally { System.Threading.Interlocked.Decrement(ref pending); } });
+      if (Loaded(W.Title(h))) done = true; return; }
+    if (ev == 0x800B && hidden.ContainsKey(h) && !layered) { if (!W.EmptyRgn(h)) { W.Hide(h, false); moved++; } return; }   // the app reset its region (resize): empty it again
+    if (ev == 0x800B && hidden.ContainsKey(h) && !W.OffScreen(h)) { W.SetWindowPos(h, IntPtr.Zero, -6000, 0, 0, 0, 0x0015); moved++; return; }   // LOCATIONCHANGE: the app put it back on screen (Firefox does ~1 s in)
+    if (ev == 0x0003 && hidden.ContainsKey(h)) { if (fg0 != IntPtr.Zero && fg0 != h) { W.SetForegroundWindow(fg0); fgRestored++; } return; }   // FOREGROUND
+    if (ev == 0x800C && hidden.ContainsKey(h)) { string t = W.Title(h); log.Add("event NAMECHANGE " + h.ToInt64() + " at-ms " + sw.ElapsedMilliseconds + " vis " + W.IsWindowVisible(h) + " title " + t); if (Loaded(t)) done = true; return; }   // NAMECHANGE
+  }
+  [DllImport("winmm.dll")] static extern uint timeBeginPeriod(uint ms);
+  public int Run(string exe, string args, int timeoutMs) {
+    timeBeginPeriod(1); System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Highest;
+    fg0 = W.GetForegroundWindow(); Refresh();
+    // warm up: JIT every method and load each native stub now, not inside the first event
+    foreach (var t in new[] { typeof(Hider), typeof(W) }) foreach (var mi in t.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.DeclaredOnly))
+      if (!mi.IsAbstract && !mi.ContainsGenericParameters) System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(mi.MethodHandle);
+    W.Cloaked(fg0); W.Pid(fg0); W.GetAncestor(fg0, 2); W.GetWindowLong(fg0, -16); W.Title(fg0); W.IsWindowVisible(fg0); W.SetCloak(IntPtr.Zero, 1); W.Hide(IntPtr.Zero, true); W.Hide(IntPtr.Zero, false); W.Unhide(IntPtr.Zero); W.OffScreen(fg0); W.EmptyRgn(fg0); Loaded("warm"); Mine(fg0);
+    System.Threading.ThreadPool.SetMinThreads(8, 8); for (int i = 0; i < 4; i++) System.Threading.ThreadPool.QueueUserWorkItem(_ => { W.OffScreen(IntPtr.Zero); });   // pool threads exist before the first event
+    keep = new WinEventDelegate(Cb);
+    IntPtr hk = SetWinEventHook(0x0003, 0x800C, IntPtr.Zero, keep, 0, 0, 0x0002);   // OUTOFCONTEXT|SKIPOWNPROCESS
+    if (hk == IntPtr.Zero) { log.Add("hook failed"); return 2; }
+    t0 = W.GetTickCount(); sw.Restart();
+    // the launch runs on its own thread: ShellExecute can take hundreds of ms (VS Code), and the hook thread must be in GetMessage for every event
+    string fail = null; var th = new System.Threading.Thread(() => { try { var psi = new System.Diagnostics.ProcessStartInfo(exe, args); psi.UseShellExecute = true;
+      if (exe.EndsWith("wsl.exe", StringComparison.OrdinalIgnoreCase)) psi.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;   // console launcher: no console window
+      var pr = System.Diagnostics.Process.Start(psi); lock (pids) pids.Add((uint)pr.Id); } catch (Exception e) { fail = e.Message; done = true; } });
+    th.Start();
+    SetTimer(IntPtr.Zero, UIntPtr.Zero, 100, IntPtr.Zero);   // WM_TIMER wakes GetMessage so the deadline is checked; no work is done on it
+    MSG m; while (!done && sw.ElapsedMilliseconds < timeoutMs && GetMessage(out m, IntPtr.Zero, 0, 0) > 0) { TranslateMessage(ref m); DispatchMessage(ref m); }
+    UnhookWinEvent(hk); for (int i = 0; i < 200 && pending > 0; i++) System.Threading.Thread.Sleep(10);   // let the last hide finish (its log line and cloak-ms)
+    if (fail != null) { log.Add("launch failed: " + fail); return 3; } return done ? 0 : 1; }
 }
 "@
 Add-Type -TypeDefinition $Src
 [W]::SetProcessDPIAware() | Out-Null
+$Reg = if ($env:EVSHOW_LAUNCHED) { $env:EVSHOW_LAUNCHED } else { Join-Path $PSScriptRoot 'launched.txt' }   # per-session registry (win.sh sets it)
+if (Test-Path $Reg) { foreach ($l in Get-Content $Reg) { $n = 0L; if ([int64]::TryParse($l.Split('|')[0], [ref]$n)) { [void][W]::Reg.Add([IntPtr]$n) } } }
 function Rect($h) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null; "$($r.L) $($r.T) $($r.Rt-$r.L) $($r.B-$r.T)" }
 function Hw($s) { $n = 0L; if (-not [int64]::TryParse($s, [ref]$n) -or $n -le 1) { "error: '$s' is not an HWND (title lookup is only in find/show)"; exit 1 }
   $h = [IntPtr]$n; if (-not [W]::IsWindow($h)) { "error: window $s no longer exists"; exit 1 }; $h }
@@ -54,10 +166,18 @@ function ShowIt($t, $px, $py, $pw, $ph, $to, $term) {
     $why = ''; $trace = @()
     foreach ($pause in 250, 750, 1500) {
       # A fresh window (e.g. a new browser window) ignores TOPMOST until it has been minimized and restored; a prepped one is already minimized.
-      if (-not [W]::IsIconic($h)) { [W]::ShowWindow($h, 6) | Out-Null; Start-Sleep -Milliseconds 300 }
-      Unmin $h; Start-Sleep -Milliseconds 300; PutWin $h $px $py $pw $ph; if ($Behind) { Bottom $h } else { Top $h $true }; Start-Sleep -Milliseconds $pause
+      if ([W]::Hidden($h)) {
+        # A --hidden window: place it and set its z-order while it is still invisible (alpha 0), un-hide last, so its first frame is in place.
+        if (-not [W]::IsWindowVisible($h)) { [W]::ShowWindow($h, 4) | Out-Null }
+        PutWin $h $px $py $pw $ph; if ($Behind) { Bottom $h } else { Top $h $true }; Start-Sleep -Milliseconds 100; PutWin $h $px $py $pw $ph
+        [W]::Unhide($h); [W]::SetWindowPos($h, [IntPtr]::Zero, 0, 0, 0, 0, 0x0037) | Out-Null   # FRAMECHANGED|NOMOVE|NOSIZE|NOZORDER|NOACTIVATE: style change takes effect
+      } else {
+        if (-not [W]::IsIconic($h)) { [W]::ShowWindow($h, 6) | Out-Null; Start-Sleep -Milliseconds 300 }
+        Unmin $h; Start-Sleep -Milliseconds 300; PutWin $h $px $py $pw $ph; if ($Behind) { Bottom $h } else { Top $h $true } }
+      if ([W]::Cloaked($h) -ne 0) { [W]::SetCloak($h, 0) | Out-Null }; Start-Sleep -Milliseconds $pause
       $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null; $why = @()
       if ([W]::IsIconic($h)) { $why += 'minimized' }
+      if ([W]::Hidden($h)) { $why += 'cloaked' }
       if (-not (OnScreen $h)) { $why += 'off screen' }
       if ($r.L -lt $x - 16) { $why += "L=$($r.L) < $x" }
       if (-not $Behind -and ([W]::GetWindowLong($h, -20) -band 8) -eq 0) { $why += 'not topmost' }
@@ -74,8 +194,7 @@ function Capture($out) { # whole-display PNG (DPI aware already); prints "captur
   "capture $out $($b.Width)x$($b.Height)" }
 function Done($r) { $r = @($r); if ($r.Count -gt 1) { $r[0..($r.Count-2)] | Write-Output }; exit [int]$r[-1] }
 
-$Reg = if ($env:EVSHOW_LAUNCHED) { $env:EVSHOW_LAUNCHED } else { Join-Path $PSScriptRoot 'launched.txt' }   # per-session registry (win.sh sets it)
-function Register($h, $tok) { Add-Content -Path $Reg -Value "$([int64]$h)|$tok" }
+function Register($h, $tok) { Add-Content -Path $Reg -Value "$([int64]$h)|$tok"; [void][W]::Reg.Add($h) }
 function Owned($s) { $h = Hw $s; $ok = $false
   if (Test-Path $Reg) { foreach ($l in Get-Content $Reg) { $a = $l.Split('|', 2)
     if ($a[0] -eq "$([int64]$h)" -and [W]::Title($h).IndexOf($a[1], [StringComparison]::OrdinalIgnoreCase) -ge 0) { $ok = $true } } }
@@ -101,7 +220,7 @@ switch ($Action) {
   'close' { $h = Owned $p[0]; $t = [W]::Title($h); [W]::PostMessage($h, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null; "closed: $t" }
   'place' { $h = Owned $p[0]; Unmin $h; PutWin $h $p[1] $p[2] $p[3] $p[4]; "placed: $([W]::Title($h)) $(Rect $h)" }
   'list-all' { [W]::All() | ForEach-Object { "$([int64]$_) $([W]::Title($_))" } }
-  'list-z' { [W]::All() | ForEach-Object { "$([int64]$_)|$([int](([W]::GetWindowLong($_, -20) -band 8) -ne 0))|$([int]([W]::Cloaked($_) -ne 0))|$([W]::Title($_))" } }   # z-order top to bottom
+  'list-z' { [W]::All() | ForEach-Object { "$([int64]$_)|$([int](([W]::GetWindowLong($_, -20) -band 8) -ne 0))|$([int][W]::Hidden($_))|$([W]::Title($_))" } }   # z-order top to bottom
   'list-topmost' { [W]::All() | Where-Object { ([W]::GetWindowLong($_, -20) -band 8) -ne 0 } | ForEach-Object { "$([int64]$_) $([W]::Title($_))" } }
   'find' { $m = Matches $p[0]
     if ($m.Count -eq 1) { "$([int64]$m[0]) $([W]::Title($m[0]))"; exit 0 }
@@ -112,10 +231,39 @@ switch ($Action) {
     while ($true) { $m = Matches $t; if ($m.Count -ge 1 -or (Get-Date) -gt $end) { break }; Start-Sleep -Milliseconds 250 }
     if ($m.Count -ne 1) { "not prepped: $($m.Count) windows match '$t'"; exit 1 }
     $h = $m[0]; Register $h $t
+    if ([W]::Hidden($h)) { "prepped: $([int64]$h) $([W]::Title($h)) (cloaked)"; exit 0 }   # a --hidden window: already invisible, never minimized
     for ($i = 0; $i -lt 8 -and -not [W]::IsIconic($h); $i++) { [W]::ShowWindow($h, 6) | Out-Null; Start-Sleep -Milliseconds 250 }
     if (-not [W]::IsIconic($h)) { "not prepped: window $([int64]$h) would not minimize"; exit 1 }
     "prepped: $([int64]$h) $([W]::Title($h))"; exit 0 }
   'min' { $h = Owned $p[0]; [W]::ShowWindow($h, 6) | Out-Null; "minimized: $([W]::Title($h))" }
+  'hidden' { # hidden|app|exe|args|title|timeout-s : WinEvent hook, launch, cloak every new top-level window of the app family from its CREATE event.
+    $app = $p[0]; $exe = $p[1]; $args = $p[2]; $want = if ($p.Count -gt 3) { $p[3] } else { '' }; $to = if ($p.Count -gt 4 -and $p[4]) { [double]$p[4] } else { 20 }
+    $hd = New-Object Hider; $hd.want = $want; $hd.layered = ($app -ne 'code')   # Chromium cannot composite a layered window (VS Code recreates it): off-screen + no taskbar button only
+    switch ($app) { 'firefox' { $hd.names = @('firefox') }; 'code' { $hd.names = @('Code') }; 'wt' { $hd.names = @('WindowsTerminal', 'wt', 'OpenConsole') }; default { $hd.names = @($app) } }
+    $hd.generic = @('Mozilla Firefox', 'Visual Studio Code', 'Windows Terminal', 'Firefox', 'Code')
+    $rc = $hd.Run($exe, $args, [int]($to * 1000))
+    foreach ($kv in $hd.hidden.GetEnumerator()) { $h = $kv.Key; $t = [W]::Title($h); $tok = if ($want) { $want } else { $t }   # helper windows (never visible, no title) are cloaked too but not reported
+      if ([W]::IsWindow($h) -and $t.Length -gt 0 -and ($want -eq '' -or $t.IndexOf($want, [StringComparison]::OrdinalIgnoreCase) -ge 0)) { Register $h $tok; "hidden: $([int64]$h) $($kv.Value) $t" } }
+    $hd.log | ForEach-Object { "hide-log: $_" }; if ($hd.fgRestored) { "hide-log: foreground given back $($hd.fgRestored)x" }; if ($hd.moved) { "hide-log: moved back off-screen $($hd.moved)x" }
+    if ($rc -ne 0) { foreach ($h in $hd.hidden.Keys) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null   # register what was hidden anyway, so close-cloaked can clean it up
+        if ([W]::IsWindow($h) -and ($r.Rt - $r.L) -gt 300) { Register $h $(if ($want) { $want } else { 'hidden' }) } }
+      $why = switch ($rc) { 1 { "title not loaded within ${to}s (want '$want'; hidden $($hd.hidden.Count) window(s))" } 2 { 'SetWinEventHook failed' } 3 { $hd.log[-1] } }
+      "not hidden: $why"; exit 1 }
+    exit 0 }
+  'me' { # me|marker : exactly one Windows Terminal window whose title holds the marker -> "me: HWND"; else "not found" + candidates (exit 1)
+    $m = @(Matches $p[0]); if ($m.Count -eq 1) { "me: $([int64]$m[0])"; exit 0 }
+    $c = @([W]::All() | Where-Object { $t = [W]::Title($_); $t -match 'Terminal|Ubuntu|WSL|bash|claude|tmux' })
+    "not found: $($m.Count) windows hold '$($p[0])'; candidates:`n$(Cands $c)"; exit 1 }
+  'close-cloaked' { # close every window this session registered that still exists and is cloaked (never shown): nothing cloaked is left behind
+    if (Test-Path $Reg) { foreach ($l in Get-Content $Reg) { $n = 0L; if ([int64]::TryParse($l.Split('|')[0], [ref]$n)) { $h = [IntPtr]$n
+      if ([W]::IsWindow($h) -and [W]::Hidden($h)) { $t = [W]::Title($h); [W]::PostMessage($h, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null; "closed cloaked: $([int64]$h) $t" } } } } }
+  'zlog' { # zlog|seconds : every 100 ms one block "t <ET time>" then "HWND|topmost|cloaked|iconic|L T W H|title" per visible titled window, top to bottom
+    $tz = [TimeZoneInfo]::FindSystemTimeZoneById('Eastern Standard Time'); $end = (Get-Date).AddSeconds([double]$p[0])
+    while ((Get-Date) -lt $end) {
+      $now = [TimeZoneInfo]::ConvertTime((Get-Date), $tz); $o = New-Object System.Text.StringBuilder; [void]$o.Append("t $($now.ToString('HH:mm:ss.fff'))`n")
+      foreach ($h in [W]::All()) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null
+        [void]$o.Append("$([int64]$h)|$([int](([W]::GetWindowLong($h, -20) -band 8) -ne 0))|$([int][W]::Hidden($h))|$([int][W]::IsIconic($h))|$($r.L) $($r.T) $($r.Rt-$r.L) $($r.B-$r.T)|$([W]::Title($h))`n") }
+      [Console]::Out.Write($o.ToString()); [Console]::Out.Flush(); Start-Sleep -Milliseconds 100 } }
   'show' { $to = if ($p.Count -gt 5 -and $p[5]) { [double]$p[5] } else { 15 }
     $term = $null; if ($p.Count -gt 6 -and $p[6]) { $term = Hw $p[6] }
     Done (ShowIt $p[0] $p[1] $p[2] $p[3] $p[4] $to $term) }

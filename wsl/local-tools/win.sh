@@ -21,5 +21,6 @@
 grep -qi microsoft /proc/version 2>/dev/null || { echo "win.sh: WSL only (this is $(uname))" >&2; exit 1; }
 . "$HOME/.claude/local-tools/evsession.sh"
 ev_export || { echo "error: no session state dir (no transcript for this cwd; set EVSHOW_STATE)"; exit 1; }
+case "${1:-}" in show|start|next|front|place|placefg|setwin|restore) "$HOME/.claude/local-tools/game-guard.sh" "win.sh $*" >/dev/null && { echo "not shown: a full-screen game is running (game-guard.sh)"; exit 3; };; esac
 IFS='|'
 exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w "$HOME/.claude/local-tools/winctl.ps1")" "$*"
