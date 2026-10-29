@@ -251,7 +251,7 @@ switch ($Action) {
       "not hidden: $why"; exit 1 }
     exit 0 }
   'me' { # me|marker : exactly one Windows Terminal window whose title holds the marker -> "me: HWND"; else "not found" + candidates (exit 1)
-    $m = @(Matches $p[0]); if ($m.Count -eq 1) { "me: $([int64]$m[0])"; exit 0 }
+    $m = @(Matches $p[0]); if ($m.Count -eq 1) { "me: $([int64]$m[0]) $(Rect $m[0]) $([int][W]::IsZoomed($m[0]))"; exit 0 }
     $c = @([W]::All() | Where-Object { $t = [W]::Title($_); $t -match 'Terminal|Ubuntu|WSL|bash|claude|tmux' })
     "not found: $($m.Count) windows hold '$($p[0])'; candidates:`n$(Cands $c)"; exit 1 }
   'close-cloaked' { # close every window this session registered that still exists and is cloaked (never shown): nothing cloaked is left behind
@@ -260,10 +260,11 @@ switch ($Action) {
   'zlog' { # zlog|seconds : every 100 ms one block "t <ET time>" then "HWND|topmost|cloaked|iconic|L T W H|title" per visible titled window, top to bottom
     $tz = [TimeZoneInfo]::FindSystemTimeZoneById('Eastern Standard Time'); $end = (Get-Date).AddSeconds([double]$p[0])
     while ((Get-Date) -lt $end) {
-      $now = [TimeZoneInfo]::ConvertTime((Get-Date), $tz); $o = New-Object System.Text.StringBuilder; [void]$o.Append("t $($now.ToString('HH:mm:ss.fff'))`n")
+      $t0 = Get-Date; $now = [TimeZoneInfo]::ConvertTime($t0, $tz); $o = New-Object System.Text.StringBuilder; [void]$o.Append("t $($now.ToString('HH:mm:ss.fff'))`n")
       foreach ($h in [W]::All()) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null
         [void]$o.Append("$([int64]$h)|$([int](([W]::GetWindowLong($h, -20) -band 8) -ne 0))|$([int][W]::Hidden($h))|$([int][W]::IsIconic($h))|$($r.L) $($r.T) $($r.Rt-$r.L) $($r.B-$r.T)|$([W]::Title($h))`n") }
-      [Console]::Out.Write($o.ToString()); [Console]::Out.Flush(); Start-Sleep -Milliseconds 100 } }
+      [Console]::Out.Write($o.ToString()); [Console]::Out.Flush()
+      $rest = 100 - [int]((Get-Date) - $t0).TotalMilliseconds; if ($rest -gt 0) { Start-Sleep -Milliseconds $rest } } }   # ~10 samples/s whatever the enumeration costs
   'show' { $to = if ($p.Count -gt 5 -and $p[5]) { [double]$p[5] } else { 15 }
     $term = $null; if ($p.Count -gt 6 -and $p[6]) { $term = Hw $p[6] }
     Done (ShowIt $p[0] $p[1] $p[2] $p[3] $p[4] $to $term) }

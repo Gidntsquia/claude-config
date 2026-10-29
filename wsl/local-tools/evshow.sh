@@ -15,7 +15,9 @@
 #   evshow.sh arm next <oldHWND> "<title>"  -> manual re-arm (e.g. after a reopen with a fresh title); 0 = nothing to close.
 #   evshow.sh end                     -> after the last answer: untop+close the current item, restore the terminal with the
 #        saved fginfo line (prints the `now` line), disarm, list-topmost.
-#   evshow.sh path shown|gate|dir     -> this session's shown.png / gate.png / state dir path
+#   evshow.sh path shown|gate|zlog|dir -> this session's shown.png / gate.png / zlog (100 ms z-order samples) / state dir path
+#   evshow.sh noflash                 -> "no-flash: PASS (...)" or "no-flash: FAIL (...)": no run window un-cloaked and on-screen in
+#        the zlog before its own show-start, every hidden: line's cloak-ms - create-ms <= 16 (exit 1 on FAIL); quote it in EVAL.md
 #   evshow.sh disarm | status | history
 # State is PER SESSION: ~/.claude/local-tools/evshow.state/<session id>/ (EVSHOW_STATE=<dir> overrides; see evsession.sh).
 # wait / next / end act only on windows in that session's launched.txt and restore only that session's terminal;
@@ -62,7 +64,8 @@ fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired
   capl="$WIN_HOME/evshow-shown-$SID8-$(date +%s).png"; capw="$WIN_HOME_W\\$(basename "$capl")"
   t0=$(et); read -r ix iy iw ih <<<"$ITEMG"; read -r tx ty tw th <<<"$TERMG"
   if [ "$mode" = first ]; then
-    out=$("$W" start "$title" "$ix" "$iy" "$iw" "$ih" 5 "$tx" "$ty" "$tw" "$th" "${EVSHOW_TERMHWND:-}" "$capw"); rc=$?
+    local me; me=$(cut -d' ' -f1 "$D/term" 2>/dev/null)   # the terminal `win.sh me` found; else whatever is foreground
+    out=$("$W" start "$title" "$ix" "$iy" "$iw" "$ih" 5 "$tx" "$ty" "$tw" "$th" "${EVSHOW_TERMHWND:-$me}" "$capw"); rc=$?
     local fg; fg=$(printf '%s\n' "$out" | grep '^fginfo ' | cut -d' ' -f2-); [ -n "$fg" ] && echo "$fg" > "$D/term"
   else
     local term; term=$(cut -d' ' -f1 "$D/term" 2>/dev/null)
@@ -75,6 +78,7 @@ fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired
   hist "fired-by $1" "${2:+answer $2 (transcript timestamp, ET)}" "show-start $t0" "shown-at $t1 (process done $tdone)"
   [ -n "$2" ] && hist "elapsed $(secs "$2" "$t1") s (answer -> shown)"
   hist "$out" "rc $rc"
+  [ "$rc" -ne 0 ] && hist "$("$W" close-cloaked 2>&1)"   # not shown: the cloaked window of this attempt is closed, never left behind
   if printf '%s\n' "$out" | grep -q '^shown: '; then
     printf '%s\n' "$out" | grep '^shown: ' | cut -d' ' -f2 > "$D/current"; echo "$t1" > "$D/last-shown"
     [ -f "$capl" ] && { cp "$capl" "$D/shown.png"; hist "capture $D/shown.png (copy of $capl, taken after shown)"; }
@@ -95,7 +99,8 @@ arm() {  # arm first|next <title> <oldHWND>; sets per-item state and starts the 
   echo "$(et) armed $mode '$title'" > "$D/log"; echo "$(et) armed $mode '$title'" >> "$D/history"
   nohup python3 -I "$PY" "$(cat "$D/transcript")" "$mode" "$title" "$D" >> "$D/watch.err" 2>&1 &
   echo $! > "$D/pid"
-  if [ "$mode" = first ]; then setsid "$0" gateloop >/dev/null 2>&1 & echo $! > "$D/gatepid"; fi
+  if [ "$mode" = first ]; then setsid "$0" gateloop >/dev/null 2>&1 & echo $! > "$D/gatepid"
+    setsid "$W" zlog 1800 > "$D/zlog" 2>/dev/null & echo $! > "$D/zpid"; fi   # 100 ms z-order sampler until `end`
   echo "armed $mode '$title' (watcher pid $(cat "$D/pid"), transcript $(cat "$D/transcript"), state $D)"
 }
 
@@ -106,14 +111,15 @@ case "${1:-}" in
     shift; mode=${1:-}; shift
     case "$mode" in
       first) [ $# -ge 1 ] || { echo "usage: arm first \"<title1>\" [\"<title2>\" ...]"; exit 1; }
-        rm -f "$D"/{history,queue,idx,current,last-shown,term,gate.png,shown.png,gate-capture,transcript}
+        rm -f "$D"/{history,queue,idx,current,last-shown,gate.png,shown.png,gate-capture,transcript,zlog,zpid}   # term (win.sh me) is kept
         printf '%s\n' "$@" > "$D/queue"; echo 1 > "$D/idx"; echo "queue: $# item(s) (session $(basename "$D"))"; arm first "$1" 0;;
       next) [ $# -ge 2 ] || { echo "usage: arm next <oldHWND> \"<title>\""; exit 1; }; [ -e "$D/queue" ] || { echo "no session: nothing armed for this session ($D)"; exit 1; }; arm next "$2" "$1";;
       *) echo "usage: arm first|next ..."; exit 1;;
     esac;;
   path)
     D=$(ev_state_dir) || { echo "no session"; exit 1; }
-    case "${2:-}" in shown) echo "$D/shown.png";; gate) echo "$D/gate.png";; dir|"") echo "$D";; *) echo "usage: path shown|gate|dir"; exit 1;; esac;;
+    case "${2:-}" in shown) echo "$D/shown.png";; gate) echo "$D/gate.png";; zlog) echo "$D/zlog";; dir|"") echo "$D";; *) echo "usage: path shown|gate|zlog|dir"; exit 1;; esac;;
+  noflash) D=$(ev_state_dir) || { echo "no session"; exit 1; }; python3 -I "$HOME/.claude/local-tools/evshow_noflash.py" "$D";;
   gateloop)  # captures the screen every ~2.5 s until the answer; rotates 4 files; records finish time (ET) + path
     D=$(ev_state_dir); export EVSHOW_STATE="$D"; SID8=$(basename "$D" | cut -c1-8)
     i=0; while [ ! -e "$D/answer" ] && [ ! -e "$D/done" ]; do
@@ -151,6 +157,8 @@ case "${1:-}" in
     D=$(ev_state_dir) || D=""; need_session; export EVSHOW_STATE="$D"
     "$0" disarm >/dev/null 2>&1
     cur=$(cat "$D/current" 2>/dev/null); [ -n "$cur" ] && { "$W" untop "$cur"; "$W" close "$cur"; rm -f "$D/current"; }
+    [ -e "$D/zpid" ] && { kill "$(cat "$D/zpid")" 2>/dev/null; pkill -P "$(cat "$D/zpid")" 2>/dev/null; rm -f "$D/zpid"; }
+    "$W" close-cloaked   # a cloaked (never shown) window is never left behind
     if [ -s "$D/term" ]; then read -r h l t w ht mx < "$D/term"; echo "saved $h $l $t $w $ht $mx"; "$W" setwin "$h" "$l" "$t" "$w" "$ht" "$mx"; fi
     sleep 1; echo "list-topmost:"; "$W" list-topmost; echo "ended $(et)" >> "$D/history"; rm -f "$D/mode";;
   disarm)

@@ -16,8 +16,9 @@ change to the repo state (if the user asks for one, record it as an amendment or
 
 ## Order of work
 
-1. Read `plans/EVAL_NOTES.md` if present (how this user wants evals run here), then the Ask and Acceptance criteria in
-   `plans/PLAN.md`, then `plans/WORKER_NOTES.md` for how to launch. The worker's claims are claims.
+1. Run `win.sh me` (finds YOUR terminal by a title marker and saves it; `not found` = ask which window is yours). Read
+   `plans/EVAL_NOTES.md` if present (how this user wants evals run here), then the Ask and Acceptance criteria in `plans/PLAN.md`,
+   then `plans/WORKER_NOTES.md` for how to launch. The worker's claims are claims.
 2. Sort the criteria: marked (user), the user judges; the rest a command decides, started now in the background; nothing opens.
 3. List the items to ask about: one per thing on screen (a page, a dialog, a selected hero, a file, a doc); every (user) criterion
    and the Ask belongs to exactly one item. Draft every item's question now (text, options, descriptions).
@@ -25,9 +26,11 @@ change to the repo state (if the user asks for one, record it as an amendment or
    `". phone"`), the whole run is the PHONE PATH: skip steps 5 and 6, no readiness question, no `win.sh`, `evshow.sh`,
    `term-open.sh`, `term-close.sh` or `screen-capture.sh`, nothing launched, moved, fronted or closed on the desktop; follow `##
    Phone path`. `"."` or any prompt without `phone` is the desktop path below.
-5. Pre-open EVERYTHING, arm, then the readiness gate. Open EVERY item of the run, minimized, at the exact URL/file/state its
-   questions are about, each with a unique title containing a random suffix: launch it, then `win.sh prep "<title>"` (for a terminal
-   item `term-open.sh` then `win.sh min <HWND>`), and wait until each is loaded (title present). Nothing is launched after "Yes".
+5. Pre-open EVERYTHING hidden, arm, then the readiness gate. Open EVERY item of the run at the exact URL/file/state its questions
+   are about, each with a unique title containing a random suffix, ONLY through the `--hidden` openers (`win-app.sh --hidden --title
+   "<title>" firefox|code ...`, `term-open.sh` for a terminal item): the window is cloaked from its first moment and the opener
+   prints `hidden: HWND <create-ms> <cloak-ms> <title>` when it is loaded. Never un-cloak, un-minimize, move or front it yourself:
+   `show` is the only uncloak. No other opener exists for a new window. Nothing is launched after "Yes".
    Then `evshow.sh arm first "<title1>" "<title2>" ...` with all titles in asking order; nothing else of yours is opened, moved,
    placed or fronted, and your terminal is not moved. Then ask one AskUserQuestion: "Ready for me to move windows and start?",
    options "Yes" / "Not yet" (on "Not yet" the watcher keeps waiting).
@@ -37,8 +40,9 @@ change to the repo state (if the user asks for one, record it as an amendment or
    it. The item must be visible within 5 s of the answer and the question within about 5 s of the show. The order is always
    show, then capture, then question; the watcher's capture never delays the question. If `wait` prints `not shown` or exits
    non-zero: follow the `not shown` rule in Opening, then `evshow.sh arm next <currentHWND> "<fresh title>"` and ask. After the LAST
-   item's answer: `evshow.sh end`, then `evshow.sh history`: EVAL.md quotes, for EVERY item, its `elapsed N s (answer -> shown)`
-   line and its `question emitted ... (shown -> question N s)` line verbatim from that history, next to its criterion.
+   item's answer: `evshow.sh end`, then `evshow.sh history` and `evshow.sh noflash`: EVAL.md quotes, for EVERY item, its `hidden:`
+   line, its `elapsed N s (answer -> shown)` line and its `question emitted ... (shown -> question N s)` line verbatim, next to its
+   criterion, and the `no-flash: PASS|FAIL (...)` line once, on the line after the verdict.
 7. Conflicts round, only if needed and the only follow-up round: for each finished check whose result contradicts the user's answer
    on the same criterion, ask one question, with the evidence opened first per Opening; never re-ask anything settled.
 8. Write `plans/EVAL.md` (always: if the user cancels, stops or the session is compacted, write it with every answer so far in their
@@ -60,17 +64,17 @@ change to the repo state (if the user asks for one, record it as an amendment or
   exact title incl. its random suffix, so stale windows never match. Never send keys, pointer events, messages or visits to a
   window, pane, session or process you did not launch, never raise, move or close one (yours excepted) or ask the user to look at
   it.
-- HWNDs: `show`, `prep` and `term-open.sh` print your item's HWND; keep it for its lifetime; front, untop, place and close take the
+- HWNDs: the `hidden:` line, `show` and `term-open.sh` print your item's HWND; keep it for its lifetime; front, untop, place and close take the
   HWND only (helpers refuse an HWND this session did not register; a refused close means leave that window alone); never take one
   from `list-topmost`, `list-all` or an earlier run. Topmost only while a question is open: `win.sh untop <HWND>` after the answer.
 - `not shown` means fix and retry; never ask the user whether it is open ("do you see it?"), never hand-roll `sleep N; list`. On
-  `not shown`: read the capture (`evshow.sh path shown`), close that window, reopen with a fresh random-suffix title and `show`
-  again, up to 3 opens in total; if still not shown, fall back to the Windows default browser (`cmd.exe /c start "" "<url>"`) or,
+  `not shown`: read the capture (`evshow.sh path shown`), reopen `--hidden` with a fresh random-suffix title (the cloaked window of
+  the failed attempt is already closed) and `show` again, up to 3 opens in total; if still not shown, fall back to the Windows default browser (`cmd.exe /c start "" "<url>"`) or,
   for files, VS Code `-n`, and show that (also when `firefox.exe` is missing); this path always ends with a visible window. If
   `find`/`show` finds 0 or 2+ windows, it exits 1 listing candidates: ask the user one short question naming them ("Which is mine: A
   / B / none?"), act only on the one chosen, reopen with a fresh title on "none".
-- Side by side: the item's window must never cover your question. The watcher reads `fginfo` once (your terminal, before any move;
-  never re-read after moving), puts your terminal left (0 0 1020 1400) and every item right (1030 0 1530 1400); `show` fails with
+- Side by side: the item's window must never cover your question. The watcher takes the terminal `win.sh me` found (never what the
+  user clicked meanwhile), puts it left (0 0 1020 1400) and every item right (1030 0 1530 1400) at every show; `show` fails with
   `not shown` if the item overlaps your terminal: re-place and show again. On normal end and on user cancel `evshow.sh end` puts
   your terminal back and prints `now`, which must equal the saved line.
 - Proof is the `shown:` line (window exists, un-minimized, at the asked place, not over your terminal) plus the watcher's
@@ -88,25 +92,32 @@ Web pages, HTML files, running apps and GitHub-hosted docs open in Firefox (a `.
 `.md`, logs, text and source open in VS Code; terminal programs via `term-open.sh`. One new window per item; never bare
 `firefox.exe`, `wslview`, `explorer.exe`, `xdg-open` or `code` (they open nothing here). Wait about 6 s after opening before looking
 for the title. Pixels are real display pixels (2560x1440). Every helper lives in `~/.claude/local-tools/`.
-- Firefox new window (file): `~/.claude/local-tools/win-app.sh firefox -new-window "$(wslpath -w "<abs path>")" &`
-- Firefox new window (URL): `~/.claude/local-tools/win-app.sh firefox -new-window "<url>" &`
-- VS Code new window: `~/.claude/local-tools/win-app.sh code -n "<path>"` (finds VS Code under %LOCALAPPDATA%)
+- Firefox new window (file): `win-app.sh --hidden --title "<title>" firefox -new-window "$(wslpath -w "<abs path>")"`
+- Firefox new window (URL): `win-app.sh --hidden --title "<title>" firefox -new-window "<url>"`
+- VS Code new window: `win-app.sh --hidden --title "<file name>" code -n "<path>"` (finds VS Code under %LOCALAPPDATA%)
+  `--hidden` registers a WinEvent hook, launches, cloaks every new window of the app at its CREATE event (off-screen, foreground
+  given back), waits for the title, prints `hidden: HWND <create-ms> <cloak-ms> <title>` (exit 0) or `not hidden: <reason>` (exit
+  1: retry once with a fresh title, then the `not shown` fallback). A `--hidden` window stays cloaked until `show`.
 - `term-open.sh <Title> "<dir>" '<command>'`: a new Windows Terminal window titled <Title> on a tmux session <Title> you own; prints
   `opened <Title> HWND=<n>`; the shell stays open. Drive it only via `tmux send-keys -t <Title>`; close: `term-close.sh <Title>
   <HWND>`.
-- `win.sh prep "<unique title>" [timeout-s]`: wait for exactly one match, register, minimize; prints `prepped: HWND title`. `win.sh
-  min <HWND>`: minimize an item you launched. `win.sh show "<unique title text>" X Y W H [timeout-s] [termHWND]`: poll for exactly
-  one visible match, un-minimize, place, topmost without focus, no overlap with the terminal; prints `shown: HWND title L T W H`,
+- `win.sh me`: sets a marker title on your tmux window, finds the one Windows Terminal window holding it, restores the title, saves
+  it for the watcher; prints `me: HWND L T W H MAX`. `win.sh show "<unique title text>" X Y W H [timeout-s] [termHWND]`: poll for
+  exactly one match, un-cloak, place, topmost without focus, no overlap with the terminal; prints `shown: HWND title L T W H`,
   else exit 1 `not shown: ...` (0 or 2+ matches list candidates). By HWND only: `win.sh front|untop|close <HWND>` (close exits 1 if
   gone), `win.sh place <HWND> X Y W H`, `win.sh rect <HWND>`, `win.sh find "<title>"` (one match or exit 1), `win.sh list-topmost`;
-  title-based front/place/close are errors. The watcher alone runs `win.sh fginfo` / `setwin` on your terminal.
-- `evshow.sh arm first ...` starts a watcher on this session's own transcript plus a gate capture every ~2.5 s while the readiness
-  question is open. The moment an answer lands it shows the next item (`win.sh start`: `fginfo`, place the terminal, show; `win.sh
-  next`: untop+close the old item, show the new), captures the whole screen, and logs answer/shown times (ET), `elapsed N s` and
+  title-based front/place/close are errors. The watcher alone runs `win.sh setwin` on your terminal; `win.sh close-cloaked` closes
+  every cloaked window of yours that was never shown (`end` and the `not shown` path run it).
+- `evshow.sh arm first ...` starts a watcher on this session's own transcript, a gate capture every ~2.5 s while the readiness
+  question is open, and a z-order sampler every 100 ms (`<state>/zlog`, until `end`; `evshow.sh path zlog`). The moment an answer
+  lands it shows the next item (`win.sh start`: place your terminal, un-cloak+show; `win.sh next`: untop+close the old item, show
+  the new), captures the whole screen, and logs answer/shown times (ET), `elapsed N s` and
   `shown -> question N s`. `evshow.sh wait` prints that log, copies the captures to this session's `shown.png` / `gate.png`,
   auto-arms the next queued title, fires the show itself if the watcher did not within 1.5 s, exit 1 on `not shown`. `evshow.sh end`
-  untops+closes the current item, restores the terminal (prints `now`), disarms, prints `list-topmost`. State is per session under
-  `~/.claude/local-tools/evshow.state/<session id>/`; `evshow.sh path shown|gate|dir` prints the paths.
+  untops+closes the current item, closes cloaked leftovers, stops the sampler, restores the terminal (prints `now`), prints
+  `list-topmost`. `evshow.sh noflash` reads `hidden`, `zlog` and the history: `no-flash: PASS (...)` or `FAIL (...)` (a run window
+  un-cloaked on-screen before its show, or a hide over 16 ms). State is per session under
+  `~/.claude/local-tools/evshow.state/<session id>/`; `evshow.sh path shown|gate|zlog|dir` prints the paths.
 - `screen-capture.sh <name>` saves the whole display (DPI-aware), prints the PNG's WSL path; read it with the Read tool.
 
 ## Phone path (launch prompt contains `phone`)
