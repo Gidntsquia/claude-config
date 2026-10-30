@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """evshow_noflash.py <state dir>  -> one line "no-flash: PASS (...)" / "no-flash: FAIL (...)", exit 1 on FAIL.
-Reads this session's files: `hidden` (win-app.sh --hidden lines: "<ET time> hidden: HWND <create-ms> <cloak-ms> <title>"),
+Reads this session's files: `hidden` (win-app.sh --hidden lines: "<ET time> hidden: HWND <visible-ms> <hidden-ms> <title> (create ...)"),
 `zlog` (win.sh zlog: blocks "t HH:MM:SS.fff" then "HWND|topmost|cloaked|iconic|L T W H|title"), `history` (evshow.sh: "show-start
 HH:MM:SS.fff" then "shown: HWND title L T W H" per item). A run window (any HWND in `hidden` or `launched.txt`) counts as
 flashed when a zlog sample before its own show-start (or before the first show-start, if it was never shown) has it
 un-cloaked, not minimized, wider than 300 px and with its left edge above -1000 (on-screen). A hidden: line with
-cloak-ms - create-ms > 16 is a FAIL too (one composed frame is possible)."""
+hidden-ms - visible-ms > 16 is a FAIL too (one composed frame is possible; 0 = hidden before it was ever visible)."""
 import re, sys
 from pathlib import Path
 
@@ -16,10 +16,10 @@ def analyze(d):
     """-> (ok, line, zlog samples, zlog span in s)"""
     d = Path(d)
     hidden = [l for l in (d / "hidden").read_text().splitlines() if "hidden: " in l] if (d / "hidden").exists() else []
-    hid = {}   # hwnd -> (create, cloak, title)
+    hid = {}   # hwnd -> (visible, hidden, title)
     for l in hidden:
         m = re.search(r"hidden: (\d+) (\d+) (\d+) ?(.*)$", l)
-        if m: hid[m.group(1)] = (int(m.group(2)), int(m.group(3)), m.group(4))
+        if m and not m.group(4).startswith("evstandin"): hid[m.group(1)] = (int(m.group(2)), int(m.group(3)), m.group(4))   # harness stand-in terminal is not a run item
     run = set(hid)
     lp = d / "launched.txt"
     if lp.exists():
@@ -56,7 +56,7 @@ def analyze(d):
         return False, "no-flash: FAIL (no hidden log and no zlog in this session's state dir)", samples, span
     if bad or slow:
         return False, "no-flash: FAIL (" + "; ".join(bad[:3] + slow[:3]) + f"; {samples} zlog samples)", samples, span
-    return True, (f"no-flash: PASS ({len(hid)} window(s) cloaked from creation, max hide {maxhide} ms, {samples} zlog samples over "
+    return True, (f"no-flash: PASS ({len(hid)} window(s) hidden before first paint, max exposure {maxhide} ms, {samples} zlog samples over "
                   f"{span:.1f} s, {len(run)} run window(s) never on-screen before their show)"), samples, span
 
 def main(d):

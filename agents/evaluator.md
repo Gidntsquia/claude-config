@@ -29,7 +29,7 @@ change to the repo state (if the user asks for one, record it as an amendment or
 5. Pre-open EVERYTHING hidden, arm, then the readiness gate. Open EVERY item of the run at the exact URL/file/state its questions
    are about, each with a unique title containing a random suffix, ONLY through the `--hidden` openers (`win-app.sh --hidden --title
    "<title>" firefox|code ...`, `term-open.sh` for a terminal item): the window is cloaked from its first moment and the opener
-   prints `hidden: HWND <create-ms> <cloak-ms> <title>` when it is loaded. Never un-cloak, un-minimize, move or front it yourself:
+   prints `hidden: HWND <visible-ms> <hidden-ms> <title> (create ...)` when it is loaded. Never un-cloak, un-minimize, move or front it yourself:
    `show` is the only uncloak. No other opener exists for a new window. Nothing is launched after "Yes".
    Then `evshow.sh arm first "<title1>" "<title2>" ...` with all titles in asking order; nothing else of yours is opened, moved,
    placed or fronted, and your terminal is not moved. Then ask one AskUserQuestion: "Ready for me to move windows and start?",
@@ -96,13 +96,14 @@ for the title. Pixels are real display pixels (2560x1440). Every helper lives in
 - Firefox new window (URL): `win-app.sh --hidden --title "<title>" firefox -new-window "<url>"`
 - VS Code new window: `win-app.sh --hidden --title "<file name>" code -n "<path>"` (finds VS Code under %LOCALAPPDATA%)
   `--hidden` registers a WinEvent hook, launches, cloaks every new window of the app at its CREATE event (off-screen, foreground
-  given back), waits for the title, prints `hidden: HWND <create-ms> <cloak-ms> <title>` (exit 0) or `not hidden: <reason>` (exit
+  given back), waits for the title, prints `hidden: HWND <visible-ms> <hidden-ms> <title> (create ...)` (exit 0; hidden-ms -
+  visible-ms = the longest a frame could have shown, 0 = hidden before it was ever visible) or `not hidden: <reason>` (exit
   1: retry once with a fresh title, then the `not shown` fallback). A `--hidden` window stays cloaked until `show`.
-- `term-open.sh <Title> "<dir>" '<command>'`: a new Windows Terminal window titled <Title> on a tmux session <Title> you own; prints
-  `opened <Title> HWND=<n>`; the shell stays open. Drive it only via `tmux send-keys -t <Title>`; close: `term-close.sh <Title>
+- `term-open.sh <Title> "<dir>" '<command>'`: a new hidden Windows Terminal window titled <Title> on a tmux session <Title> you own;
+  prints `opened <Title> HWND=<n> (hidden: ...)`; the shell stays open. Drive it only via `tmux send-keys -t <Title>`; close: `term-close.sh <Title>
   <HWND>`.
-- `win.sh me`: sets a marker title on your tmux window, finds the one Windows Terminal window holding it, restores the title, saves
-  it for the watcher; prints `me: HWND L T W H MAX`. `win.sh show "<unique title text>" X Y W H [timeout-s] [termHWND]`: poll for
+- `win.sh me`: shows a marker (tmux window title + a tmux status message), finds the one Windows Terminal window holding it (title,
+  else its on-screen text), restores the title, saves it for the watcher; prints `me: HWND L T W H MAX`. `win.sh show "<unique title text>" X Y W H [timeout-s] [termHWND]`: poll for
   exactly one match, un-cloak, place, topmost without focus, no overlap with the terminal; prints `shown: HWND title L T W H`,
   else exit 1 `not shown: ...` (0 or 2+ matches list candidates). By HWND only: `win.sh front|untop|close <HWND>` (close exits 1 if
   gone), `win.sh place <HWND> X Y W H`, `win.sh rect <HWND>`, `win.sh find "<title>"` (one match or exit 1), `win.sh list-topmost`;

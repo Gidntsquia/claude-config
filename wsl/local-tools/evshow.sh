@@ -1,9 +1,10 @@
 #!/bin/bash
 # Shows evaluator items the instant the user's AskUserQuestion answer lands, without waiting for the model's next command.
-# It watches THIS session's transcript (~/.claude/projects/<cwd slug>/<session id>.jsonl). ALL items are opened minimized
-# (win.sh prep) before arming; nothing is launched after the readiness answer.
+# It watches THIS session's transcript (~/.claude/projects/<cwd slug>/<session id>.jsonl). ALL items are opened HIDDEN
+# (win-app.sh --hidden / term-open.sh: hooked at creation, off-screen + alpha 0, no taskbar button) before
+# arming; nothing is launched after the readiness answer.
 #   evshow.sh arm first "<title1>" ["<title2>" ...]   -> before the readiness question. Queue of every item's unique title,
-#        in asking order, all already prepped minimized. Starts the watcher and a gate-capture loop (captures the screen every
+#        in asking order, all already opened hidden. Starts the watcher and a gate-capture loop (captures the screen every
 #        ~2.5 s while the question is open). On the answer "Yes": fginfo + place terminal 0 0 1020 1400 + show "<title1>"
 #        1030 0 1530 1400 + capture, in ONE PowerShell process; picks the last gate capture finished while the question was open.
 #   evshow.sh wait [timeout-s]        -> the FIRST command after every answer. Blocks until the show (and its capture) is done,
@@ -17,7 +18,7 @@
 #        saved fginfo line (prints the `now` line), disarm, list-topmost.
 #   evshow.sh path shown|gate|zlog|dir -> this session's shown.png / gate.png / zlog (100 ms z-order samples) / state dir path
 #   evshow.sh noflash                 -> "no-flash: PASS (...)" or "no-flash: FAIL (...)": no run window un-cloaked and on-screen in
-#        the zlog before its own show-start, every hidden: line's cloak-ms - create-ms <= 16 (exit 1 on FAIL); quote it in EVAL.md
+#        the zlog before its own show-start, every hidden: line's exposure (hidden-ms - visible-ms) <= 16 (exit 1 on FAIL); quote it in EVAL.md
 #   evshow.sh disarm | status | history
 # State is PER SESSION: ~/.claude/local-tools/evshow.state/<session id>/ (EVSHOW_STATE=<dir> overrides; see evsession.sh).
 # wait / next / end act only on windows in that session's launched.txt and restore only that session's terminal;
