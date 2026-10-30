@@ -216,11 +216,34 @@ pcheck "time: today alone -> unsure" 'worker today' '{"unsure":["today"]}'
 pcheck "time: tomorrow at 25pm -> unsure" 'worker tomorrow at 25pm' '{"unsure":["tomorrow at 25pm"]}'
 pcheck "time: today at 5pm (already past) -> unsure" 'worker today at 5pm' '{"unsure":["today at 5pm (already past)"]}'
 pcheck "time: 3 hours before the window (already past) -> at_error" 'worker 3 hours before the window' "{\"at_text\":\"3 hours before the window\",\"at_error\":\"3 hours before the window = 5:20 PM ET, already past (window resets 8:20 PM ET)\",$RESET}"
-# usage API unreachable
-RUN_AGENT_USAGE_FILE="$T/no-such-usage.json" pcheck "time: after window with the API unreachable -> at_error" 'worker after window' \
-  '{"at_text":"after window","at_error":"usage API: FileNotFoundError: [Errno 2] No such file or directory: '"'"''"$T"'/no-such-usage.json'"'"'; open any claude session to refresh the token"}'
-RUN_AGENT_USAGE_FILE="$T/no-such-usage.json" pcheck "time: at 9pm with the API unreachable -> reset unavailable" 'worker at 9pm' \
-  "{$AT9,\"reset_shown\":\"unavailable (FileNotFoundError: [Errno 2] No such file or directory: '$T/no-such-usage.json')\"}"
+# usage API unreachable or 429: never an error. Fallback order: cached reset (saved on every live answer) if still
+# ahead, else an estimate from session transcripts, else now + 5 h (no window open).
+export RUN_AGENT_NO_RETRY=1
+python3 -c "import json; print(json.load(open('$RUN_AGENT_HOME/usage-reset.json'))['reset'])" | grep -qx 1792714800 \
+  && ok "reset: live answer cached in the state dir (usage-reset.json)" || bad "reset: cache file" "$(cat "$RUN_AGENT_HOME/usage-reset.json" 2>&1)"
+RUN_AGENT_USAGE_FILE="$T/no-such-usage.json" pcheck "time: after window with the API unreachable -> cached reset, scheduled" 'worker after window' \
+  "{\"at\":1792714800,\"at_text\":\"after window\",\"at_shown\":\"8:20 PM ET (window reset, cached, in 2h 20m)\",\"reset\":1792714800,\"reset_shown\":\"8:20 PM ET (cached)\",\"reset_note\":\"cached\",\"run\":\"S worker . --at 1792714800 --at-text 'after window' --window --at-shown '8:20 PM ET (window reset, cached, in 2h 20m)'\"}"
+RUN_AGENT_USAGE_FILE="status:429" pcheck "time: two hours before the window with the API at 429 -> cached reset, scheduled (session input)" 'worker fable low two hours before the window force' \
+  "{\"flags\":\"--model fable --effort low\",\"force\":1,\"at\":1792707600,\"at_text\":\"two hours before the window\",\"at_shown\":\"6:20 PM ET (two hours before window 8:20 PM, cached, in 20m)\",\"reset\":1792714800,\"reset_shown\":\"8:20 PM ET (cached)\",\"reset_note\":\"cached\",\"command\":\"claude --agent worker \\\".\\\" --model fable --effort low --name \\\"worker: repo (fable)\\\"\",\"run\":\"S worker . --at 1792707600 --at-text 'two hours before the window' --at-shown '6:20 PM ET (two hours before window 8:20 PM, cached, in 20m)' -- --model fable --effort low\"}"
+RUN_AGENT_USAGE_FILE="status:429" pcheck "time: at 9pm with the API at 429 -> reset shown as cached, no error text" 'worker at 9pm' "{$AT9,\"reset\":1792714800,\"reset_shown\":\"8:20 PM ET (cached)\",\"reset_note\":\"cached\"}"
+out=$(RUN_AGENT_USAGE_FILE="status:429" "$S" --parse 'worker at 9pm dry' 2>&1)
+grep -q "HTTPError\|429" <<<"$out" && bad "time: 429 text never shown" "$out" || ok "time: 429 text never shown in --parse output"
+# retry: a 429 is retried twice before falling back (RUN_AGENT_NO_RETRY unset); sleeps 1 s + 3 s
+t0=$(date +%s); out=$(env -u RUN_AGENT_NO_RETRY RUN_AGENT_USAGE_FILE="status:429" python3 "$(dirname "$S")/parse.py" --reset-shown); dt=$(( $(date +%s) - t0 ))
+[ "$out" = "8:20 PM ET (cached)" ] && [ "$dt" -ge 3 ] && [ "$dt" -le 8 ] && ok "reset: 429 retried (1 s + 3 s) then cached ($dt s)" || bad "reset: 429 retry" "$out after $dt s"
+# estimate from session activity: a session that started 2026-10-22 14:30 ET and is still running -> window 2:30-7:30 PM
+mkdir -p "$T/proj/x" "$T/proj-empty"
+printf '{"type":"x","timestamp":"2026-10-22T18:30:00.000Z"}\n' > "$T/proj/x/a.jsonl"; touch -d "@$RUN_AGENT_NOW" "$T/proj/x/a.jsonl"
+out=$(RUN_AGENT_HOME="$T/home-nocache" RUN_AGENT_PROJECTS="$T/proj" RUN_AGENT_USAGE_FILE="status:429" python3 "$(dirname "$S")/parse.py" --reset-shown)
+[ "$out" = "7:30 PM ET (estimated from session activity)" ] && ok "reset: no cache -> estimated from transcripts (session 2:30 PM, running) = 7:30 PM" || bad "reset: estimate" "$out"
+# a session that ran 6:00-11:30 AM and nothing since: that window closed; now + 5 h, labelled assumed
+printf '{"type":"x","timestamp":"2026-10-22T10:00:00.000Z"}\n' > "$T/proj/x/a.jsonl"; touch -d "@$(( RUN_AGENT_NOW - 6*3600 - 1800 ))" "$T/proj/x/a.jsonl"
+out=$(RUN_AGENT_HOME="$T/home-nocache" RUN_AGENT_PROJECTS="$T/proj" RUN_AGENT_USAGE_FILE="status:429" python3 "$(dirname "$S")/parse.py" --reset-shown)
+[ "$out" = "11:00 PM ET (assumed: no window open, next message starts one)" ] && ok "reset: old sessions only -> now + 5 h, assumed" || bad "reset: assumed (old)" "$out"
+out=$(RUN_AGENT_HOME="$T/home-nocache" RUN_AGENT_PROJECTS="$T/proj-empty" RUN_AGENT_USAGE_FILE="status:429" python3 "$(dirname "$S")/parse.py" --reset-shown)
+[ "$out" = "11:00 PM ET (assumed: no window open, next message starts one)" ] && ok "reset: nothing at all -> now + 5 h, assumed" || bad "reset: assumed (empty)" "$out"
+RUN_AGENT_HOME="$T/home-nocache" RUN_AGENT_PROJECTS="$T/proj-empty" RUN_AGENT_USAGE_FILE="status:429" pcheck "time: two hours before the window, nothing known -> assumed window, still scheduled" 'worker two hours before the window' \
+  "{\"at\":$(( RUN_AGENT_NOW + 3*3600 )),\"at_text\":\"two hours before the window\",\"at_shown\":\"9:00 PM ET (two hours before window 11:00 PM, assumed: no window open, next message starts one, in 3h 0m)\",\"reset\":$(( RUN_AGENT_NOW + 5*3600 )),\"reset_shown\":\"11:00 PM ET (assumed: no window open, next message starts one)\",\"reset_note\":\"assumed: no window open, next message starts one\",\"run\":\"S worker . --at $(( RUN_AGENT_NOW + 3*3600 )) --at-text 'two hours before the window' --at-shown '9:00 PM ET (two hours before window 11:00 PM, assumed: no window open, next message starts one, in 3h 0m)'\"}"
 # typos (4+)
 pcheck "typo: fabel -> fable" 'worker fabel low' "{$FLOW,\"corrections\":[\"fabel -> fable\"]}"
 pcheck "typo: efort lo -> effort low" 'worker efort lo' '{"flags":"--effort low","corrections":["efort -> effort","lo -> low"],"command":"claude --agent worker \".\" --effort low --name \"worker: repo\"","run":"S worker . -- --effort low"}'
@@ -325,17 +348,19 @@ EOF
   usage_at $(( R + 120 ))
   wait_for 10 grep -q "  #5  skipped  " "$LOG" && ok "sched: runner re-fetches at fire time and skips past until" || bad "sched: runner skip at fire time" "$(cat "$LOG")"
 
-  # (4) usage API unreachable: exit 2, nothing scheduled
+  # (4) usage API unreachable at schedule time: the cached reset stands in, job scheduled
   out=$(RUN_AGENT_USAGE_FILE="$T/none.json" "$S" worker '.' --at 0 --at-text 'after window' --window 2>&1); rc=$?
-  [ "$rc" = 2 ] && grep -q "^at_error: usage API: " <<<"$out" && ok "sched: API unreachable -> exit 2" || bad "sched: API unreachable" "rc=$rc $out"
+  [ "$rc" = 0 ] && grep -q "^scheduled #" <<<"$out" && ! grep -q "at_error\|unavailable" <<<"$out" && ok "sched: API unreachable -> cached reset, scheduled" || bad "sched: API unreachable" "rc=$rc $out"
+  "$S" --cancel "$(grep -o "^scheduled #[0-9]*" <<<"$out" | tr -dc 0-9)" >/dev/null 2>&1
 
   # (4b) --need-tmux outside tmux: exit 1, nothing scheduled
   out=$(TMUX= "$S" worker '.' --at 0 --at-text 'after window' --window --need-tmux 2>&1); rc=$?
   [ "$rc" = 1 ] && [ "$(head -1 <<<"$out")" = "not scheduled — not in tmux" ] && ok "sched: --need-tmux outside tmux -> exit 1" || bad "sched: --need-tmux" "rc=$rc $out"
   [ "$(tail -1 <<<"$out")" = "Relaunch: not scheduled — not in tmux; run /run-agent worker after window to schedule it by hand" ] && ok "sched: --need-tmux Relaunch line (no tmux)" || bad "sched: --need-tmux Relaunch line (no tmux)" "$out"
-  # (4c) --need-tmux with no reset time: exit 2, Relaunch line with the hint
+  # (4c) --need-tmux with the API down: the cached reset stands in, scheduled, Relaunch line present
   out=$(RUN_AGENT_USAGE_FILE="$T/none.json" "$S" worker '.' --at 0 --at-text 'after window' --window --need-tmux 2>&1); rc=$?
-  [ "$rc" = 2 ] && grep -q "^Relaunch: not scheduled — no reset time (.*); run /run-agent worker after window to schedule it by hand$" <<<"$out" && ok "sched: --need-tmux Relaunch line (no reset)" || bad "sched: --need-tmux Relaunch line (no reset)" "rc=$rc $out"
+  [ "$rc" = 0 ] && grep -q "^Relaunch: .* ET (job #[0-9]*)$" <<<"$out" && ok "sched: --need-tmux with the API down -> scheduled from the cached reset" || bad "sched: --need-tmux (API down)" "rc=$rc $out"
+  "$S" --cancel "$(grep -o "^scheduled #[0-9]*" <<<"$out" | tr -dc 0-9)" >/dev/null 2>&1
   # (4d) --need-tmux success: last line is Relaunch: <time> ET (job #N)
   R=$(( $(date +%s) + 600 )); usage_at "$R"
   out=$("$S" worker '.' --at "$R" --at-text 'after window' --window --need-tmux 2>&1); rc=$?
@@ -364,12 +389,13 @@ EOF
   [ "$rc" = 0 ] && [ "$(sed -n 3p <<<"$out")" = "Relaunch: not scheduled — not in tmux; run /run-agent worker after window to schedule it by hand" ] \
     && [ "$(git -C "$H" log -1 --format=%s)" = "WIP: stopped at usage limit — half of b" ] && [ "$(tail -n1 "$H/plans/WORKER_NOTES.md")" = "$(sed -n 3p <<<"$out")" ] \
     && ok "handoff: outside tmux -> exit 0, note + commit, not-scheduled Relaunch" || bad "handoff: outside tmux" "rc=$rc $out"
-  # no reset time ({}): same fallback shape, exit 0
+  # API reply without a reset ({}): the cached reset stands in, relaunch scheduled, exit 0
   echo '{}' > "$T/empty.json"; echo c > "$H/c.txt"
   out=$(cd "$H" && printf 'In progress: c\n' | RUN_AGENT_USAGE_FILE="$T/empty.json" "$S" --handoff worker 2>&1); rc=$?
-  [ "$rc" = 0 ] && grep -q "^Relaunch: not scheduled — no reset time (.*); run /run-agent worker after window to schedule it by hand$" <<<"$(sed -n 3p <<<"$out")" \
-    && [ "$(git -C "$H" log -1 --format=%s)" = "WIP: stopped at usage limit — c" ] && ok "handoff: no reset time -> exit 0, note + commit" || bad "handoff: no reset time" "rc=$rc $out"
-  [ "$("$S" --jobs)" = "no scheduled runs" ] && ok "handoff: fallbacks scheduled nothing" || bad "handoff: fallbacks scheduled nothing" "$("$S" --jobs)"
+  [ "$rc" = 0 ] && grep -q "^Relaunch: .* ET (job #[0-9]*)$" <<<"$(sed -n 3p <<<"$out")" \
+    && [ "$(git -C "$H" log -1 --format=%s)" = "WIP: stopped at usage limit — c" ] && ok "handoff: API without a reset -> scheduled from the cached reset, note + commit" || bad "handoff: API without reset" "rc=$rc $out"
+  "$S" --cancel >/dev/null 2>&1
+  [ "$("$S" --jobs)" = "no scheduled runs" ] && ok "handoff: not-in-tmux fallback scheduled nothing" || bad "handoff: fallbacks scheduled nothing" "$("$S" --jobs)"
   # empty stdin, clean tree: heading + Uncommitted + Relaunch only, Commit: nothing to commit
   usage_at "$R"
   out=$(cd "$H" && : | "$S" --handoff worker 2>&1); rc=$?
@@ -397,18 +423,18 @@ EOF
   sleep 0.5
   R=$(( $(date +%s) + 3 )); : > "$RA_OUT"
   TARGET=t:second keys "'$S' worker '.' --at $R --at-text 'in 3s' > '$T/sched6.out' 2>&1"
-  wait_for 3 test -s "$T/sched6.out"
+  wait_for 3 test -s "$T/sched6.out"; J6=$(grep -o "^scheduled #[0-9]*" "$T/sched6.out" | tr -dc 0-9)
   TM kill-window -t t:second
-  wait_for 10 grep -q "  #10  fired in new window  " "$LOG" && ok "sched: pane gone -> fired in new window" || bad "sched: pane gone" "$(cat "$LOG")"
+  wait_for 10 grep -q "  #$J6  fired in new window  " "$LOG" && ok "sched: pane gone -> fired in new window" || bad "sched: pane gone" "$(cat "$LOG")"
   wait_for 3 bash -c "tmux -L '$SOCK' list-windows -t t -F '#{window_name}' | grep -qx 'worker: repo'" && ok "sched: new window named 'worker: repo'" || bad "sched: new window name" "$(TM list-windows -t t)"
   wait_for 5 grep -q "arg=worker: repo" "$RA_OUT" && ok "sched: claude ran in the new window" || bad "sched: claude in new window" "$(cat "$RA_OUT")"
 
   # (7) server gone: schedule, kill the server -> a new detached session
   R=$(( $(date +%s) + 3 )); : > "$RA_OUT"
   keys "'$S' worker '.' --at $R --at-text 'in 3s' > '$T/sched7.out' 2>&1"
-  wait_for 3 test -s "$T/sched7.out"
+  wait_for 3 test -s "$T/sched7.out"; J7=$(grep -o "^scheduled #[0-9]*" "$T/sched7.out" | tr -dc 0-9)
   TM kill-server
-  wait_for 10 grep -q "  #11  fired in new session  " "$LOG" && ok "sched: server gone -> fired in new session" || bad "sched: server gone" "$(cat "$LOG")"
+  wait_for 10 grep -q "  #$J7  fired in new session  " "$LOG" && ok "sched: server gone -> fired in new session" || bad "sched: server gone" "$(cat "$LOG")"
   wait_for 3 bash -c "tmux -L '$SOCK' list-sessions -F '#{session_name}' | grep -qx 'worker repo'" && ok "sched: new session 'worker repo'" || bad "sched: new session" "$(TM list-sessions 2>&1)"
   wait_for 5 grep -q "arg=worker: repo" "$RA_OUT" && ok "sched: claude ran in the new session" || bad "sched: claude in new session" "$(cat "$RA_OUT")"
 

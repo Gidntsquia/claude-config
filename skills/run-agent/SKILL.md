@@ -31,7 +31,8 @@ Time words resolve in `parse.py` without a model: `at 9pm`, `in 2h`, `in 2 hours
 <clock>`. `jobs` shows each run's time and runner state (`sleeping (pid N)`, `dead`, `errored: <last log line>`,
 `waiting: no pane`). When the parser cannot place a time word the haiku confirm step reads it (it is told the current
 ET time and the window reset) and hands `--step '<words> | time: at <clock>'` back; it never asks the user when the
-window ends. From an agent session (worker, evaluator, planner, helper) `split`, `window` and `+` are answered
+window ends. The window reset comes from the usage API; when that fails (429, no network) the last live answer, then an
+estimate from session transcripts, then now + 5 h stand in, labelled, so a window-relative time always schedules. From an agent session (worker, evaluator, planner, helper) `split`, `window` and `+` are answered
 `ignored: agents replace their own pane`: an agent only ever replaces its own pane, now or at the scheduled time; if
 that pane is gone at fire time the run waits (`jobs.log`: `waiting: no pane`) until a human `/run-agent` or `run-agent`
 call on that tmux server opens it in a new window.

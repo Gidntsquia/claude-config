@@ -5,7 +5,8 @@ run time, corrections, unsure, dry). Called by `run-agent.sh --parse '<raw>'`. S
 Also: `parse.py --reset` prints the 5-hour window reset epoch (or `error: ...`, exit 2), and
 `parse.py --fmt <epoch>` prints it as `9:40 PM ET`.
 
-Env: RUN_AGENT_NOW (epoch, "now" for tests), RUN_AGENT_USAGE_FILE (JSON file standing in for the usage API),
+Env: RUN_AGENT_NOW (epoch, "now" for tests), RUN_AGENT_USAGE_FILE (JSON file standing in for the usage API, or
+`status:429` for an HTTP error), RUN_AGENT_PROJECTS (transcript root for the window estimate), RUN_AGENT_NO_RETRY,
 RUN_AGENT_HOME (state dir), RUN_AGENT_TZ (zone name; default the machine's local zone).
 """
 import json
@@ -15,6 +16,7 @@ import shlex
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
 
@@ -80,24 +82,46 @@ def fmt_in(ts, now=None):
     return f"in {h}h {m}m" if h else f"in {m}m"
 
 
+WINDOW = 5 * 3600
+
+
+def cache_path():
+    return os.path.join(os.environ.get("RUN_AGENT_HOME") or os.path.join(os.path.expanduser("~"), ".claude", "run-agent"),
+                        "usage-reset.json")
+
+
 def fetch_reset():
-    """Return (epoch, None) or (None, reason) for five_hour.resets_at."""
+    """Return (epoch, None) from the usage API, or (None, reason). 429 is retried twice (1 s, 3 s)."""
     path = os.environ.get("RUN_AGENT_USAGE_FILE")
-    try:
-        if path:
-            with open(path, encoding="utf-8") as f:
-                data = json.load(f)
-        else:
-            cred = os.path.join(os.path.expanduser("~"), ".claude", ".credentials.json")
-            with open(cred, encoding="utf-8") as f:
-                tok = json.load(f)["claudeAiOauth"]["accessToken"]
-            req = urllib.request.Request(
-                "https://api.anthropic.com/api/oauth/usage",
-                headers={"Authorization": f"Bearer {tok}", "anthropic-beta": "oauth-2025-04-20"})
-            with urllib.request.urlopen(req, timeout=15) as r:
-                data = json.load(r)
-    except Exception as e:  # noqa: BLE001
-        return None, f"{type(e).__name__}: {e}"
+    err = None
+    for attempt in range(3):
+        try:
+            if path and path.startswith("status:"):  # tests: stand in for an HTTP error, e.g. status:429
+                raise urllib.error.HTTPError("https://api.anthropic.com/api/oauth/usage", int(path[7:]),
+                                             {429: "Too Many Requests"}.get(int(path[7:]), "error"), {}, None)
+            if path:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+            else:
+                cred = os.path.join(os.path.expanduser("~"), ".claude", ".credentials.json")
+                with open(cred, encoding="utf-8") as f:
+                    tok = json.load(f)["claudeAiOauth"]["accessToken"]
+                req = urllib.request.Request(
+                    "https://api.anthropic.com/api/oauth/usage",
+                    headers={"Authorization": f"Bearer {tok}", "anthropic-beta": "oauth-2025-04-20"})
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    data = json.load(r)
+        except urllib.error.HTTPError as e:
+            err = f"{type(e).__name__}: {e}"
+            if e.code == 429 and attempt < 2 and not os.environ.get("RUN_AGENT_NO_RETRY"):
+                time.sleep(1 if attempt == 0 else 3)
+                continue
+            return None, err
+        except Exception as e:  # noqa: BLE001
+            return None, f"{type(e).__name__}: {e}"
+        break
+    else:
+        return None, err
     fh = data.get("five_hour") if isinstance(data, dict) else None
     if not fh or not fh.get("resets_at"):
         return None, "no five_hour.resets_at in the reply (stale token?)"
@@ -105,6 +129,81 @@ def fetch_reset():
         return datetime.fromisoformat(fh["resets_at"].replace("Z", "+00:00")).timestamp(), None
     except Exception as e:  # noqa: BLE001
         return None, f"bad resets_at {fh['resets_at']!r}: {e}"
+
+
+def cached_reset():
+    try:
+        with open(cache_path(), encoding="utf-8") as f:
+            return float(json.load(f)["reset"])
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def save_reset(ts):
+    try:
+        os.makedirs(os.path.dirname(cache_path()), exist_ok=True)
+        with open(cache_path(), "w", encoding="utf-8") as f:
+            json.dump({"reset": int(ts), "saved": int(time.time())}, f)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def estimate_reset(now):
+    """Estimate the window from session transcripts: each session is [first timestamp, mtime]; a window starts at
+    the first activity after the previous one ended. Returns the reset epoch, or None when no window is open."""
+    root = os.environ.get("RUN_AGENT_PROJECTS") or os.path.join(os.path.expanduser("~"), ".claude", "projects")
+    spans = []
+    try:
+        for d in os.scandir(root):
+            if not d.is_dir():
+                continue
+            for e in os.scandir(d.path):
+                if not e.name.endswith(".jsonl"):
+                    continue
+                st = e.stat()
+                if st.st_mtime < now - 3 * WINDOW or st.st_mtime > now + 60:
+                    continue
+                first = None
+                with open(e.path, "rb") as f:
+                    head = f.read(65536).decode("utf-8", "replace")
+                m = re.search(r'"timestamp":"([^"]+)"', head)
+                if m:
+                    try:
+                        first = datetime.fromisoformat(m.group(1).replace("Z", "+00:00")).timestamp()
+                    except Exception:  # noqa: BLE001
+                        first = None
+                spans.append((first if first is not None else st.st_mtime, min(st.st_mtime, now)))
+    except Exception:  # noqa: BLE001
+        return None
+    if not spans:
+        return None
+    spans.sort()
+    ws = None
+    for a, b in spans:
+        if ws is None or a >= ws + WINDOW:
+            ws = a
+        # a session that keeps running past the window's end opens the next window right then
+        while b >= ws + WINDOW and ws + WINDOW <= now:
+            ws = ws + WINDOW
+    return ws + WINDOW if ws is not None and ws + WINDOW > now else None
+
+
+def resolve_reset(now=None):
+    """(epoch, note) — never fails: API (cached on success), else the cached value if still ahead, else an estimate
+    from session activity, else now + 5 h (no window open: a new one starts with the next message).
+    note is "" for a live answer, otherwise a short label for the derivation."""
+    now = now_ts() if now is None else now
+    ts, err = fetch_reset()
+    if ts is not None:
+        save_reset(ts)
+        return ts, ""
+    c = cached_reset()
+    if c is not None and c > now:
+        return c, "cached"
+    est = estimate_reset(now)
+    if est is not None:
+        return est, "estimated from session activity"
+    return now + WINDOW, "assumed: no window open, next message starts one"
 
 
 def edit_distance(a, b):
@@ -772,10 +871,11 @@ def shell(args):
 def main():
     argv = sys.argv[1:]
     if argv and argv[0] == "--reset":
-        ts, err = fetch_reset()
-        if err:
-            print(f"error: {err}"); sys.exit(2)
+        ts, note = resolve_reset()
         print(int(ts)); return
+    if argv and argv[0] == "--reset-shown":
+        ts, note = resolve_reset()
+        print(fmt_et(ts) + (f" ({note})" if note else "")); return
     if argv and argv[0] == "--fmt":
         print(fmt_et(float(argv[1]))); return
     raw = " ".join(argv)
@@ -804,25 +904,21 @@ def main():
     # window / reset
     need_reset = p.at is not None or p.dry or p.at_kind == "relwin"
     if need_reset:
-        reset, err = fetch_reset()
-        if reset is not None:
-            out["reset"] = int(reset)
-            out["reset_shown"] = fmt_et(reset)
-        elif p.at_kind == "window":
-            out["at_error"] = f"usage API: {err}; open any claude session to refresh the token"
-        else:
-            out["reset_shown"] = f"unavailable ({err})"
-        if p.at_kind == "window" and reset is not None:
+        reset, note = resolve_reset(p.now)
+        out["reset"] = int(reset)
+        out["reset_shown"] = fmt_et(reset) + (f" ({note})" if note else "")
+        if note:
+            out["reset_note"] = note
+        if p.at_kind == "window":
             p.at = reset
+            if note:
+                p.derive = f"window reset, {note}"
         if p.at_kind == "relwin":
-            if reset is None:
-                out["at_error"] = f"usage API: {err}; open any claude session to refresh the token"
-            else:
-                p.at = reset + p.rel_offset
-                p.derive += f" {fmt_et(reset).replace(' ET', '')}"
-                if p.at <= p.now:
-                    out["at_error"] = f"{p.at_text} = {fmt_et(p.at)}, already past (window resets {fmt_et(reset)})"
-                    p.at = None
+            p.at = reset + p.rel_offset
+            p.derive += f" {fmt_et(reset).replace(' ET', '')}" + (f", {note}" if note else "")
+            if p.at <= p.now:
+                out["at_error"] = f"{p.at_text} = {fmt_et(p.at)}, already past (window resets {fmt_et(reset)})"
+                p.at = None
     if p.at is not None and p.at >= 0:
         out["at"] = int(p.at)
         out["at_shown"] = f"{fmt_et(p.at)} ({p.derive or p.at_text}, {fmt_in(p.at, p.now)})"

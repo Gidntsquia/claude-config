@@ -377,8 +377,7 @@ if [ "$dry" = 1 ]; then
   else
     echo "run at: now"
   fi
-  if reset=$(python3 "$HERE/parse.py" --reset 2>&1); then echo "usage reset: $(fmt "$reset")"
-  else echo "usage reset: unavailable ($reset)"; fi
+  echo "usage reset: $(python3 "$HERE/parse.py" --reset-shown 2>/dev/null || echo "not checked")"
   echo "dry run: nothing scheduled, nothing replaced"
   exit 0
 fi
@@ -392,11 +391,8 @@ if [ -n "$at" ]; then
   fi
   [ -n "$at_text" ] || at_text="at $(fmt "$at")"
   if [ "$window" = 1 ]; then
-    if ! reset=$(python3 "$HERE/parse.py" --reset 2>&1); then
-      echo "at_error: usage API: ${reset#error: }; open any claude session to refresh the token" >&2
-      [ "$need_tmux" = 1 ] && echo "Relaunch: not scheduled — no reset time (${reset#error: })$HINT" >&2
-      exit 2
-    fi
+    # parse.py --reset never fails: API, else cached, else estimated from session activity, else now + 5 h
+    reset=$(python3 "$HERE/parse.py" --reset 2>/dev/null) || reset=$(( $(date +%s) + 18000 ))
     [ "$reset" -gt "$at" ] && at="$reset"
     if [ -n "$until_at" ] && [ "$reset" -gt "$until_at" ]; then
       line="skipped: reset $(fmt "$reset") is after until $(fmt "$until_at")"
