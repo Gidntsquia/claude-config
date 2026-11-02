@@ -25,6 +25,7 @@
  "Jet|https://github.com/dotcomstar/GCC-Wireless": "#27a566",
  "solo|curling_simulator": "#2bb4c9",
  "solo|evaluator-building": "#ff8a65",
+ "solo|godot-test": "#b8860b",
  "solo|helper-agent-building": "#b8860b",
  "solo|https://github.com/Gidntsquia/agent-eval-experiment": "#c2185b",
  "solo|https://github.com/Gidntsquia/archery_simulator": "#2e9e6b",
@@ -36,6 +37,10 @@
  "solo|https://github.com/Gidntsquia/terminal-pet": "#7c5cff",
  "solo|llc-advisor": "#e5484d",
  "solo|open-picture-editor": "#2f80ed",
+ "solo|planner-building": "#2e9e6b",
+ "solo|report-writer-agent-improver": "#6d4c41",
+ "solo|run-agent-skill-improver": "#a13e85",
+ "solo|slay-the-spire-advisor": "#e8710a",
  "solo|substitute_teacher_simulator": "#a13e85",
  "solo|worker-building": "#43a047"
 }
