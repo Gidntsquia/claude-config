@@ -17,6 +17,14 @@
   cancel [<id>]                              -> kills the runner, logs cancelled, moves the job to done/
   done <id> <outcome> [note]                 -> logs the outcome, moves the job to done/
   log <id> <outcome> [note]                  -> appends to jobs.log only
+  failures [--mark]                          -> one line per job that failed or was skipped since the last --mark
+  clean                                      -> deletes done/*.json and logs/* older than 30 days
+  size                                       -> "state dir N MB, trim with run-agent clean" when the dir is over 50 MB
+
+write also records how to start claude at fire time: --claude-bin (absolute path), --path, --home, --shell (the env
+keys, stored under "env"), and --model-default <model> when the argv carries no --model (the list then shows
+"(<model>, default)"). Jobs written without these fields (older versions) are run as before: `claude` from the
+runner's own PATH, no default-model note.
 """
 import json
 import os
@@ -30,6 +38,9 @@ JOBS = os.path.join(HOME, "jobs")
 DONE = os.path.join(HOME, "done")
 LOG = os.path.join(HOME, "jobs.log")
 LOGS = os.path.join(HOME, "logs")  # logs/<id>.log: that job's runner output (empty unless it errored)
+SEEN = os.path.join(HOME, "failures-seen")  # epoch: failures finished before it were already shown to a human
+KEEP_DAYS = 30
+BIG_MB = 50
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from parse import fmt_et, fmt_in, now_ts  # noqa: E402
@@ -134,17 +145,85 @@ def finish(jid, outcome, note=""):
     try:
         job = load(jid)
         job["outcome"] = outcome
+        job["note"] = note
         job["finished"] = int(now_ts())
         with open(os.path.join(DONE, f"{jid}.json"), "w", encoding="utf-8") as f:
             json.dump(job, f, indent=1, ensure_ascii=False)
         os.remove(path(jid))
     except FileNotFoundError:
         pass
-    try:
-        os.remove(os.path.join(LOGS, f"{jid}.log"))
-    except OSError:
-        pass
+    for ext in (".log", ".exit"):
+        try:
+            os.remove(os.path.join(LOGS, f"{jid}{ext}"))
+        except OSError:
+            pass
     return line
+
+
+def model_note(job):
+    """' (sonnet, default)' for a job whose claude command carries no --model, else ''"""
+    d = job.get("model_default", "")
+    return f"  ({d}, default)" if d else ""
+
+
+def failures(mark=False):
+    """done jobs that failed or were skipped after the last mark, oldest first"""
+    try:
+        with open(SEEN, encoding="utf-8") as f:
+            seen = int(f.read().strip() or 0)
+    except (OSError, ValueError):
+        seen = 0
+    out = []
+    for n in os.listdir(DONE):
+        if not n.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(DONE, n), encoding="utf-8") as f:
+                j = json.load(f)
+        except (OSError, ValueError):
+            continue
+        oc = str(j.get("outcome", ""))
+        fin = int(j.get("finished") or 0)
+        if fin > seen and oc.startswith(("failed", "skipped")):
+            stamp = datetime.fromtimestamp(fin).astimezone().strftime("%Y-%m-%d %I:%M %p ET")
+            line = f"{stamp}  #{j.get('id', n[:-5])}  {oc}"
+            if j.get("note"):
+                line += f" ({j['note']})"
+            out.append((fin, line + f"  {j.get('shown', '')}"))
+    if mark and out:
+        with open(SEEN, "w", encoding="utf-8") as f:
+            f.write(f"{max(fin for fin, _ in out)}\n")
+    return [line for _, line in sorted(out)]
+
+
+def dir_mb():
+    total = 0
+    for root, _dirs, files in os.walk(HOME):
+        for n in files:
+            try:
+                total += os.path.getsize(os.path.join(root, n))
+            except OSError:
+                pass
+    return total / (1024 * 1024)
+
+
+def size_line():
+    mb = dir_mb()
+    return f"state dir {mb:.0f} MB, trim with run-agent clean" if mb > BIG_MB else ""
+
+
+def clean():
+    cutoff = now_ts() - KEEP_DAYS * 86400
+    gone = 0
+    for d in (DONE, LOGS):
+        for n in os.listdir(d):
+            p = os.path.join(d, n)
+            try:
+                if os.path.isfile(p) and os.path.getmtime(p) < cutoff:
+                    os.remove(p); gone += 1
+            except OSError:
+                pass
+    return gone
 
 
 def kv_args(args):
@@ -175,7 +254,10 @@ def main():
                "socket": o.get("socket", ""), "server_pid": o.get("server_pid", ""),
                "agent": o.get("agent", ""), "folder": o.get("folder", ""), "target": o.get("target", ""),
                "from_agent": 1 if o.get("from_agent") == "1" else 0,
-               "argv": argv, "shown": o.get("shown", ""), "pid": 0}
+               "argv": argv, "shown": o.get("shown", ""), "pid": 0,
+               "claude_bin": o.get("claude_bin", ""),
+               "env": {"PATH": o.get("path", ""), "HOME": o.get("home", ""), "SHELL": o.get("shell", "")},
+               "model_default": o.get("model_default", "")}
         save(job)
         print(f"{job['id']}\t{path(job['id'])}")
     elif cmd == "setpid":
@@ -183,8 +265,10 @@ def main():
     elif cmd == "argv":
         sys.stdout.write("\0".join(load(int(args[0]))["argv"]) + "\0")
     elif cmd == "get":
-        v = load(int(args[0])).get(args[1], "")
-        print("" if v is None else v)
+        v = load(int(args[0]))
+        for k in args[1].split("."):  # env.PATH
+            v = v.get(k, "") if isinstance(v, dict) else ""
+        print("" if v is None or isinstance(v, (dict, list)) else v)
     elif cmd == "pending":
         for j in pending():
             print(j)
@@ -212,15 +296,31 @@ def main():
     elif cmd == "set":
         job = load(int(args[0])); job[args[1]] = args[2]; save(job)
     elif cmd == "list":
+        # failures since the last human look come first; a human call (RUN_AGENT_HUMAN or a tty) marks them seen
+        human = bool(os.environ.get("RUN_AGENT_HUMAN")) or sys.stdout.isatty()
+        for line in failures(mark=human):
+            print(line)
         ids = pending()
         if not ids:
-            print("no scheduled runs"); return
+            print("no scheduled runs")
         for jid in ids:
             j = load(jid)
-            line = f"#{jid}  {j['shown']}  at {fmt_et(j['run_at'])} ({j['at_text']}, {fmt_in(j['run_at'])})"
+            line = f"#{jid}  {j['shown']}{model_note(j)}  at {fmt_et(j['run_at'])} ({j['at_text']}, {fmt_in(j['run_at'])})"
             if j.get("until"):
                 line += f"  until {fmt_et(j['until'])}"
             print(line + f"  [{state(j)}]")
+        big = size_line()
+        if big:
+            print(big)
+    elif cmd == "failures":
+        for line in failures(mark="--mark" in args):
+            print(line)
+    elif cmd == "clean":
+        print(f"removed {clean()} file(s) older than {KEEP_DAYS} days from {DONE} and {LOGS}")
+    elif cmd == "size":
+        big = size_line()
+        if big:
+            print(big)
     elif cmd == "cancel":
         ids = pending()
         if args:

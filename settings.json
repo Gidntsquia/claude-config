@@ -5,7 +5,12 @@
   },
   "permissions": {
     "allow": [
-      "Bash(~/.claude/skills/run-agent/scripts/run-agent.sh:*)"
+      "Bash(~/.claude/skills/run-agent/scripts/run-agent.sh *)",
+      "Bash(~/files/claude-config/skills/run-agent/scripts/run-agent.sh *)",
+      "Bash(bash ~/.claude/skills/run-agent/scripts/*)",
+      "Bash(bash ~/files/claude-config/skills/run-agent/scripts/*)",
+      "Bash(~/.local/bin/run-agent *)",
+      "Bash(run-agent *)"
     ],
     "deny": [
       "Workflow",
@@ -19,20 +24,6 @@
       "Agent(report-writer-archived-2026-10-21)"
     ],
     "defaultMode": "auto"
-  },
-  "hooks": {
-    "UserPromptExpansion": [
-      {
-        "matcher": "run-agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/skills/run-agent/scripts/run-agent.sh --hook",
-            "timeout": 90
-          }
-        ]
-      }
-    ]
   },
   "model": "sonnet",
   "skillOverrides": {
@@ -73,6 +64,31 @@
       "serverName": "claude.ai Claude Docs"
     }
   ],
+  "hooks": {
+    "UserPromptExpansion": [
+      {
+        "matcher": "run-agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/skills/run-agent/scripts/run-agent.sh --hook",
+            "timeout": 90
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/skills/run-agent/scripts/run-agent.sh --denied",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
   "enableWorkflows": false,
   "workflowKeywordTriggerEnabled": false,
   "statusLine": {
@@ -130,8 +146,8 @@
       "### Org-wide",
       "**Organization**: None configured",
       "**Cloud provider(s)**: None configured",
-      "**Repository visibility**: PUBLIC — Gidntsquia/descent-of-essence (github.com)",
-      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Repository visibility**: PUBLIC \u2014 Gidntsquia/descent-of-essence (github.com)",
+      "**Internal sharing / snippet hosting**: None configured \u2014 treat public paste/gist services as outside the trust boundary",
       "**Secrets management**: None configured",
       "**Default / protected branches**: main (default); no branch protection rules or rulesets listed via gh",
       "**CI/CD deploy targets**: None configured",
@@ -144,11 +160,11 @@
       "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar",
       "**Data retention / declassification**: None configured",
       "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment",
-      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected deployment namespaces / environments**: None configured \u2014 fall back to the Sensitive remote targets heuristic",
       "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
       "### User-specific",
       "**Primary use of Claude Code**: software development (browser-based JavaScript game, Wordbound, in this repo)",
-      "**Trusted repo**: Gidntsquia/descent-of-essence (public GitHub repo) and its origin remote — this is a public repo, so only this repo's own work is safe to publish there; secrets and sensitive data are never cleared into it by virtue of visibility",
+      "**Trusted repo**: Gidntsquia/descent-of-essence (public GitHub repo) and its origin remote \u2014 this is a public repo, so only this repo's own work is safe to publish there; secrets and sensitive data are never cleared into it by virtue of visibility",
       "**Org-specific CLIs**: None configured",
       "routine actions scoped to this repo's working tree and its origin remote only"
     ]

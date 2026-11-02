@@ -9,6 +9,12 @@
 # the recorded session; server gone -> a new detached session. A job made from an agent session (from_agent)
 # only ever respawns its own pane: pane gone -> jobs.log `waiting: no pane`, the job stays pending and fires
 # when a human run-agent call next sees that tmux server. Outcome -> ~/.claude/run-agent/jobs.log.
+# The claude command runs as the job recorded it: the absolute binary (claude_bin) with the PATH, HOME and SHELL of
+# the session that scheduled it (env), so a runner living in a stripped environment still starts claude; a job
+# without these fields (older versions) runs `claude` from the runner's PATH as before. After tmux accepts the
+# launch the runner waits up to 30 s for a `claude` process under the pane; none (the wrapper's exit marker shows
+# claude ended non-zero, or the binary is missing) -> jobs.log `failed: claude did not start (<first error line>)`,
+# the error stays on screen in the pane.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 J="$HERE/jobs.py"; P="$HERE/parse.py"
@@ -23,10 +29,15 @@ main() {
   log() { python3 "$J" done "$id" "$1" "${2:-}" >/dev/null; }
 
   local run_at until_at window socket pane session cwd agent folder shown target from_agent
+  local claude_bin env_path env_home env_shell state_dir
   run_at=$(field run_at); until_at=$(field until); window=$(field window)
   socket=$(field socket); pane=$(field pane); session=$(field session); cwd=$(field cwd)
   agent=$(field agent); folder=$(field folder); shown=$(field shown); target=$(field target)
   from_agent=$(field from_agent)
+  claude_bin=$(field claude_bin); env_path=$(field env.PATH); env_home=$(field env.HOME); env_shell=$(field env.SHELL)
+  state_dir="${RUN_AGENT_HOME:-$HOME/.claude/run-agent}"
+  [ -n "$env_shell" ] || env_shell="${SHELL:-bash}"
+  rm -f "$state_dir/logs/$id.exit"
 
   wait_until() {  # sleep until epoch $1; never a negative sleep
     local t
@@ -59,16 +70,61 @@ main() {
   mapfile -d '' -t cmd < <(python3 "$J" argv "$id")
   first="scheduled run #$id fired at $(fmt "$(now)"): $shown"
   TM=(tmux); [ -n "$socket" ] && TM=(tmux -S "$socket")
-  wrap=(bash -c 'printf "%s\n" "$1"; RUN_AGENT_FROM="$3" "${@:4}"; exec "$2"' run-agent "$first" "${SHELL:-bash}" "$agent" "${cmd[@]}")
+  # $1 banner, $2 shell, $3 agent, $4 exit marker, $5 claude binary ("" = `claude` from PATH), $6 PATH, $7 HOME,
+  # then the recorded claude arguments. The marker file carries claude's exit status (127 = not found).
+  wrap=(bash -c 'printf "%s\n" "$1"; export SHELL="$2"; [ -n "$6" ] && export PATH="$6"; [ -n "$7" ] && export HOME="$7"
+bin="${5:-claude}"
+if ! command -v "$bin" >/dev/null 2>&1; then printf "%s: command not found\n" "$bin" >&2; echo 127 > "$4"; exec "$2"; fi
+RUN_AGENT_FROM="$3" "$bin" "${@:8}"; echo $? > "$4"; exec "$2"' run-agent "$first" "$env_shell" "$agent" \
+    "$state_dir/logs/$id.exit" "$claude_bin" "$env_path" "$env_home" "${cmd[@]:1}")
+
+  # started <pane>: after tmux took the launch, wait up to 30 s for claude under that pane. Logs the outcome.
+  started() {
+    local p="$1" where="$2" i rc err
+    for i in $(seq 1 30); do
+      if [ -f "$state_dir/logs/$id.exit" ]; then
+        rc=$(cat "$state_dir/logs/$id.exit"); [ "$rc" = 0 ] && break
+        err=$("${TM[@]}" capture-pane -p -t "$p" 2>/dev/null | sed '1d' | grep -v '^$' | head -n1)
+        log "failed: claude did not start" "${err:-exit $rc}${where:+, $where}"; return 1
+      fi
+      if python3 - "$("${TM[@]}" display -p -t "$p" '#{pane_pid}' 2>/dev/null)" <<'PY'
+import os, sys
+root = sys.argv[1]
+kids = {}
+for n in os.listdir("/proc"):
+    if n.isdigit():
+        try:
+            st = open(f"/proc/{n}/stat").read().rsplit(")", 1)[1].split()
+            kids.setdefault(st[1], []).append(n)
+        except OSError:
+            pass
+todo = [root]
+while todo:
+    p = todo.pop()
+    for c in kids.get(p, []):
+        try:
+            if open(f"/proc/{c}/comm").read().strip() == "claude":
+                sys.exit(0)
+        except OSError:
+            pass
+        todo.append(c)
+sys.exit(1)
+PY
+      then break; fi
+      sleep 1
+    done
+    log "$outcome${where:+ $where}"; return 0
+  }
 
   if [ -n "$pane" ] && "${TM[@]}" display -p -t "$pane" '#{pane_id}' >/dev/null 2>&1; then
     if [ -n "$target" ] && [ "$from_agent" != 1 ]; then
       # split/window: a brand-new window after the recorded pane's window; the recorded pane is left alone.
-      if RA_SOCKET="$socket" bash "$HERE/run-agent.sh" --open window "$pane" "$cwd" "$agent: $folder" "${wrap[@]}" >/dev/null; then
-        log "$outcome in new window"; exit 0
+      local newp
+      if newp=$(RA_SOCKET="$socket" bash "$HERE/run-agent.sh" --open window "$pane" "$cwd" "$agent: $folder" "${wrap[@]}"); then
+        started "$newp" "in new window"; exit $?
       fi
     elif "${TM[@]}" respawn-pane -k -t "$pane" -c "$cwd" "${wrap[@]}"; then
-      log "$outcome"; exit 0
+      started "$pane" ""; exit $?
     fi
   fi
   if [ "$from_agent" = 1 ]; then
@@ -78,11 +134,12 @@ main() {
   fi
   sname="$agent: $folder"
   if [ -n "$session" ] && "${TM[@]}" has-session -t "=$session" 2>/dev/null; then
-    if "${TM[@]}" new-window -t "=$session" -n "$sname" -c "$cwd" "${wrap[@]}"; then log "$outcome in new window"; exit 0; fi
+    local newp
+    if newp=$("${TM[@]}" new-window -t "=$session" -n "$sname" -c "$cwd" -P -F '#{pane_id}' "${wrap[@]}"); then started "$newp" "in new window"; exit $?; fi
   fi
   # tmux disallows ':' and '.' in session names
   sname="${sname//:/}"; sname="${sname//./_}"
-  if "${TM[@]}" new-session -d -s "$sname" -c "$cwd" "${wrap[@]}"; then log "$outcome in new session"; exit 0; fi
+  if newp=$("${TM[@]}" new-session -d -s "$sname" -c "$cwd" -P -F '#{pane_id}' "${wrap[@]}"); then started "$newp" "in new session"; exit $?; fi
   log failed "tmux could not start the command"
   exit 1
 }

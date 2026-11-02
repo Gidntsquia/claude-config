@@ -132,6 +132,8 @@ def question(d):
     else:
         header, yes = "Run?", "Yes, replace this session"
         q = f"Replace this session with: {d['command']}  (in {where})"
+    if d.get("model_default"):
+        q += f"  model: {d['model_default']} (default; type fable/opus to change)"
     if d.get("corrections"):
         q += " (read: " + ", ".join(d["corrections"]) + ")"
     if re.search(r"(^| )--continue( |$)", d.get("flags", "")) and d["dir"] and d["dir"] != os.getcwd():
@@ -140,7 +142,7 @@ def question(d):
 
 
 def dry_text(d):
-    lines = [f"command: {d['command']}",
+    lines = [f"command: {d['command']}" + (f"  ({d['model_default']}, default)" if d.get("model_default") else ""),
              f"dir: {tilde(d['dir'] or os.getcwd())}" + (" (will be created)" if d.get("dir_state") == "missing" else ""),
              f"run at: {d['at_shown'] or 'now'}" + (f" until {d['until_shown']}" if d.get("until_shown") else "")]
     if d.get("target"):
@@ -169,6 +171,8 @@ def decide(raw):
     first = raw.split()[0].lower() if raw else ""
     if first in ("jobs", "list", "scheduled", "pending"):
         return ("say", S("--jobs")[1], 0)
+    if first == "clean":
+        return ("say", S("--clean")[1], 0)
     if first == "cancel":
         ids = re.findall(r"#?(\d+)", raw)
         if ids:
@@ -418,7 +422,8 @@ def step(raw, here):
                 f"appended inside the quotes, verbatim; then follow what it prints, the same way.")
     if kind == "confirm":
         header, q, yes = question(d)
-        return (f'1. Call AskUserQuestion once: header "{header}", question text exactly:\n{q}\n'
+        note = f"   (no model typed: the run uses {d['model_default']}, default)\n" if d.get("model_default") else ""
+        return (f'1. Call AskUserQuestion once: header "{header}", question text exactly:\n{q}\n' + note +
                 f'   options: "{yes}" and "No".\n' + then("the answer, Yes or No, or the free text the user typed"))
     if kind == "unsure":
         if timey(extra):
@@ -669,6 +674,21 @@ def cli(words):
 
 
 # ----------------------------------------------------------------- next-step line
+def claude_environ():
+    """the environment of the nearest parent claude process (Linux /proc), {} when unknown"""
+    pid = os.getppid()
+    while pid > 1:
+        try:
+            argv = [a for a in open(f"/proc/{pid}/cmdline", "rb").read().split(b"\0") if a]
+            if argv and os.path.basename(argv[0].decode(errors="replace")) == "claude":
+                raw = open(f"/proc/{pid}/environ", "rb").read().split(b"\0")
+                return dict(x.decode(errors="replace").split("=", 1) for x in raw if b"=" in x)
+            pid = int(open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+    return {}
+
+
 def claude_argv():
     pid = os.getppid()
     while pid > 1:
@@ -749,6 +769,13 @@ def hook():
         data = {}
     args = (data.get("command_args") or "").strip()
     env = dict(os.environ, RUN_AGENT_HUMAN="1")  # a typed command is the human's, even inside an agent session
+    # the hook's own environment may lack the typing pane and PATH: take them from the parent claude process, so a
+    # job made here records the pane the user typed in (replaced at fire time) and the PATH claude was started with
+    for k, v in claude_environ().items():
+        if k in ("TMUX", "TMUX_PANE", "PATH", "SHELL", "HOME") and v and not env.get(k):
+            env[k] = v
+    if not env.get("TMUX_PANE") and claude_environ().get("TMUX_PANE"):
+        env["TMUX_PANE"] = claude_environ()["TMUX_PANE"]
     r = subprocess.run([S_REAL, "--relaunch", args], capture_output=True, text=True, env=env)
     out = ((r.stdout or "") + (r.stderr or "")).strip() or ("done" if r.returncode == 0 else f"exit {r.returncode}")
     print(json.dumps({"decision": "block", "reason": out,

@@ -868,6 +868,36 @@ def shell(args):
     return " ".join(shlex.quote(a) for a in args)
 
 
+def default_model(agent, d=""):
+    """the model a `claude --agent <agent>` run gets with no --model: the agent file's frontmatter `model:`,
+    else settings.json "model", else sonnet (same rule as run-agent.sh default_model)"""
+    home = os.path.expanduser("~")
+    for f in [os.path.join(os.getcwd(), ".claude", "agents", f"{agent}.md")] + \
+            ([os.path.join(d, ".claude", "agents", f"{agent}.md")] if d else []) + \
+            [os.path.join(home, ".claude", "agents", f"{agent}.md")]:
+        try:
+            with open(f, encoding="utf-8") as fh:
+                lines = fh.read().splitlines()
+        except OSError:
+            continue
+        if lines and lines[0].strip() == "---":
+            for ln in lines[1:]:
+                if ln.strip() == "---":
+                    break
+                if ln.startswith("model:"):
+                    m = ln[6:].strip().strip("'\"")
+                    if m:
+                        return m
+    try:
+        with open(os.path.join(home, ".claude", "settings.json"), encoding="utf-8") as fh:
+            m = json.load(fh).get("model", "")
+            if m:
+                return m
+    except (OSError, ValueError):
+        pass
+    return "sonnet"
+
+
 def main():
     argv = sys.argv[1:]
     if argv and argv[0] == "--reset":
@@ -944,8 +974,9 @@ def main():
     for k, f in enumerate(flags):
         if f in ("--model", "-m") and k + 1 < len(flags):
             model = flags[k + 1]
+    out["model_default"] = "" if model or not p.agent else default_model(p.agent, out["dir"])
     if not has_name and p.agent:
-        name = f"{p.agent}: {folder}" + (f" ({model})" if model else "")
+        name = f"{p.agent}: {folder} ({model or out['model_default']})"
         flags += ["--name", name]
     shown = f"claude --agent {p.agent}"
     if prompt is not None:

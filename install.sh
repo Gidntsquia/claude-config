@@ -104,6 +104,29 @@ fill CLASH agentClash ""
 PROJECTS="$(expand "$PROJECTS")"
 [ -n "$reused" ] && echo "reusing saved choices from $CFG:$reused"
 
+# settings_rules <file>: rewrite the repo's two `~/files/claude-config/...` run-agent allow rules to this clone's
+# absolute path ($R). Claude Code matches Bash rules on the literal command text, so a `~` rule never matches the
+# absolute path an agent types; the committed settings.json keeps the `~` form (no personal path in the repo) and the
+# installed copy carries the real one. Idempotent; drops duplicate rules.
+settings_rules() {
+  "$PY" - "$1" "$R" <<'PYEOF'
+import json, sys
+f, repo = sys.argv[1], sys.argv[2]
+s = json.load(open(f))
+allow = s.setdefault("permissions", {}).setdefault("allow", [])
+out = []
+for r in allow:
+    for pre in ("Bash(~/files/claude-config/", "Bash(bash ~/files/claude-config/"):
+        if r.startswith(pre):
+            r = pre.replace("~/files/claude-config", repo) + r[len(pre):]
+    if r not in out:
+        out.append(r)
+s["permissions"]["allow"] = out
+json.dump(s, open(f, "w"), indent=2); open(f, "a").write("\n")
+PYEOF
+}
+# settings_generate <dst>: the repo's settings.json with settings_rules applied (what `--settings replace` installs)
+settings_generate() { cp "$R/settings.json" "$1" && settings_rules "$1"; }
 # ---- repo contents ----------------------------------------------------------------------------------------------
 repo_agents() { for f in "$R"/agents/*.md; do head -5 "$f" | grep -q '^name:' && basename "$f" .md; done; }
 repo_skills() { for s in "$R"/skills/*/; do [ -f "$s/SKILL.md" ] && basename "$s"; done; }
@@ -145,7 +168,15 @@ if [ -n "$CHECK" ]; then
   if [ -f "$C/settings.json" ] && "$PY" -c 'import json,sys; json.load(open(sys.argv[1]))' "$C/settings.json" 2>/dev/null; then
     pass "settings.json parses ($SETTINGS)"
   else fail "settings.json missing or not valid JSON"; fi
-  [ "$SETTINGS" = replace ] && linked "$C/settings.json" "settings.json" "$R/settings.json"
+  if [ "$SETTINGS" = replace ]; then
+    gen="$C/.settings.check.$$"
+    if settings_generate "$gen" 2>/dev/null && [ -f "$C/settings.json" ] && ! [ -L "$C/settings.json" ] && \
+       "$PY" -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))==json.load(open(sys.argv[2])) else 1)' "$gen" "$C/settings.json" 2>/dev/null; then
+      pass "settings.json generated from the repo's (run-agent rules naming $R)"
+    elif [ -L "$C/settings.json" ]; then fail "settings.json is still a link to the repo's (rerun install.sh: the installed copy must name $R in its run-agent rules)"
+    else skip "settings.json differs from the repo's (edited since install; rerun install.sh to regenerate)"; fi
+    rm -f "$gen"
+  fi
   if command -v claude >/dev/null 2>&1; then
     if claude doctor </dev/null >/dev/null 2>&1; then pass "claude doctor"; else fail "claude doctor exited non-zero"; fi
   else fail "claude not on PATH (install: curl -fsSL https://claude.ai/install.sh | bash)"; fi
@@ -164,6 +195,31 @@ if [ -n "$CHECK" ]; then
     if "$PY" -c 'import json,sys; s=json.load(open(sys.argv[1])); hs=s.get("hooks",{}).get("UserPromptExpansion",[]); sys.exit(0 if any(h.get("matcher")=="run-agent" and any("run-agent.sh" in x.get("command","") and "--hook" in x.get("command","") and int(x.get("timeout",0))>=60 for x in h.get("hooks",[])) for h in hs) else 1)' "$C/settings.json" 2>/dev/null; then
       pass "/run-agent hook (UserPromptExpansion, matcher run-agent, timeout >= 60 s) in settings.json"
     else fail "/run-agent hook missing from settings.json (rerun install.sh with --settings merge or replace)"; fi
+    # every form run-agent is called in has a narrow allow rule, so auto mode never sends one to the classifier
+    rules=$("$PY" - "$C/settings.json" "$R" <<'PYEOF'
+import json, sys
+s = json.load(open(sys.argv[1])); repo = sys.argv[2]
+have = set(s.get("permissions", {}).get("allow", []))
+want = ["Bash(~/.claude/skills/run-agent/scripts/run-agent.sh *)", f"Bash({repo}/skills/run-agent/scripts/run-agent.sh *)",
+        "Bash(bash ~/.claude/skills/run-agent/scripts/*)", f"Bash(bash {repo}/skills/run-agent/scripts/*)",
+        "Bash(~/.local/bin/run-agent *)", "Bash(run-agent *)"]
+missing = [w for w in want if w not in have]
+print(("MISSING " + " ".join(missing)) if missing else ("OK " + "  ".join(want)))
+PYEOF
+)
+    case "$rules" in
+      OK*) pass "run-agent allow rules (6): ${rules#OK }" ;;
+      *) fail "run-agent allow rule missing: ${rules#MISSING } (rerun install.sh)" ;;
+    esac
+    # the PermissionDenied hook logs denials for one week (denied-until), then the helper review job removes it
+    until_d=$(sed -n 's/^denied-until: //p' "$C/run-agent/denied-until" 2>/dev/null | head -n1)
+    if "$PY" -c 'import json,sys; s=json.load(open(sys.argv[1])); sys.exit(0 if any("--denied" in x.get("command","") for h in s.get("hooks",{}).get("PermissionDenied",[]) for x in h.get("hooks",[])) else 1)' "$C/settings.json" 2>/dev/null; then
+      if [ -n "$until_d" ] && [ "$(date +%Y-%m-%d)" \> "$until_d" ]; then
+        fail "PermissionDenied hook still in settings.json after $until_d (review $C/run-agent/denied.log, remove the hook and denied-until)"
+      else pass "PermissionDenied hook logging run-agent denials to $C/run-agent/denied.log until ${until_d:-(no denied-until note; run run-agent.sh --install-denied)}"; fi
+    else pass "PermissionDenied hook not in settings.json"; fi
+    # runs that failed or were skipped since a human last looked (run-agent jobs marks them seen)
+    while IFS= read -r l; do [ -n "$l" ] && echo "NOTE scheduled run $l"; done < <(bash "$C/skills/run-agent/scripts/run-agent.sh" --failures 2>/dev/null)
     if out="$(bash "$C/skills/run-agent/scripts/run-agent.sh" --health 2>&1)"; then pass "scheduled /run-agent runs: $(grep -c '^ok' <<<"$out" || true) pending, every runner sleeping"
     else fail "a scheduled /run-agent run's runner is dead or errored: $(grep '^FAIL' <<<"$out" | head -1) (cancel it or run run-agent.sh --revive)"; fi
   fi
@@ -290,7 +346,14 @@ fi
 statusline_on=false
 [ "$STATUSLINE" != keep ] && [ "$OS" != windows ] && statusline_on=true
 case "$SETTINGS" in
-  replace) link "$R/settings.json" "$C/settings.json"; echo "  settings.json: linked to the repo's (yours, if any, is settings.json.pre-link)" ;;
+  replace)
+    # a generated copy, not a link: the installed file names this clone's absolute path in the run-agent allow
+    # rules (settings_rules), which the committed repo file must not carry. Rerun install.sh after editing the repo's.
+    if [ -L "$C/settings.json" ]; then rm "$C/settings.json"
+    elif [ -f "$C/settings.json" ] && [ ! -e "$C/settings.json.pre-link" ] && ! grep -qs 'run-agent.sh" --hook\|run-agent.sh --hook' "$C/settings.json"; then
+      cp "$C/settings.json" "$C/settings.json.pre-link"; echo "  your original settings.json is kept as settings.json.pre-link"; fi
+    settings_generate "$C/settings.json"
+    echo "  settings.json: generated from the repo's, run-agent allow rules naming $R (rerun install.sh after editing the repo's)" ;;
   keep)    echo "  settings.json: left as it is"
            $statusline_on && ! grep -qs 'statusline.sh' "$C/settings.json" && \
              echo "  to see the status line, add to settings.json: \"statusLine\": {\"type\": \"command\", \"command\": \"bash ~/.claude/statusline.sh\"}" ;;
@@ -300,6 +363,7 @@ case "$SETTINGS" in
     $statusline_on || args=(--drop-key statusLine)
     tmp="$C/.settings.merge.$$"
     "$PY" "$R/bin/merge-settings.py" "$R/settings.json" "$C/settings.json" "$tmp" ${args[@]+"${args[@]}"} | sed 's/^/  /'
+    settings_rules "$tmp"
     if $statusline_on && ! grep -qs 'statusline.sh' "$tmp"; then
       echo "  your settings.json has its own statusLine, which the merge keeps. To use this repo's, set it to:"
       echo "      \"statusLine\": {\"type\": \"command\", \"command\": \"bash ~/.claude/statusline.sh\"}"
@@ -339,6 +403,10 @@ fi
 if [ "$OS" != windows ]; then
   mkdir -p "$HOME/.local/bin"
   link "$R/bin/run-agent" "$HOME/.local/bin/run-agent"
+  # the PermissionDenied hook (settings.json) logs run-agent denials for one week; schedule its review once
+  if grep -qs -- '--denied' "$C/settings.json"; then
+    out=$(bash "$R/skills/run-agent/scripts/run-agent.sh" --install-denied 2>&1) && echo "  denied.log review: ${out##*$'\n'}" || echo "  denied.log review not scheduled: $out"
+  fi
 fi
 
 # 8. Terminal setup.
