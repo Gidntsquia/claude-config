@@ -6,7 +6,7 @@
 #        | --handoff <agent> [prompt] [-- claude flags...] | --revive | --resolve <dir> | --list | --help
 #        | --relaunch '<raw>' (the /run-agent skill) | --step [--here] '<raw>' | --cli <words...> (bin/run-agent)
 #        | --next <agent> [prompt] | --open <target> <pane> <dir> <name> <cmd...>
-# --relaunch does what needs no question at once (jobs, cancel, errors, dry, force runs) and otherwise hands the
+# --relaunch does what needs no question at once (jobs, cancel, errors, dry, every run not marked `confirm`) and otherwise hands the
 # confirmation to a haiku session (launch.py): the calling pane is respawned into it, or with split/window a new
 # tmux window opens with it, and that session replaces its own pane on Yes. --target split|window: open the
 # claude command in a brand-new tmux window instead of replacing this pane (never a pane in an existing window).
@@ -38,8 +38,8 @@ USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--target split|win
                          tmux (exit 1, "not scheduled — not in tmux") and ends every outcome with a ready-made
                          "Relaunch: ..." line; used by the worker at the usage limit
   --target split|window  open in a brand-new tmux window instead of replacing this pane (both words do the same)
-  --group [--here] '\''<raw>'\''  start runs joined by a lone + or ; in one new tmux window, tiled (no confirm)
-  --relaunch '\''<raw>'\''     the /run-agent skill: answers jobs/cancel/dry/errors itself, runs force runs, and
+  --group [--here] '\''<raw>'\''  start runs joined by a lone + or ; in one new tmux window, tiled (no question)
+  --relaunch '\''<raw>'\''     the /run-agent skill: answers jobs/cancel/dry/errors itself, runs every run not marked `confirm`, and
                          hands every confirmation to a haiku session (launch.py)
   --cli <words...>       bin/run-agent: the same, confirming with read -p (or a tmux popup)
   --next <agent> [prompt] print an agent'\''s closing next step: a sentence, the /run-agent line, a labelled claude line

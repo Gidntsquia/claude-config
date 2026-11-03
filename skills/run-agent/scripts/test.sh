@@ -101,7 +101,7 @@ pcheck() {
   got=$("$S" --parse "$raw" 2>&1)
   diff=$(printf '%s' "$got" | python3 -c '
 import json, sys
-base = {"agent":"worker","agent_ok":True,"prompt":".","dir":"","dir_state":"","flags":"","force":0,"at":"","at_text":"",
+base = {"agent":"worker","agent_ok":True,"prompt":".","dir":"","dir_state":"","flags":"","confirm":0,"at":"","at_text":"",
         "at_shown":"","until":"","until_shown":"","reset":"","reset_shown":"","corrections":[],"unsure":[],"dry":0,
         "dir_typed":"","command":"claude --agent worker \".\" --name \"worker: repo (sonnet)\"","run":"S worker ."}
 try:
@@ -123,15 +123,16 @@ FL='"flags":"--model fable --effort medium","command":"claude --agent worker \".
 FLOW='"flags":"--model fable --effort low","command":"claude --agent worker \".\" --model fable --effort low --name \"worker: repo (fable)\"","run":"S worker . -- --model fable --effort low"'
 RESET='"reset":1792714800,"reset_shown":"8:20 PM ET"'
 # logged strings (Facts)
-pcheck "log: key=value, spaced =, commas, force" 'worker, model=fable effort = medium, force' "{$FL,\"force\":1}"
+pcheck "log: key=value, spaced =, commas" 'worker, model=fable effort = medium,' "{$FL}"
+pcheck "log: key=value, spaced =, commas, confirm" 'worker, model=fable effort = medium, confirm' "{$FL,\"confirm\":1}"
 pcheck "log: effort =medium" 'worker model=fable effort =medium' "{$FL}"
 pcheck "log: em dashes" 'worker —model fable —effort low' "{$FLOW}"
 pcheck "log: single dashes" 'worker -model fable -effort low' "{$FLOW}"
 pcheck "log: bare model + '<effort> effort'" 'worker fable low effort' "{$FLOW}"
 pcheck "log: model+effort" 'worker, opus+medium effort' '{"flags":"--model opus --effort medium","command":"claude --agent worker \".\" --model opus --effort medium --name \"worker: repo (opus)\"","run":"S worker . -- --model opus --effort medium"}'
-pcheck "log: commas everywhere, force" 'worker, model=fable, effort=medium, force' "{$FL,\"force\":1}"
-pcheck "log: force before em-dash flags" 'worker force —model fable —effort medium' "{$FL,\"force\":1}"
-pcheck "log: curly quotes, force" 'evaluator “I’m on my phone” force' '{"agent":"evaluator","prompt":"I’m on my phone","force":1,"command":"claude --agent evaluator \"I’m on my phone\" --name \"evaluator: repo (opus)\"","run":"S evaluator '"'"'I’m on my phone'"'"'"}'
+pcheck "log: commas everywhere" 'worker, model=fable, effort=medium,' "{$FL}"
+pcheck "log: confirm before em-dash flags" 'worker confirm —model fable —effort medium' "{$FL,\"confirm\":1}"
+pcheck "log: curly quotes" 'evaluator “I’m on my phone”' '{"agent":"evaluator","prompt":"I’m on my phone","command":"claude --agent evaluator \"I’m on my phone\" --name \"evaluator: repo (opus)\"","run":"S evaluator '"'"'I’m on my phone'"'"'"}'
 pcheck "log: claude --agent evaluator \".\"" 'claude --agent evaluator "."' '{"agent":"evaluator","command":"claude --agent evaluator \".\" --name \"evaluator: repo (opus)\"","run":"S evaluator ."}'
 pcheck "log: newline inside the prompt" 'planner "line one
 line two" --model opus' '{"agent":"planner","prompt":"line one\nline two","flags":"--model opus","command":"claude --agent planner \"line one\nline two\" --model opus --name \"planner: repo (opus)\"","run":"S planner '"'"'line one\nline two'"'"' -- --model opus"}'
@@ -146,20 +147,21 @@ pcheck "sessions: haiku dropped 'low effort'" 'worker fable low effort' "{$FLOW}
 pcheck "sessions: haiku 'could not parse' bare model + em-dash effort" 'worker fable —effort low' "{$FLOW}"
 pcheck "sessions: haiku dry run" 'worker fable low effort at 9pm dry' "{\"flags\":\"--model fable --effort low\",\"command\":\"claude --agent worker \\\".\\\" --model fable --effort low --name \\\"worker: repo (fable)\\\"\",\"dry\":1,$AT9_FLOW,$RESET}"
 pcheck "sessions: full claude command with em-dash flags" 'claude --agent worker "." —model fable —effort medium' "{$FL}"
-pcheck "sessions: full claude command, capital Force" 'claude --agent evaluator "." Force' '{"agent":"evaluator","force":1,"command":"claude --agent evaluator \".\" --name \"evaluator: repo (opus)\"","run":"S evaluator ."}'
+pcheck "sessions: full claude command, capital Confirm" 'claude --agent evaluator "." Confirm' '{"agent":"evaluator","confirm":1,"command":"claude --agent evaluator \".\" --name \"evaluator: repo (opus)\"","run":"S evaluator ."}'
 pcheck "sessions: full claude command, trailing dot" 'claude --agent evaluator ".".' '{"agent":"evaluator","command":"claude --agent evaluator \".\" --name \"evaluator: repo (opus)\"","run":"S evaluator ."}'
 pcheck "sessions: straight open quote, curly close" 'claude --agent evaluator "I’m on my phone”' "{$EVP}"
 pcheck "sessions: planner prompt, straight open, curly close" 'claude --agent planner "Replan based on plans/EVAL.md”' '{"agent":"planner","prompt":"Replan based on plans/EVAL.md","command":"claude --agent planner \"Replan based on plans/EVAL.md\" --name \"planner: repo (fable)\"","run":"S planner '"'"'Replan based on plans/EVAL.md'"'"'"}'
-pcheck "sessions: force before the curly prompt" 'evaluator force “I’m on my phone”' "{$EVP,\"force\":1}"
-pcheck "sessions: force after the curly prompt" 'evaluator “I’m on my phone” force' "{$EVP,\"force\":1}"
+pcheck "sessions: confirm before the curly prompt" 'evaluator confirm “I’m on my phone”' "{$EVP,\"confirm\":1}"
+pcheck "sessions: confirm after the curly prompt" 'evaluator “I’m on my phone” confirm' "{$EVP,\"confirm\":1}"
+pcheck "sessions: --confirm flag" 'evaluator “I’m on my phone” --confirm' "{$EVP,\"confirm\":1}"
 pcheck "sessions: newline inside a curly prompt" 'evaluator “I’m on my
 Phone”' '{"agent":"evaluator","prompt":"I’m on my\nPhone","command":"claude --agent evaluator \"I’m on my\nPhone\" --name \"evaluator: repo (opus)\"","run":"S evaluator '"'"'I’m on my\nPhone'"'"'"}'
-pcheck "sessions: 'model fable, effort medium' words" 'worker, model fable, effort medium, force' "{$FL,\"force\":1}"
+pcheck "sessions: 'model fable, effort medium' words" 'worker, model fable, effort medium' "{$FL}"
 pcheck "sessions: model=opus, effort=medium" 'worker model=opus, effort=medium' '{"flags":"--model opus --effort medium","command":"claude --agent worker \".\" --model opus --effort medium --name \"worker: repo (opus)\"","run":"S worker . -- --model opus --effort medium"}'
 pcheck "sessions: 'using opus'" 'worker "." using opus' '{"flags":"--model opus","command":"claude --agent worker \".\" --model opus --name \"worker: repo (opus)\"","run":"S worker . -- --model opus"}'
 pcheck "sessions: flag before the agent" '--model opus worker "."' '{"flags":"--model opus","command":"claude --agent worker \".\" --model opus --name \"worker: repo (opus)\"","run":"S worker . -- --model opus"}'
 pcheck "sessions: stray words -> unsure" 'worker . extra words' '{"unsure":["extra","words"]}'
-pcheck "sessions: yolo force" 'worker yolo force' '{"flags":"--dangerously-skip-permissions","force":1,"command":"claude --agent worker \".\" --dangerously-skip-permissions --name \"worker: repo (sonnet)\"","run":"S worker . -- --dangerously-skip-permissions"}'
+pcheck "sessions: yolo" 'worker yolo' '{"flags":"--dangerously-skip-permissions","command":"claude --agent worker \".\" --dangerously-skip-permissions --name \"worker: repo (sonnet)\"","run":"S worker . -- --dangerously-skip-permissions"}'
 pcheck "sessions: bare agent 'planner' (no default prompt)" 'planner' '{"agent":"planner","prompt":"","command":"claude --agent planner --name \"planner: repo (fable)\"","run":"S planner"}'
 # time strings (12+)
 AT9='"at":1792717200,"at_text":"at 9pm","at_shown":"9:00 PM ET (at 9pm, in 3h 0m)","run":"S worker . --at 1792717200 --at-text '"'"'at 9pm'"'"'"'
@@ -201,7 +203,7 @@ tcheck() {  # tcheck <label> <raw> <epoch> <at_text> <derive or ""> [<extra json
 }
 FLJ='"flags":"--model fable --effort low","command":"claude --agent worker \".\" --model fable --effort low --name \"worker: repo (fable)\"","_run":"-- --model fable --effort low"'
 tcheck "time: session 'tomorrow at 1am' (next calendar day)" 'worker fable low tomorrow at 1am' "$(ep '2026-10-23 01:00')" 'tomorrow at 1am' '' "{$FLJ}"
-tcheck "time: session 'two hours before the window force'" 'worker fable low two hours before the window force' $(( 1792714800 - 7200 )) 'two hours before the window' 'two hours before window 8:20 PM' "{$FLJ,\"force\":1}"
+tcheck "time: session 'two hours before the window'" 'worker fable low two hours before the window' $(( 1792714800 - 7200 )) 'two hours before the window' 'two hours before window 8:20 PM' "{$FLJ}"
 tcheck "time: session '1 hr before the current window'" 'worker "." 1 hr before the current window' $(( 1792714800 - 3600 )) '1 hr before the current window' '1 hr before window 8:20 PM'
 tcheck "time: 2 h after the window resets" 'worker 2 h after the window resets' $(( 1792714800 + 7200 )) '2 h after the window resets' '2 h after window 8:20 PM'
 tcheck "time: 30 min before window ends" 'worker 30 min before window ends' $(( 1792714800 - 1800 )) '30 min before window ends' '30 min before window 8:20 PM'
@@ -233,8 +235,8 @@ python3 -c "import json; print(json.load(open('$RUN_AGENT_HOME/usage-reset.json'
   && ok "reset: live answer cached in the state dir (usage-reset.json)" || bad "reset: cache file" "$(cat "$RUN_AGENT_HOME/usage-reset.json" 2>&1)"
 RUN_AGENT_USAGE_FILE="$T/no-such-usage.json" pcheck "time: after window with the API unreachable -> cached reset, scheduled" 'worker after window' \
   "{\"at\":1792714800,\"at_text\":\"after window\",\"at_shown\":\"8:20 PM ET (window reset, cached, in 2h 20m)\",\"reset\":1792714800,\"reset_shown\":\"8:20 PM ET (cached)\",\"reset_note\":\"cached\",\"run\":\"S worker . --at 1792714800 --at-text 'after window' --window --at-shown '8:20 PM ET (window reset, cached, in 2h 20m)'\"}"
-RUN_AGENT_USAGE_FILE="status:429" pcheck "time: two hours before the window with the API at 429 -> cached reset, scheduled (session input)" 'worker fable low two hours before the window force' \
-  "{\"flags\":\"--model fable --effort low\",\"force\":1,\"at\":1792707600,\"at_text\":\"two hours before the window\",\"at_shown\":\"6:20 PM ET (two hours before window 8:20 PM, cached, in 20m)\",\"reset\":1792714800,\"reset_shown\":\"8:20 PM ET (cached)\",\"reset_note\":\"cached\",\"command\":\"claude --agent worker \\\".\\\" --model fable --effort low --name \\\"worker: repo (fable)\\\"\",\"run\":\"S worker . --at 1792707600 --at-text 'two hours before the window' --at-shown '6:20 PM ET (two hours before window 8:20 PM, cached, in 20m)' -- --model fable --effort low\"}"
+RUN_AGENT_USAGE_FILE="status:429" pcheck "time: two hours before the window with the API at 429 -> cached reset, scheduled (session input)" 'worker fable low two hours before the window' \
+  "{\"flags\":\"--model fable --effort low\",\"at\":1792707600,\"at_text\":\"two hours before the window\",\"at_shown\":\"6:20 PM ET (two hours before window 8:20 PM, cached, in 20m)\",\"reset\":1792714800,\"reset_shown\":\"8:20 PM ET (cached)\",\"reset_note\":\"cached\",\"command\":\"claude --agent worker \\\".\\\" --model fable --effort low --name \\\"worker: repo (fable)\\\"\",\"run\":\"S worker . --at 1792707600 --at-text 'two hours before the window' --at-shown '6:20 PM ET (two hours before window 8:20 PM, cached, in 20m)' -- --model fable --effort low\"}"
 RUN_AGENT_USAGE_FILE="status:429" pcheck "time: at 9pm with the API at 429 -> reset shown as cached, no error text" 'worker at 9pm' "{$AT9,\"reset\":1792714800,\"reset_shown\":\"8:20 PM ET (cached)\",\"reset_note\":\"cached\"}"
 out=$(RUN_AGENT_USAGE_FILE="status:429" "$S" --parse 'worker at 9pm dry' 2>&1)
 grep -q "HTTPError\|429" <<<"$out" && bad "time: 429 text never shown" "$out" || ok "time: 429 text never shown in --parse output"
@@ -262,10 +264,21 @@ pcheck "typo: zzqx -> unsure" 'worker zzqx' '{"unsure":["zzqx"]}'
 pcheck "typo: lwo (tie low/two-ish) -> unsure" 'worker fable lwo' '{"flags":"--model fable","unsure":["lwo"],"command":"claude --agent worker \".\" --model fable --name \"worker: repo (fable)\"","run":"S worker . -- --model fable"}'
 # existing word mappings
 pcheck "words: with opus yolo resume" 'worker with opus yolo resume' '{"flags":"--model opus --dangerously-skip-permissions --continue","command":"claude --agent worker \".\" --model opus --dangerously-skip-permissions --continue --name \"worker: repo (opus)\"","run":"S worker . -- --model opus --dangerously-skip-permissions --continue"}'
-pcheck "words: just do it = force" 'worker just do it' '{"force":1}'
-pcheck "words: force word inside the prompt is prompt" 'worker "go now"' '{"prompt":"go now","command":"claude --agent worker \"go now\" --name \"worker: repo (sonnet)\"","run":"S worker '"'"'go now'"'"'"}'
-pcheck "words: worker! = force" 'worker! fable' '{"flags":"--model fable","force":1,"command":"claude --agent worker \".\" --model fable --name \"worker: repo (fable)\"","run":"S worker . -- --model fable"}'
-pcheck "words: trailing ! = force" 'worker "." !' '{"force":1}'
+# v1.4.0: the force words are gone; a run starts at once unless `confirm` is typed
+pcheck "words: just do it is three unplaceable words" 'worker just do it' '{"unsure":["just","do","it"]}'
+pcheck "words: confirm inside the prompt is prompt" 'worker "confirm"' '{"prompt":"confirm","command":"claude --agent worker \"confirm\" --name \"worker: repo (sonnet)\"","run":"S worker confirm"}'
+pcheck "words: old force words inside the prompt are prompt" 'worker "go now"' '{"prompt":"go now","command":"claude --agent worker \"go now\" --name \"worker: repo (sonnet)\"","run":"S worker '"'"'go now'"'"'"}'
+pcheck "words: worker! -> the bare ! is unplaceable" 'worker! fable' '{"flags":"--model fable","unsure":["!"],"command":"claude --agent worker \".\" --model fable --name \"worker: repo (fable)\"","run":"S worker . -- --model fable"}'
+pcheck "words: trailing ! is unplaceable" 'worker "." !' '{"unsure":["!"]}'
+pcheck "words: force alone is unplaceable" 'worker force' '{"unsure":["force"]}'
+pcheck "words: go alone is unplaceable" 'worker go' '{"unsure":["go"]}'
+pcheck "words: yolo-run is unplaceable" 'worker yolo-run' '{"unsure":["yolo-run"]}'
+pcheck "words: no confirm = two unplaceable words" 'worker no confirm' '{"unsure":["no","confirm"]}'
+pcheck "words: now = at once, no schedule" 'worker now' '{}'
+pcheck "words: confirm = confirm:1" 'worker "." confirm' '{"confirm":1}'
+pcheck "words: --confirm = confirm:1" 'worker --confirm' '{"confirm":1}'
+pcheck "words: --force / -f fall where unknown flags fall" 'worker --force -f' '{"flags":"--force -f","command":"claude --agent worker \".\" --force -f --name \"worker: repo (sonnet)\"","run":"S worker . -- --force -f"}'
+[ "$(grep -c '"force"' <<<"$("$S" --parse 'worker "." confirm')")" = 0 ] && ok "words: --parse has no force key" || bad "words: force key" "$("$S" --parse 'worker "." confirm')"
 pcheck "words: ~ path token" 'worker ~/files' "{\"dir\":\"$HOME/files\",\"dir_state\":\"$([ -d "$HOME/files" ] && echo exists || echo missing)\",\"dir_typed\":\"~/files\",\"command\":\"claude --agent worker \\\".\\\" --name \\\"worker: files (sonnet)\\\"\",\"run\":\"S worker . --cwd $HOME/files\"}"
 pcheck "words: --name given" 'worker --name mine' '{"flags":"--name mine","command":"claude --agent worker \".\" --name \"mine\"","run":"S worker . -- --name mine"}'
 pcheck "words: two directories -> error" 'worker ~/a ~/b' "{\"dir_typed\":\"~/a\",\"error\":\"usage: two directories: ~/a, ~/b\"}"
@@ -644,26 +657,29 @@ grep -qx '/run-agent planner "Replan based on plans/EVAL.md" opus high' <<<"$out
 export RUN_AGENT_NOW=$(TZ=America/New_York date -d '2026-10-22 18:00' +%s)
 printf '{"five_hour":{"utilization":29.0,"resets_at":"2026-10-23T00:20:00.251269+00:00"}}' > "$RUN_AGENT_USAGE_FILE"
 for i in $(python3 "$(dirname "$S")/jobs.py" pending); do "$S" --cancel "$i" >/dev/null 2>&1; done
-out=$("$S" --step 'worker zzqx')
-grep -q 'AskUserQuestion once: header "Unsure", question "I could not place `zzqx` in: worker zzqx' <<<"$out" && grep -q '"Part of the prompt", "Drop it"' <<<"$out" \
-  && grep -qF -- "--step 'worker zzqx | '<the chosen option label or the typed text>" <<<"$out" && ! grep -qi 'best reading\|--effort' <<<"$out" \
+out=$("$S" --step 'worker zzqx confirm')
+grep -q 'AskUserQuestion once: header "Unsure", question "I could not place `zzqx` in: worker zzqx confirm' <<<"$out" && grep -q '"Part of the prompt", "Drop it"' <<<"$out" \
+  && grep -qF -- "--step 'worker zzqx confirm | '<the chosen option label or the typed text>" <<<"$out" && ! grep -qi 'best reading\|--effort' <<<"$out" \
   && ok "step: unsure word -> one question, answer appended after ' | ', no guessed reading" || bad "step: unsure" "$out"
-out=$("$S" --step 'worker zzqx | Drop it')
-grep -q 'header "Run?"' <<<"$out" && grep -q 'Replace this session with: claude --agent worker "." --name "worker: repo (sonnet)"' <<<"$out" && grep -qF -- "--step 'worker | '" <<<"$out" \
+out=$("$S" --step 'worker zzqx confirm | Drop it')
+grep -q 'header "Run?"' <<<"$out" && grep -q 'Replace this session with: claude --agent worker "." --name "worker: repo (sonnet)"' <<<"$out" && grep -qF -- "--step 'worker confirm | '" <<<"$out" \
   && ok "step: 'Drop it' -> the confirm question for the rest" || bad "step: drop it" "$out"
-out=$("$S" --step 'worker zzqx | Part of the prompt')
+out=$("$S" --step 'worker zzqx confirm | Part of the prompt')
 grep -q 'claude --agent worker "zzqx"' <<<"$out" && ok "step: 'Part of the prompt' -> word moved into the prompt" || bad "step: prompt" "$out"
-out=$("$S" --step 'worker zzqx | Drop it | No'); [ "$out" = 'Reply exactly `nothing changed` and stop.' ] && ok "step: No -> nothing changed" || bad "step: No" "$out"
-out=$("$S" --step 'worker zzqx | foo1 | foo2 | foo3')
+out=$("$S" --step 'worker zzqx confirm | Drop it | No'); [ "$out" = 'Reply exactly `nothing changed` and stop.' ] && ok "step: No -> nothing changed" || bad "step: No" "$out"
+out=$("$S" --step 'worker zzqx in 10m | Drop it' 2>&1); grep -q '^scheduled #[0-9]*: ' <<<"$out" && ok "step: unsure word dropped, no confirm -> the script schedules at once" || bad "step: drop then run" "$out"; "$S" --cancel >/dev/null 2>&1
+out=$("$S" --step 'worker zzqx confirm | foo1 | foo2 | foo3')
 grep -q '^nothing changed$' <<<"$out" && grep -q '^type it by hand' <<<"$out" && ok "step: three answers without a run -> nothing changed + type by hand" || bad "step: three rounds" "$out"
 out=$("$S" --step 'fable low'); grep -q 'header "Agent"' <<<"$out" && grep -qF -- "--step 'fable low | '<the chosen agent name>" <<<"$out" && ok "step: no agent -> agent question" || bad "step: agent" "$out"
-out=$("$S" --step 'fable low | worker'); grep -q 'header "Run?"' <<<"$out" && grep -q -- '--model fable --effort low' <<<"$out" && ok "step: agent answer -> confirm" || bad "step: agent answer" "$out"
-out=$("$S" --step 'worker fable low tomorrow at 1am')
+out=$("$S" --step '"fix it"'); grep -q 'header "Agent"' <<<"$out" && ! grep -q '^usage' <<<"$out" && ok "step: prompt only -> agent question, no usage line" || bad "step: prompt only" "$out"
+out=$("$S" --step 'fable low confirm | worker'); grep -q 'header "Run?"' <<<"$out" && grep -q -- '--model fable --effort low' <<<"$out" && ok "step: agent answer -> confirm" || bad "step: agent answer" "$out"
+out=$("$S" --step 'fable low in 10m | worker' 2>&1); grep -q '^scheduled #[0-9]*: ' <<<"$out" && ok "step: agent answer, no confirm -> scheduled at once" || bad "step: agent answer runs" "$out"; "$S" --cancel >/dev/null 2>&1
+out=$("$S" --step 'worker fable low tomorrow at 1am confirm')
 grep -q 'header "Schedule?"' <<<"$out" && grep -q 'at 1:00 AM ET (tomorrow at 1am, in 7h 0m)' <<<"$out" && ! grep -q AskUserQuestion <<<"$(sed 1d <<<"$out")" \
   && ok "step: session 'tomorrow at 1am' -> one Schedule? question" || bad "step: tomorrow" "$out"
-out=$("$S" --step 'worker fable low two hours before the window force' 2>&1)
+out=$("$S" --step 'worker fable low two hours before the window' 2>&1)
 grep -q '^scheduled #[0-9]*: claude --agent worker "." --model fable --effort low --name "worker: repo (fable)" at 6:20 PM ET (two hours before window 8:20 PM, in 20m)$' <<<"$out" \
-  && ok "step: session 'two hours before the window force' -> scheduled, no question" || bad "step: before window force" "$out"
+  && ! grep -q 'AskUserQuestion' <<<"$out" && ok "step: session 'two hours before the window' -> scheduled without confirm, no question" || bad "step: before window" "$out"
 grep -q 'at 6:20 PM ET (two hours before window 8:20 PM, in 20m)  \[sleeping' <<<"$("$S" --jobs)" && ok "step: jobs names the derivation too" || bad "step: jobs derivation" "$("$S" --jobs)"
 "$S" --cancel >/dev/null 2>&1
 # parser fails on a time phrase -> haiku resolves it (no question), hands back `| time: …`, which replaces the time words
@@ -671,13 +687,15 @@ out=$("$S" --step 'worker fable low the day after tomorrow 3pm')
 grep -q "^Resolve the time words \`the day after\` (and the parser's own reading \`tomorrow 3pm\`, which your answer replaces) in: worker fable low the day after tomorrow 3pm yourself" <<<"$out" \
   && grep -qF -- "--step 'worker fable low the day after tomorrow 3pm | time: '<at <clock>|in <delay>>" <<<"$out" && ! grep -q 'AskUserQuestion\|header "' <<<"$out" \
   && ok "step: unparsed time words -> haiku resolves, no question to the user" || bad "step: time fallback" "$out"
-out=$("$S" --step 'worker fable low the day after tomorrow 3pm | time: in 45h')
-grep -q 'header "Schedule?"' <<<"$out" && grep -q 'at 3:00 PM ET (in 45h, in 45h 0m)' <<<"$out" && grep -qF -- "--step 'worker fable low in 45h | '" <<<"$out" \
+out=$("$S" --step 'worker fable low the day after tomorrow 3pm | time: in 45h' 2>&1)
+grep -q '^scheduled #[0-9]*: .* at 3:00 PM ET (in 45h, in 45h 0m)$' <<<"$out" && ok "step: haiku's time answer -> scheduled at once (no confirm typed)" || bad "step: time answer runs" "$out"; "$S" --cancel >/dev/null 2>&1
+out=$("$S" --step 'worker fable low confirm the day after tomorrow 3pm | time: in 45h')
+grep -q 'header "Schedule?"' <<<"$out" && grep -q 'at 3:00 PM ET (in 45h, in 45h 0m)' <<<"$out" && grep -qF -- "--step 'worker fable low confirm in 45h | '" <<<"$out" \
   && ok "step: 'time: in 45h' replaces the time words and the parser's reading -> Schedule? question" || bad "step: time answer" "$out"
 unset RUN_AGENT_NOW
-out=$("$S" --step 'worker in 10m | Yes' 2>&1); grep -q '^scheduled #[0-9]*: ' <<<"$out" && ok "step: Yes -> the script schedules (no command handed to haiku)" || bad "step: Yes schedules" "$out"
+out=$("$S" --step 'worker in 10m confirm | Yes' 2>&1); grep -q '^scheduled #[0-9]*: ' <<<"$out" && ok "step: Yes -> the script schedules (no command handed to haiku)" || bad "step: Yes schedules" "$out"
 "$S" --cancel >/dev/null 2>&1
-out=$("$S" --step 'worker in 10m | Yes | ignored' 2>&1); grep -q '^scheduled #' <<<"$out" && ok "step: answers after a run are not read" || bad "step: trailing" "$out"; "$S" --cancel >/dev/null 2>&1
+out=$("$S" --step 'worker in 10m confirm | Yes | ignored' 2>&1); grep -q '^scheduled #' <<<"$out" && ok "step: answers after a run are not read" || bad "step: trailing" "$out"; "$S" --cancel >/dev/null 2>&1
 # the UserPromptExpansion hook: block + reason + suppressOriginalPrompt, no model turn
 out=$(printf '{"command_name":"run-agent","command_args":"worker \\"x\\" in %s dry","prompt":"/run-agent worker"}' "$T/sibling" | env -u TMUX -u TMUX_PANE "$S" --hook)
 python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert d['decision']=='block' and d['hookSpecificOutput']=={'hookEventName':'UserPromptExpansion','suppressOriginalPrompt':True} and d['reason'].startswith('command: claude --agent worker \"x\"') and 'dry run' in d['reason'], d" "$out" \
@@ -745,9 +763,9 @@ rm -f "$RUN_AGENT_HOME/logs/big.log"
 # (R5) the confirm question and texts name the default model; a typed model is shown as typed
 export RUN_AGENT_NOW=$(TZ=America/New_York date -d '2026-10-22 18:00' +%s)
 printf '{"five_hour":{"utilization":29.0,"resets_at":"2026-10-23T00:20:00.251269+00:00"}}' > "$RUN_AGENT_USAGE_FILE"
-out=$("$S" --step 'worker 1 hour before the window'); grep -q 'model: sonnet (default; type fable/opus to change)' <<<"$out" && grep -q '(sonnet, default)' <<<"$out" \
+out=$("$S" --step 'worker 1 hour before the window confirm'); grep -q 'model: sonnet (default; type fable/opus to change)' <<<"$out" && grep -q '(sonnet, default)' <<<"$out" \
   && ok "step: no model typed -> 'model: sonnet (default; type fable/opus to change)' and (sonnet, default)" || bad "step: default model" "$out"
-out=$("$S" --step 'worker fable 1 hour before the window'); grep -q -- '--model fable' <<<"$out" && ! grep -q 'default' <<<"$out" && ok "step: typed fable -> fable, no 'default'" || bad "step: typed model" "$out"
+out=$("$S" --step 'worker fable 1 hour before the window confirm'); grep -q -- '--model fable' <<<"$out" && ! grep -q 'default' <<<"$out" && ok "step: typed fable -> fable, no 'default'" || bad "step: typed model" "$out"
 unset RUN_AGENT_NOW
 # several runs joined by +
 out=$("$S" --relaunch "planner \"Plan A\" in $T + planner \"Plan B\" in $T dry")
@@ -767,8 +785,8 @@ if command -v tmux >/dev/null 2>&1; then
   done
   wins=$(tmux -S "$TS" list-windows -t sp -F '#{window_panes}' | paste -sd' ')
   [ "$(tmux -S "$TS" list-panes -t sp:0 -F '#{pane_id}')" = "$caller" ] && [ "$wins" = "1 1 1 1 1" ] \
-    && [ "$(grep -c '^opened new window' "$T/split.out")" = 4 ] \
-    && ok "split: four launches give four new one-pane windows, caller window unchanged" || bad "split: new windows" "windows=$wins $(cat "$T/split.out")"
+    && [ "$(grep -c '^opened ' "$T/split.out")" = 4 ] && ! grep -q 'confirm there' "$T/split.out" \
+    && ok "split: four launches give four new one-pane windows at once (no confirm), caller window unchanged" || bad "split: new windows" "windows=$wins $(cat "$T/split.out")"
   # the confirm session: named run-agent: <agent> <folder>, --session-id, transcript deleted on exit, time + reset in its prompt
   mkdir -p "$T/recbin" "$T/fakehome/.claude/projects/p1"; ln -s "$HOME/.claude/agents" "$T/fakehome/.claude/agents"
   cat > "$T/recbin/claude" <<'EOF'
@@ -781,7 +799,7 @@ EOF
   TC="$T/confirm.sock"   # its own server: new windows run with the server's environment (fake claude, fake HOME)
   env PATH="$T/recbin:$PATH" HOME="$T/fakehome" REC_OUT="$T/rec.out" TMUX= tmux -S "$TC" -f /dev/null new-session -d -x 200 -y 60 -s sp "bash --norc --noprofile"
   caller=$(tmux -S "$TC" list-panes -t sp:0 -F '#{pane_id}')
-  tmux -S "$TC" send-keys -t "$caller" "'$S' --relaunch 'planner \"Plan A\" in $T/ga at 9pm split' > '$T/rec.launch' 2>&1" Enter
+  tmux -S "$TC" send-keys -t "$caller" "'$S' --relaunch 'planner \"Plan A\" in $T/ga at 9pm split confirm' > '$T/rec.launch' 2>&1" Enter
   wait_for 8 test -s "$T/rec.out"; sleep 1
   [ -s "$T/rec.out" ] || bad "confirm: fake claude never ran" "$(cat "$T/rec.launch" 2>/dev/null; tmux -S "$TC" list-windows -t sp; tmux -S "$TC" capture-pane -p -t sp:1 2>/dev/null | grep -v '^$' | tail -5)"
   sid=$(tail -1 "$T/rec.out")
@@ -808,16 +826,23 @@ EOF
     && [ "$(tmux -S "$TG" list-windows -t gp | wc -l)" = 2 ] \
     && ok "group: one call gives a new 2x2 window, one planner per folder, caller window unchanged" \
     || bad "group: 2x2" "panes=[$panes] lefts=$lefts tops=$tops dirs=$dirs $(cat "$T/group.out")"
-  # the confirm path: --relaunch opens a new window holding only the confirm; Yes there (--group --here) fills it
-  tmux -S "$TG" send-keys -t "$caller" "PATH=$T/fakebin:\$PATH '$S' --relaunch \"$raw\" > '$T/group2.out' 2>&1" Enter
+  # no confirm typed: --relaunch of the group starts all four at once in one new window (no question)
+  tmux -S "$TG" send-keys -t "$caller" "PATH=$T/fakebin:\$PATH '$S' --relaunch \"$raw\" > '$T/group3.out' 2>&1" Enter
+  wait_for 10 bash -c "[ \$(tmux -S '$TG' list-windows -t gp | wc -l) = 3 ] && [ \$(grep -c '^opened' '$T/group3.out') = 4 ]"
+  w3=$(tmux -S "$TG" list-windows -t gp -F '#{window_id}' | tail -1)
+  [ "$(tmux -S "$TG" list-panes -t "$w3" | wc -l)" = 4 ] && ! grep -q 'confirm\|Start 4 sessions' "$T/group3.out" && [ "$(tmux -S "$TG" list-panes -t gp:0 -F '#{pane_id}')" = "$caller" ] \
+    && ok "group: group without confirm runs (four panes at once, no question)" || bad "group: no confirm" "$(cat "$T/group3.out"; tmux -S "$TG" list-windows -t gp)"
+  tmux -S "$TG" kill-window -t "$w3"
+  # the confirm path: --relaunch with `confirm` opens a new window holding only the confirm; Yes there (--group --here) fills it
+  tmux -S "$TG" send-keys -t "$caller" "PATH=$T/fakebin:\$PATH '$S' --relaunch \"$raw confirm\" > '$T/group2.out' 2>&1" Enter
   wait_for 8 grep -q '^opened new window' "$T/group2.out"
   cp=$(grep -o '(%[0-9]*)' "$T/group2.out" | tr -d '()')
   w=$(tmux -S "$TG" display -p -t "$cp" '#{window_id}')
   [ "$(tmux -S "$TG" list-panes -t gp:0 -F '#{pane_id}')" = "$caller" ] && [ "$(tmux -S "$TG" list-panes -t "$w" | wc -l)" = 1 ] \
     && [ "$(tmux -S "$TG" list-windows -t gp | wc -l)" = 3 ] \
-    && ok "group: confirm opens alone in a new window" || bad "group: confirm window" "$w $(cat "$T/group2.out")"
+    && ok "group: group with confirm asks (confirm opens alone in a new window)" || bad "group: confirm window" "$w $(cat "$T/group2.out")"
   tmux -S "$TG" respawn-pane -k -t "$cp" "bash --norc --noprofile"; sleep 0.5
-  tmux -S "$TG" send-keys -t "$cp" "PATH=$T/fakebin:\$PATH '$S' --group --here \"$raw\"" Enter
+  tmux -S "$TG" send-keys -t "$cp" "PATH=$T/fakebin:\$PATH '$S' --group --here \"$raw confirm\"" Enter
   wait_for 10 bash -c "[ \$(tmux -S '$TG' list-panes -t '$w' | wc -l) = 4 ]"
   [ "$(tmux -S "$TG" list-panes -t "$w" | wc -l)" = 4 ] && [ "$(tmux -S "$TG" list-panes -t gp:0 -F '#{pane_id}')" = "$caller" ] \
     && ok "group: Yes fills the confirm's own window with four panes" || bad "group: --here" "$(tmux -S "$TG" list-panes -t "$w")"

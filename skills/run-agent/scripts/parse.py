@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""parse.py: turn the raw /run-agent $ARGUMENTS string into one JSON block (agent, prompt, dir, flags, force,
+"""parse.py: turn the raw /run-agent $ARGUMENTS string into one JSON block (agent, prompt, dir, flags, confirm,
 run time, corrections, unsure, dry). Called by `run-agent.sh --parse '<raw>'`. Stdlib only.
 
 Also: `parse.py --reset` prints the 5-hour window reset epoch (or `error: ...`, exit 2), and
@@ -25,8 +25,7 @@ SCRIPT = os.path.join(HERE, "run-agent.sh")
 
 MODELS = ["fable", "opus", "sonnet", "haiku"]
 EFFORTS = ["low", "medium", "high", "xhigh", "max"]
-FORCE_WORDS = ["force", "now", "go", "yolo-run"]
-TIME_WORDS = ["window", "at", "in", "after", "until", "next", "reset", "resets", "when", "the", "ends", "before",
+TIME_WORDS = ["window", "at", "in", "after", "until", "next", "reset", "resets", "when", "the", "ends", "before", "now",
               "tomorrow", "tonight", "today", "evening", "current", "usage", "this", "day", "days", "week", "weeks"]
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 WEEKDAY_SHORT = {"mon": 0, "tue": 1, "tues": 1, "wed": 2, "thu": 3, "thur": 3, "thurs": 3, "fri": 4, "sat": 5, "sun": 6}
@@ -37,9 +36,9 @@ TIMEY = set(TIME_WORDS) | set(WEEKDAYS) | set(WEEKDAY_SHORT) | set(NUMBER_WORDS)
     "hours", "hour", "hr", "hrs", "h", "min", "mins", "minute", "minutes", "m", "noon", "midnight", "am", "pm",
     "morning", "afternoon", "night", "week", "day", "later", "o'clock", "oclock", "early", "late", "around", "by"}
 KEYWORDS = ["effort", "model", "dry", "run", "using", "with", "on", "resume", "continue", "yolo", "claude",
-            "permissions", "skipped", "skip", "confirm", "just", "do", "it", "no", "hours", "hour", "min",
+            "permissions", "skipped", "skip", "confirm", "no", "hours", "hour", "min",
             "minutes", "noon", "midnight", "am", "pm", "split", "pane", "new", "tab"] + WEEKDAYS
-NOVALUE_FLAGS = {"--continue", "-c", "--dangerously-skip-permissions", "--verbose", "--debug", "--force",
+NOVALUE_FLAGS = {"--continue", "-c", "--dangerously-skip-permissions", "--verbose", "--debug",
                  "--dry-run", "--print", "-p", "--yolo"}
 DELAY_RE = re.compile(r"^(\d+(?:\.\d+)?)(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)?(?:(\d{1,2})(m|min|mins)?)?$", re.I)
 UNIT_RE = re.compile(r"^(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)$", re.I)
@@ -281,7 +280,7 @@ def split_bare(word):
             continue
         if part in ("=", ":"):
             continue
-        if part.endswith("!") and len(part) > 1:
+        if part.endswith("!") and len(part) > 1:  # "worker!": the bare "!" is no word of this skill (asked about)
             out.extend([part[:-1], "!"])
             continue
         if part.startswith("=") or part.startswith(":"):
@@ -304,7 +303,7 @@ class Parse:
         self.dir = None
         self.dirs = []
         self.flags = []
-        self.force = 0
+        self.confirm = 0
         self.dry = 0
         self.target = ""  # "" = replace this pane; "split" / "window" = a new tmux window (never an existing one)
         self.target_ignored = False
@@ -318,7 +317,7 @@ class Parse:
         self.corrections = []
         self.unsure = []
         self.now = now_ts()
-        self.known = set(agents) | set(MODELS) | set(EFFORTS) | set(FORCE_WORDS) | set(TIME_WORDS) | set(KEYWORDS)
+        self.known = set(agents) | set(MODELS) | set(EFFORTS) | set(TIME_WORDS) | set(KEYWORDS)
 
     # near-miss: unique known word within distance 2 (1 for tokens up to 3 chars); never numbers.
     def correct(self, tok, pool=None):
@@ -331,6 +330,8 @@ class Parse:
         limit = 1 if len(low) <= 3 else 2
         best, bd = [], limit + 1
         for w in pool:
+            if w == "no":  # known only so it is never read as `now`; too short to be anyone's typo
+                continue
             d = edit_distance(low, w)
             if d < bd:
                 best, bd = [w], d
@@ -473,7 +474,6 @@ class Parse:
                 flat.append((text, True))
             else:
                 flat.extend((p, False) for p in split_bare(text))
-        # trailing "!" alone = force; "agent!" handled below
         words = [t for t, _ in flat]
         quoted = [q for _, q in flat]
         i = 0
@@ -496,8 +496,6 @@ class Parse:
                 continue
             if pending_dir:
                 self.dirs.append(w); pending_dir = False; i += 1; continue
-            if w == "!":
-                self.force = 1; i += 1; continue
             if w == ".":
                 if self.prompt is None:
                     self.prompt = "."
@@ -509,8 +507,8 @@ class Parse:
                 f = lw
                 if f == "--agent" and nxt:
                     self.agent = self.correct(nxt, set(self.agents))[0] or nxt; i += 2; continue
-                if f in ("--force", "-f"):
-                    self.force = 1; i += 1; continue
+                if f == "--confirm":
+                    self.confirm = 1; i += 1; continue
                 if f in ("--dry-run", "--dry"):
                     self.dry = 1; i += 1; continue
                 if f in ("--split", "--new-pane", "--new-window", "--tab"):
@@ -627,12 +625,15 @@ class Parse:
                 self.set_flag("--dangerously-skip-permissions"); i += 2; continue
             if cw in ("resume", "continue"):
                 self.set_flag("--continue"); i += 1; continue
-            if cw in FORCE_WORDS:
-                self.force = 1; i += 1; continue
-            if cw == "just" and nl == "do" and i + 2 < len(words) and words[i + 2].lower() == "it":
-                self.force = 1; i += 3; continue
-            if cw == "no" and nl == "confirm":
-                self.force = 1; i += 2; continue
+            if cw == "confirm":
+                self.confirm = 1; i += 1; continue
+            if cw == "no":  # the old `no confirm` is gone: both words are asked about
+                self.unsure.append(w); i += 1
+                if nl == "confirm":
+                    self.unsure.append(nxt); i += 1
+                continue
+            if cw == "now":  # a time word: at once, nothing scheduled
+                i += 1; continue
             if cw == "dry":
                 self.dry = 1; i += 1
                 if nl == "run":
@@ -916,7 +917,7 @@ def main():
     p.run()
 
     out = {"agent": p.agent, "agent_ok": p.agent in agents, "prompt": p.prompt, "dir": "", "dir_state": "",
-           "flags": shell(p.flags), "force": p.force, "at": "", "at_text": p.at_text, "at_shown": "",
+           "flags": shell(p.flags), "confirm": p.confirm, "at": "", "at_text": p.at_text, "at_shown": "",
            "until": "", "until_shown": "", "reset": "", "reset_shown": "",
            "corrections": p.corrections, "unsure": p.unsure, "dry": p.dry}
     if len(p.dirs) > 1:

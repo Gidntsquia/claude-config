@@ -2,7 +2,7 @@
 """launch.py: the /run-agent steps 0-6 as code, so the calling session only runs one Bash line. Stdlib only.
 
   launch.py relaunch '<raw>'        the /run-agent skill. Answers what needs no question at once (jobs, cancel,
-                                    errors, unknown agent, dry runs) and runs force runs. Anything that needs a
+                                    errors, unknown agent, dry runs) and runs every run not marked `confirm`. Anything that needs a
                                     question goes to a haiku session (`claude --model haiku --effort low`) started
                                     with a fixed prompt holding the question and the exact command: the calling
                                     pane is respawned into it, or with split/window a new pane/window opens with it
@@ -190,8 +190,6 @@ def decide(raw):
     if d.get("skipped"):
         return ("say", d["skipped"], 0)
     if not d["agent"]:
-        if d["force"]:
-            return ("say", 'usage: /run-agent <agent> ["prompt"] [in <dir>] [split|window] [flags...] [at <time>]', 2)
         return ("ask", "agent", d, S("--list")[1])
     if not d["agent_ok"]:
         lst = S("--list")[1]
@@ -200,9 +198,9 @@ def decide(raw):
         return ("ask", "unsure", d, d["unsure"][0])
     if d["dry"]:
         return ("say", (IGNORED + "\n" if d.get("target_ignored") else "") + dry_text(d), 0)
-    if d["force"]:
-        return ("run", d)
-    return ("ask", "confirm", d, None)
+    if d["confirm"] or d.get("dir_state") == "missing":  # a folder is created only after a yes
+        return ("ask", "confirm", d, None)
+    return ("run", d)
 
 
 # ----------------------------------------------------------------- several runs in one call
@@ -256,9 +254,9 @@ def decide_group(runs):
         out.append("usage reset: " + next((d["reset_shown"] for d in ds if d.get("reset_shown")), "unavailable"))
         out.append("dry run: nothing scheduled, nothing replaced")
         return ("say", "\n".join(out), 0)
-    if any(d["force"] for d in ds):
-        return ("run", ds)
-    return ("ask", "group", ds, None)
+    if any(d["confirm"] or d.get("dir_state") == "missing" for d in ds):
+        return ("ask", "group", ds, None)
+    return ("run", ds)
 
 
 def group_question(ds):
@@ -626,7 +624,7 @@ def cli(words):
         if st[0] == "ask" and os.environ.get("TMUX"):
             a = ask_line(group_question(st[2])[1] + " [y/N] ")
             if a is None:
-                print("no terminal to confirm in; add `force` to run without asking"); return 2
+                print("no terminal to confirm in; drop `confirm` to run without asking"); return 2
             if a.lower() not in ("y", "yes"):
                 print("nothing changed"); return 0
         return run_group(raw, False)
@@ -664,7 +662,7 @@ def cli(words):
                 q = q.replace("Replace this session with:", "Start:" if d.get("target") else "Run:")
             a = ask_line(q + " [y/N] ")
             if a is None:
-                print("no terminal to confirm in; add `force` to run without asking"); return 2
+                print("no terminal to confirm in; drop `confirm` to run without asking"); return 2
             if a.lower() not in ("y", "yes"):
                 print("nothing changed"); return 0
         if d.get("dir_state") == "missing":
