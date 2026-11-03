@@ -41,5 +41,11 @@ Read the reply's last line.
   third run it writes the report and tells the unsettled comparison as unproven. Record each send-back (rule, what was
   collected, run ids) in WORKER_NOTES.
 
+- Ends with `check.py: FAIL`, has no check.py line, or ends `blocked: <what to run>`: the report is not written. Fix the
+  cause the last line names (for `blocked:`, install or fix what it says, then record it in WORKER_NOTES) and rerun the
+  same prompt. Never record it as done and never edit `report.md`, `numbers.json` or `report.html` by hand.
+- Checker findings: `NOTES.md ## Checker` needs a row per finding, "fixed" or "rejected: <reason>". An open `high`
+  finding is treated like `check.py: FAIL`.
+
 The writer never asks the user anything and never edits the data directory beyond its output directory. A report that
 fails `check.py` is not done; rerun the writer rather than editing `report.md` by hand.

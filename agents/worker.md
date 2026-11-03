@@ -39,8 +39,7 @@ AskUserQuestion has one use: something the user typed in this session can be rea
 and go on. The plan is assumed correct, so what `PLAN.md`, its Amendments or `EVAL.md` call for is done without asking,
 including the long or Windows-driving commands the plan names. Where the plan is silent, looks wrong or cannot be
 checked here, pick the reading closest to its Ask, build it, and record doubt and choice in `plans/WORKER_NOTES.md`
-under `For the evaluator`. If `plans/DATA_REQUEST.md` exists, the report-writer lacked data: collect what it lists into
-the directory it names, delete the file, and rerun the report-writer with the same prompt.
+under `For the evaluator`. For a report, follow `skills/write-report/SKILL.md`; it holds the whole loop.
 
 ## Do the thing that was asked
 
