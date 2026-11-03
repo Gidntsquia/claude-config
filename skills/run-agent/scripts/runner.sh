@@ -80,11 +80,11 @@ RUN_AGENT_FROM="$3" "$bin" "${@:8}"; echo $? > "$4"; exec "$2"' run-agent "$firs
 
   # started <pane>: after tmux took the launch, wait up to 30 s for claude under that pane. Logs the outcome.
   started() {
-    local p="$1" where="$2" i rc err
+    local p="$1" where="$2" i rc err found=
     for i in $(seq 1 30); do
       if [ -f "$state_dir/logs/$id.exit" ]; then
         rc=$(cat "$state_dir/logs/$id.exit"); [ "$rc" = 0 ] && break
-        err=$("${TM[@]}" capture-pane -p -t "$p" 2>/dev/null | sed '1d' | grep -v '^$' | head -n1)
+        err=$("${TM[@]}" capture-pane -p -J -t "$p" 2>/dev/null | sed '1d' | grep -v '^$' | head -n1)
         log "failed: claude did not start" "${err:-exit $rc}${where:+, $where}"; return 1
       fi
       if python3 - "$("${TM[@]}" display -p -t "$p" '#{pane_pid}' 2>/dev/null)" <<'PY'
@@ -110,9 +110,13 @@ while todo:
         todo.append(c)
 sys.exit(1)
 PY
-      then break; fi
+      then found=1; break; fi
       sleep 1
     done
+    if [ -z "$found" ] && [ ! -f "$state_dir/logs/$id.exit" ]; then
+      err=$("${TM[@]}" capture-pane -p -J -t "$p" 2>/dev/null | sed '1d' | grep -v '^$' | head -n1)
+      log "failed: claude did not start" "${err:-no claude process after 30 s}${where:+, $where}"; return 1
+    fi
     log "$outcome${where:+ $where}"; return 0
   }
 

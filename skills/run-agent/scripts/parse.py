@@ -872,9 +872,11 @@ def default_model(agent, d=""):
     """the model a `claude --agent <agent>` run gets with no --model: the agent file's frontmatter `model:`,
     else settings.json "model", else sonnet (same rule as run-agent.sh default_model)"""
     home = os.path.expanduser("~")
-    for f in [os.path.join(os.getcwd(), ".claude", "agents", f"{agent}.md")] + \
-            ([os.path.join(d, ".claude", "agents", f"{agent}.md")] if d else []) + \
-            [os.path.join(home, ".claude", "agents", f"{agent}.md")]:
+    dirs = [os.path.join(os.getcwd(), ".claude", "agents")] + ([os.path.join(d, ".claude", "agents")] if d else []) + \
+        [os.path.join(home, ".claude", "agents")]
+    if os.environ.get("RUN_AGENT_AGENTS_DIR"):   # tests: one fixed agents folder
+        dirs = [os.environ["RUN_AGENT_AGENTS_DIR"]]
+    for f in [os.path.join(x, f"{agent}.md") for x in dirs]:
         try:
             with open(f, encoding="utf-8") as fh:
                 lines = fh.read().splitlines()

@@ -12,8 +12,10 @@ export RUN_AGENT_HUMAN=1; unset RUN_AGENT_FROM
 
 S="$(cd "$(dirname "$0")" && pwd)/run-agent.sh"
 pass=0; fail=0
-ok()  { pass=$((pass+1)); echo "PASS $1"; }
-bad() { fail=$((fail+1)); echo "FAIL $1"; [ -n "${2:-}" ] && printf '     %s\n' "$2"; }
+T0=$(date +%s)
+stamp() { [ -n "${RA_TEST_TIMES:-}" ] && printf '%4ds ' $(( $(date +%s) - T0 )); }   # RA_TEST_TIMES=1: elapsed seconds per line
+ok()  { pass=$((pass+1)); stamp; echo "PASS $1"; }
+bad() { fail=$((fail+1)); stamp; echo "FAIL $1"; [ -n "${2:-}" ] && printf '     %s\n' "$2"; }
 
 T=$(mktemp -d); T=$(cd "$T" && pwd -P)
 SOCK="run-agent-test-$$"
@@ -21,7 +23,12 @@ cleanup() { tmux -L "$SOCK" kill-server 2>/dev/null; for s in "$T/split.sock" "$
 trap cleanup EXIT
 
 # Layout: $T/repo (git repo, cwd for the tests) with repo/sub; siblings $T/sibling and "$T/my project".
-mkdir -p "$T/repo/sub" "$T/sibling" "$T/my project" "$T/bin"
+mkdir -p "$T/repo/sub" "$T/sibling" "$T/my project" "$T/bin" "$T/agents"
+# Default models come from one fixed agents folder, so the (model) in --name never depends on this machine's agents.
+printf -- '---\nmodel: sonnet\n---\n' > "$T/agents/worker.md"; printf -- '---\nmodel: fable\n---\n' > "$T/agents/planner.md"
+printf -- '---\nmodel: opus\n---\n' > "$T/agents/evaluator.md"
+printf -- '---\nmodel: opus\n---\n' > "$T/agents/helper.md"
+export RUN_AGENT_AGENTS_DIR="$T/agents"
 git -C "$T/repo" init -q
 cd "$T/repo/sub"
 
@@ -39,20 +46,20 @@ check() {
 
 # (a) existing dir, absolute and relative
 check "a: existing absolute dir" 1 \
-  "cd '$T/sibling' && claude --agent planner \"x\" --name \"planner: sibling\"" planner x --cwd "$T/sibling"
+  "cd '$T/sibling' && claude --agent planner \"x\" --name \"planner: sibling (fable)\"" planner x --cwd "$T/sibling"
 check "a: existing relative dir with /, -C" 1 \
-  "cd '$T/sibling' && claude --agent worker \".\" --name \"worker: sibling\"" worker -C ../../sibling
+  "cd '$T/sibling' && claude --agent worker \".\" --name \"worker: sibling (sonnet)\"" worker -C ../../sibling
 check "a: dir with a space, --cwd= form, model" 1 \
   "cd '$T/my project' && claude --agent worker \"go\" --model opus --name \"worker: my project (opus)\"" \
   worker go "--cwd=$T/my project" -- --model opus
 check "a: ~ expands to \$HOME" 1 \
-  "cd '$HOME' && claude --agent worker \".\" --name \"worker: $(basename "$HOME")\"" worker --cwd '~'
+  "cd '$HOME' && claude --agent worker \".\" --name \"worker: $(basename "$HOME") (sonnet)\"" worker --cwd '~'
 # (b) bare name: sibling of the git root, then a name under the cwd wins over the sibling
 check "b: bare name = sibling of the git root" 1 \
-  "cd '$T/sibling' && claude --agent worker \".\" --name \"worker: sibling\"" worker --cwd sibling
+  "cd '$T/sibling' && claude --agent worker \".\" --name \"worker: sibling (sonnet)\"" worker --cwd sibling
 mkdir -p "$T/repo/sub/sibling"
 check "b: bare name under the cwd wins" 1 \
-  "cd '$T/repo/sub/sibling' && claude --agent worker \".\" --name \"worker: sibling\"" worker --cwd sibling
+  "cd '$T/repo/sub/sibling' && claude --agent worker \".\" --name \"worker: sibling (sonnet)\"" worker --cwd sibling
 rmdir "$T/repo/sub/sibling"
 check "b: bare name found nowhere" 2 \
   "no such directory: nope-xyz (looked in $T/repo/sub, $T)" worker --cwd nope-xyz
@@ -63,11 +70,11 @@ touch "$T/afile"
 check "c: a file -> not a directory" 2 "not a directory: $T/afile" worker --cwd "$T/afile"
 [ ! -e "$T/missing" ] && [ ! -e "$HOME/no-such-run-agent-dir-$$" ] && ok "c: nothing created" || bad "c: nothing created"
 # (d) no dir: unchanged behaviour
-check "d: no dir, name from git root" 1 "claude --agent worker \".\" --name \"worker: repo\"" worker
+check "d: no dir, name from git root" 1 "claude --agent worker \".\" --name \"worker: repo (sonnet)\"" worker
 check "d: no dir, model" 1 "claude --agent planner \"x\" --model opus --name \"planner: repo (opus)\"" planner x -- --model opus
-check "d: planner without a prompt -> no prompt argument" 1 "claude --agent planner --name \"planner: repo\"" planner
+check "d: planner without a prompt -> no prompt argument" 1 "claude --agent planner --name \"planner: repo (fable)\"" planner
 check "d: planner without a prompt, with a dir" 1 \
-  "cd '$T/sibling' && claude --agent planner --name \"planner: sibling\"" planner --cwd "$T/sibling"
+  "cd '$T/sibling' && claude --agent planner --name \"planner: sibling (fable)\"" planner --cwd "$T/sibling"
 LAST_USAGE="                         bare name found nowhere, or a path that is a file); creates nothing"
 check "d: extra word -> usage" 2 "$LAST_USAGE" worker . extra
 # (e) --name given
@@ -96,12 +103,15 @@ pcheck() {
 import json, sys
 base = {"agent":"worker","agent_ok":True,"prompt":".","dir":"","dir_state":"","flags":"","force":0,"at":"","at_text":"",
         "at_shown":"","until":"","until_shown":"","reset":"","reset_shown":"","corrections":[],"unsure":[],"dry":0,
-        "dir_typed":"","command":"claude --agent worker \".\" --name \"worker: repo\"","run":"S worker ."}
+        "dir_typed":"","command":"claude --agent worker \".\" --name \"worker: repo (sonnet)\"","run":"S worker ."}
 try:
     got = json.load(sys.stdin)
 except Exception as e:
     print("not JSON: " + str(e)); sys.exit(0)
-want = dict(base); want.update(json.loads(sys.argv[1]))
+want = dict(base); over = json.loads(sys.argv[1]); want.update(over)
+if "model_default" not in over:   # the default model named only when none was typed ($T/agents fixture)
+    want["model_default"] = "" if "--model" in want.get("flags", "") or not want.get("agent") else \
+        {"worker": "sonnet", "planner": "fable", "evaluator": "opus"}.get(want["agent"], "sonnet")
 if got != want:
     for k in sorted(set(got) | set(want)):
         if got.get(k) != want.get(k):
@@ -121,14 +131,14 @@ pcheck "log: bare model + '<effort> effort'" 'worker fable low effort' "{$FLOW}"
 pcheck "log: model+effort" 'worker, opus+medium effort' '{"flags":"--model opus --effort medium","command":"claude --agent worker \".\" --model opus --effort medium --name \"worker: repo (opus)\"","run":"S worker . -- --model opus --effort medium"}'
 pcheck "log: commas everywhere, force" 'worker, model=fable, effort=medium, force' "{$FL,\"force\":1}"
 pcheck "log: force before em-dash flags" 'worker force —model fable —effort medium' "{$FL,\"force\":1}"
-pcheck "log: curly quotes, force" 'evaluator “I’m on my phone” force' '{"agent":"evaluator","prompt":"I’m on my phone","force":1,"command":"claude --agent evaluator \"I’m on my phone\" --name \"evaluator: repo\"","run":"S evaluator '"'"'I’m on my phone'"'"'"}'
-pcheck "log: claude --agent evaluator \".\"" 'claude --agent evaluator "."' '{"agent":"evaluator","command":"claude --agent evaluator \".\" --name \"evaluator: repo\"","run":"S evaluator ."}'
+pcheck "log: curly quotes, force" 'evaluator “I’m on my phone” force' '{"agent":"evaluator","prompt":"I’m on my phone","force":1,"command":"claude --agent evaluator \"I’m on my phone\" --name \"evaluator: repo (opus)\"","run":"S evaluator '"'"'I’m on my phone'"'"'"}'
+pcheck "log: claude --agent evaluator \".\"" 'claude --agent evaluator "."' '{"agent":"evaluator","command":"claude --agent evaluator \".\" --name \"evaluator: repo (opus)\"","run":"S evaluator ."}'
 pcheck "log: newline inside the prompt" 'planner "line one
 line two" --model opus' '{"agent":"planner","prompt":"line one\nline two","flags":"--model opus","command":"claude --agent planner \"line one\nline two\" --model opus --name \"planner: repo (opus)\"","run":"S planner '"'"'line one\nline two'"'"' -- --model opus"}'
 AT9_FLOW='"at":1792717200,"at_text":"at 9pm","at_shown":"9:00 PM ET (at 9pm, in 3h 0m)","run":"S worker . --at 1792717200 --at-text '"'"'at 9pm'"'"' -- --model fable --effort low"'
 # every /run-agent argument string from the session transcripts (~/.claude/projects/*/*.jsonl); the first five
 # are the ones Haiku got wrong (usage error, dropped effort, "could not parse")
-EVP='"agent":"evaluator","prompt":"I’m on my phone","command":"claude --agent evaluator \"I’m on my phone\" --name \"evaluator: repo\"","run":"S evaluator '"'"'I’m on my phone'"'"'"'
+EVP='"agent":"evaluator","prompt":"I’m on my phone","command":"claude --agent evaluator \"I’m on my phone\" --name \"evaluator: repo (opus)\"","run":"S evaluator '"'"'I’m on my phone'"'"'"'
 pcheck "sessions: haiku usage error on 'model=fable effort =medium'" 'worker model=fable effort =medium' "{$FL}"
 pcheck "sessions: haiku usage error on em-dash flags" 'worker —model fable —effort low' "{$FLOW}"
 pcheck "sessions: haiku 'not run' on single-dash flags" 'worker -model fable -effort low' "{$FLOW}"
@@ -136,21 +146,21 @@ pcheck "sessions: haiku dropped 'low effort'" 'worker fable low effort' "{$FLOW}
 pcheck "sessions: haiku 'could not parse' bare model + em-dash effort" 'worker fable —effort low' "{$FLOW}"
 pcheck "sessions: haiku dry run" 'worker fable low effort at 9pm dry' "{\"flags\":\"--model fable --effort low\",\"command\":\"claude --agent worker \\\".\\\" --model fable --effort low --name \\\"worker: repo (fable)\\\"\",\"dry\":1,$AT9_FLOW,$RESET}"
 pcheck "sessions: full claude command with em-dash flags" 'claude --agent worker "." —model fable —effort medium' "{$FL}"
-pcheck "sessions: full claude command, capital Force" 'claude --agent evaluator "." Force' '{"agent":"evaluator","force":1,"command":"claude --agent evaluator \".\" --name \"evaluator: repo\"","run":"S evaluator ."}'
-pcheck "sessions: full claude command, trailing dot" 'claude --agent evaluator ".".' '{"agent":"evaluator","command":"claude --agent evaluator \".\" --name \"evaluator: repo\"","run":"S evaluator ."}'
+pcheck "sessions: full claude command, capital Force" 'claude --agent evaluator "." Force' '{"agent":"evaluator","force":1,"command":"claude --agent evaluator \".\" --name \"evaluator: repo (opus)\"","run":"S evaluator ."}'
+pcheck "sessions: full claude command, trailing dot" 'claude --agent evaluator ".".' '{"agent":"evaluator","command":"claude --agent evaluator \".\" --name \"evaluator: repo (opus)\"","run":"S evaluator ."}'
 pcheck "sessions: straight open quote, curly close" 'claude --agent evaluator "I’m on my phone”' "{$EVP}"
-pcheck "sessions: planner prompt, straight open, curly close" 'claude --agent planner "Replan based on plans/EVAL.md”' '{"agent":"planner","prompt":"Replan based on plans/EVAL.md","command":"claude --agent planner \"Replan based on plans/EVAL.md\" --name \"planner: repo\"","run":"S planner '"'"'Replan based on plans/EVAL.md'"'"'"}'
+pcheck "sessions: planner prompt, straight open, curly close" 'claude --agent planner "Replan based on plans/EVAL.md”' '{"agent":"planner","prompt":"Replan based on plans/EVAL.md","command":"claude --agent planner \"Replan based on plans/EVAL.md\" --name \"planner: repo (fable)\"","run":"S planner '"'"'Replan based on plans/EVAL.md'"'"'"}'
 pcheck "sessions: force before the curly prompt" 'evaluator force “I’m on my phone”' "{$EVP,\"force\":1}"
 pcheck "sessions: force after the curly prompt" 'evaluator “I’m on my phone” force' "{$EVP,\"force\":1}"
 pcheck "sessions: newline inside a curly prompt" 'evaluator “I’m on my
-Phone”' '{"agent":"evaluator","prompt":"I’m on my\nPhone","command":"claude --agent evaluator \"I’m on my\nPhone\" --name \"evaluator: repo\"","run":"S evaluator '"'"'I’m on my\nPhone'"'"'"}'
+Phone”' '{"agent":"evaluator","prompt":"I’m on my\nPhone","command":"claude --agent evaluator \"I’m on my\nPhone\" --name \"evaluator: repo (opus)\"","run":"S evaluator '"'"'I’m on my\nPhone'"'"'"}'
 pcheck "sessions: 'model fable, effort medium' words" 'worker, model fable, effort medium, force' "{$FL,\"force\":1}"
 pcheck "sessions: model=opus, effort=medium" 'worker model=opus, effort=medium' '{"flags":"--model opus --effort medium","command":"claude --agent worker \".\" --model opus --effort medium --name \"worker: repo (opus)\"","run":"S worker . -- --model opus --effort medium"}'
 pcheck "sessions: 'using opus'" 'worker "." using opus' '{"flags":"--model opus","command":"claude --agent worker \".\" --model opus --name \"worker: repo (opus)\"","run":"S worker . -- --model opus"}'
 pcheck "sessions: flag before the agent" '--model opus worker "."' '{"flags":"--model opus","command":"claude --agent worker \".\" --model opus --name \"worker: repo (opus)\"","run":"S worker . -- --model opus"}'
 pcheck "sessions: stray words -> unsure" 'worker . extra words' '{"unsure":["extra","words"]}'
-pcheck "sessions: yolo force" 'worker yolo force' '{"flags":"--dangerously-skip-permissions","force":1,"command":"claude --agent worker \".\" --dangerously-skip-permissions --name \"worker: repo\"","run":"S worker . -- --dangerously-skip-permissions"}'
-pcheck "sessions: bare agent 'planner' (no default prompt)" 'planner' '{"agent":"planner","prompt":"","command":"claude --agent planner --name \"planner: repo\"","run":"S planner"}'
+pcheck "sessions: yolo force" 'worker yolo force' '{"flags":"--dangerously-skip-permissions","force":1,"command":"claude --agent worker \".\" --dangerously-skip-permissions --name \"worker: repo (sonnet)\"","run":"S worker . -- --dangerously-skip-permissions"}'
+pcheck "sessions: bare agent 'planner' (no default prompt)" 'planner' '{"agent":"planner","prompt":"","command":"claude --agent planner --name \"planner: repo (fable)\"","run":"S planner"}'
 # time strings (12+)
 AT9='"at":1792717200,"at_text":"at 9pm","at_shown":"9:00 PM ET (at 9pm, in 3h 0m)","run":"S worker . --at 1792717200 --at-text '"'"'at 9pm'"'"'"'
 pcheck "time: at 9pm" 'worker at 9pm' "{$AT9,$RESET}"
@@ -176,8 +186,8 @@ pcheck "time: --after window" 'worker --after window' "{$(printf "$WIN" 'after w
 pcheck "time: after window until 11pm" 'worker after window until 11pm' "{$(printf "$WIN" 'after window' 'after window' "'after window'"),$RESET,\"until\":1792724400,\"until_shown\":\"11:00 PM ET\",\"until_text\":\"until 11pm\",\"run\":\"S worker . --at 1792714800 --at-text 'after window' --window --until 1792724400\"}"
 pcheck "time: until without a window phrase -> unsure" 'worker at 9pm until 11pm' "{$AT9,$RESET,\"unsure\":[\"until 11pm\"]}"
 pcheck "time: unparseable after at -> unsure" 'worker at 25pm' '{"unsure":["at 25pm"]}'
-pcheck "time: in <dir> still a directory" 'worker in sibling' "{\"dir\":\"$T/sibling\",\"dir_state\":\"exists\",\"dir_typed\":\"sibling\",\"command\":\"claude --agent worker \\\".\\\" --name \\\"worker: sibling\\\"\",\"run\":\"S worker . --cwd $T/sibling\"}"
-pcheck "time: dir + at 9pm" 'worker in ../../sibling at 9pm' "{\"dir\":\"$T/sibling\",\"dir_state\":\"exists\",\"dir_typed\":\"../../sibling\",\"command\":\"claude --agent worker \\\".\\\" --name \\\"worker: sibling\\\"\",\"at\":1792717200,\"at_text\":\"at 9pm\",\"at_shown\":\"9:00 PM ET (at 9pm, in 3h 0m)\",$RESET,\"run\":\"S worker . --cwd $T/sibling --at 1792717200 --at-text 'at 9pm'\"}"
+pcheck "time: in <dir> still a directory" 'worker in sibling' "{\"dir\":\"$T/sibling\",\"dir_state\":\"exists\",\"dir_typed\":\"sibling\",\"command\":\"claude --agent worker \\\".\\\" --name \\\"worker: sibling (sonnet)\\\"\",\"run\":\"S worker . --cwd $T/sibling\"}"
+pcheck "time: dir + at 9pm" 'worker in ../../sibling at 9pm' "{\"dir\":\"$T/sibling\",\"dir_state\":\"exists\",\"dir_typed\":\"../../sibling\",\"command\":\"claude --agent worker \\\".\\\" --name \\\"worker: sibling (sonnet)\\\"\",\"at\":1792717200,\"at_text\":\"at 9pm\",\"at_shown\":\"9:00 PM ET (at 9pm, in 3h 0m)\",$RESET,\"run\":\"S worker . --cwd $T/sibling --at 1792717200 --at-text 'at 9pm'\"}"
 pcheck "time: dry with model, effort, at" 'worker fable low effort at 9pm dry' "{$FLOW,\"dry\":1,\"at\":1792717200,\"at_text\":\"at 9pm\",\"at_shown\":\"9:00 PM ET (at 9pm, in 3h 0m)\",$RESET,\"run\":\"S worker . --at 1792717200 --at-text 'at 9pm' -- --model fable --effort low\"}"
 pcheck "time: dry run alone fetches the reset" 'worker dry run' "{\"dry\":1,$RESET}"
 pcheck "time: --dry-run" 'worker --dry-run' "{\"dry\":1,$RESET}"
@@ -246,17 +256,17 @@ RUN_AGENT_HOME="$T/home-nocache" RUN_AGENT_PROJECTS="$T/proj-empty" RUN_AGENT_US
   "{\"at\":$(( RUN_AGENT_NOW + 3*3600 )),\"at_text\":\"two hours before the window\",\"at_shown\":\"9:00 PM ET (two hours before window 11:00 PM, assumed: no window open, next message starts one, in 3h 0m)\",\"reset\":$(( RUN_AGENT_NOW + 5*3600 )),\"reset_shown\":\"11:00 PM ET (assumed: no window open, next message starts one)\",\"reset_note\":\"assumed: no window open, next message starts one\",\"run\":\"S worker . --at $(( RUN_AGENT_NOW + 3*3600 )) --at-text 'two hours before the window' --at-shown '9:00 PM ET (two hours before window 11:00 PM, assumed: no window open, next message starts one, in 3h 0m)'\"}"
 # typos (4+)
 pcheck "typo: fabel -> fable" 'worker fabel low' "{$FLOW,\"corrections\":[\"fabel -> fable\"]}"
-pcheck "typo: efort lo -> effort low" 'worker efort lo' '{"flags":"--effort low","corrections":["efort -> effort","lo -> low"],"command":"claude --agent worker \".\" --effort low --name \"worker: repo\"","run":"S worker . -- --effort low"}'
+pcheck "typo: efort lo -> effort low" 'worker efort lo' '{"flags":"--effort low","corrections":["efort -> effort","lo -> low"],"command":"claude --agent worker \".\" --effort low --name \"worker: repo (sonnet)\"","run":"S worker . -- --effort low"}'
 pcheck "typo: wroker -> worker" 'wroker fable' '{"flags":"--model fable","corrections":["wroker -> worker"],"command":"claude --agent worker \".\" --model fable --name \"worker: repo (fable)\"","run":"S worker . -- --model fable"}'
 pcheck "typo: zzqx -> unsure" 'worker zzqx' '{"unsure":["zzqx"]}'
 pcheck "typo: lwo (tie low/two-ish) -> unsure" 'worker fable lwo' '{"flags":"--model fable","unsure":["lwo"],"command":"claude --agent worker \".\" --model fable --name \"worker: repo (fable)\"","run":"S worker . -- --model fable"}'
 # existing word mappings
 pcheck "words: with opus yolo resume" 'worker with opus yolo resume' '{"flags":"--model opus --dangerously-skip-permissions --continue","command":"claude --agent worker \".\" --model opus --dangerously-skip-permissions --continue --name \"worker: repo (opus)\"","run":"S worker . -- --model opus --dangerously-skip-permissions --continue"}'
 pcheck "words: just do it = force" 'worker just do it' '{"force":1}'
-pcheck "words: force word inside the prompt is prompt" 'worker "go now"' '{"prompt":"go now","command":"claude --agent worker \"go now\" --name \"worker: repo\"","run":"S worker '"'"'go now'"'"'"}'
+pcheck "words: force word inside the prompt is prompt" 'worker "go now"' '{"prompt":"go now","command":"claude --agent worker \"go now\" --name \"worker: repo (sonnet)\"","run":"S worker '"'"'go now'"'"'"}'
 pcheck "words: worker! = force" 'worker! fable' '{"flags":"--model fable","force":1,"command":"claude --agent worker \".\" --model fable --name \"worker: repo (fable)\"","run":"S worker . -- --model fable"}'
 pcheck "words: trailing ! = force" 'worker "." !' '{"force":1}'
-pcheck "words: ~ path token" 'worker ~/files' "{\"dir\":\"$HOME/files\",\"dir_state\":\"$([ -d "$HOME/files" ] && echo exists || echo missing)\",\"dir_typed\":\"~/files\",\"command\":\"claude --agent worker \\\".\\\" --name \\\"worker: files\\\"\",\"run\":\"S worker . --cwd $HOME/files\"}"
+pcheck "words: ~ path token" 'worker ~/files' "{\"dir\":\"$HOME/files\",\"dir_state\":\"$([ -d "$HOME/files" ] && echo exists || echo missing)\",\"dir_typed\":\"~/files\",\"command\":\"claude --agent worker \\\".\\\" --name \\\"worker: files (sonnet)\\\"\",\"run\":\"S worker . --cwd $HOME/files\"}"
 pcheck "words: --name given" 'worker --name mine' '{"flags":"--name mine","command":"claude --agent worker \".\" --name \"mine\"","run":"S worker . -- --name mine"}'
 pcheck "words: two directories -> error" 'worker ~/a ~/b' "{\"dir_typed\":\"~/a\",\"error\":\"usage: two directories: ~/a, ~/b\"}"
 pcheck "words: planner has no default prompt" 'planner opus' '{"agent":"planner","prompt":"","flags":"--model opus","command":"claude --agent planner --model opus --name \"planner: repo (opus)\"","run":"S planner -- --model opus"}'
@@ -282,7 +292,7 @@ EOF
   sleep 0.5
   if [ -s "$RA_OUT" ] && grep -qxF "pwd=$T/my project" "$RA_OUT"; then ok "tmux: claude started in the dir"
   else bad "tmux: claude started in the dir" "$(cat "$RA_OUT" 2>/dev/null)"; fi
-  grep -qxF "arg=planner: my project" "$RA_OUT" 2>/dev/null && ok "tmux: --name \"planner: my project\" is one argument" \
+  grep -qxF "arg=planner: my project (fable)" "$RA_OUT" 2>/dev/null && ok "tmux: --name \"planner: my project (fable)\" is one argument" \
     || bad "tmux: --name argument" "$(cat "$RA_OUT" 2>/dev/null)"
   p=$(tmux -L "$SOCK" display -p -t t '#{pane_current_path}')
   [ "$p" = "$T/my project" ] && ok "tmux: pane_current_path is the dir" || bad "tmux: pane_current_path" "$p"
@@ -314,8 +324,8 @@ EOF
   wait_for 10 grep -q "arg=worker: repo (fable)" "$RA_OUT" && ok "sched: fired into the pane (claude ran)" || bad "sched: fired into the pane" "$(cat "$RA_OUT")"
   sleep 0.5
   TM capture-pane -p -J -t t -S - | grep -q "^scheduled run #1 fired at .* ET: $SHOWN" && ok "sched: first pane line" || bad "sched: first pane line" "$(TM capture-pane -p -t t -S - | grep -v '^$' | tail -5)"
-  grep -q "  #1  fired  $SHOWN" "$LOG" 2>/dev/null && ok "sched: jobs.log fired" || bad "sched: jobs.log fired" "$(cat "$LOG" 2>/dev/null)"
-  [ -f "$RUN_AGENT_HOME/done/1.json" ] && [ ! -f "$RUN_AGENT_HOME/jobs/1.json" ] && ok "sched: job moved to done/" || bad "sched: job moved to done/"
+  wait_for 5 grep -q "  #1  fired  $SHOWN" "$LOG" && ok "sched: jobs.log fired" || bad "sched: jobs.log fired" "$(cat "$LOG" 2>/dev/null)"
+  wait_for 3 test -f "$RUN_AGENT_HOME/done/1.json" && [ ! -f "$RUN_AGENT_HOME/jobs/1.json" ] && ok "sched: job moved to done/" || bad "sched: job moved to done/"
   wait_for 3 TM display -p -t t '#{pane_dead}' >/dev/null
   [ "$("$S" --jobs)" = "no scheduled runs" ] && ok "sched: --jobs after = no scheduled runs" || bad "sched: --jobs after" "$("$S" --jobs)"
 
@@ -541,6 +551,67 @@ EOF
   wait_for 5 grep -q "arg=worker: repo" "$RA_OUT" && [ "$(TM list-windows -t t | wc -l)" = $(( nwin + 1 )) ] && [ "$(TM list-panes -t t:0 | wc -l)" = 1 ] \
     && ok "agent: waiting job's claude ran in the new window, caller window unchanged" || bad "agent: waiting claude" "$(cat "$RA_OUT"; TM list-windows -t t)"
   [ "$($AG "$S" --fire-waiting 2>&1)" = "" ] && ok "agent: an agent's call never fires waiting jobs" || bad "agent: agent fire-waiting"
+
+  # ---------------------------------------------------------------- v1.3.1: the four incidents replayed, old job files
+  # (R13b) a job scheduled from a stripped environment (no PATH, no SHELL; only HOME and the tmux ids) still starts
+  # claude: the job records the claude binary at creation (here the fake $HOME/.local/bin/claude) and runs that one.
+  TM select-window -t t:0   # the waiting job above left a new active window; the cases below type into t:0
+  FH="$T/fakehome2"; mkdir -p "$FH/.local/bin"; cp "$T/bin/claude" "$FH/.local/bin/claude"
+  pane=$(TM display -p -t t:0 '#{pane_id}'); sock=$(TM display -p '#{socket_path}')
+  R=$(( $(date +%s) + 10 )); : > "$RA_OUT"
+  out=$(env -i HOME="$FH" TMUX="$sock,0,0" TMUX_PANE="$pane" RUN_AGENT_HOME="$RUN_AGENT_HOME" RUN_AGENT_USAGE_FILE="$RUN_AGENT_USAGE_FILE" \
+        RUN_AGENT_TZ=America/New_York RUN_AGENT_AGENTS_DIR="$T/agents" /bin/bash "$S" worker '.' --at "$R" --at-text 'in 10s' 2>&1)
+  id=$(sed -n 's/^scheduled #\([0-9]*\):.*/\1/p' <<<"$out")
+  grep -q "^scheduled #$id: claude --agent worker \".\" --name \"worker: repo (sonnet)\" (sonnet, default) at .* ET (in 10s, in 0m)$" <<<"$out" \
+    && ok "env: scheduled line names the default model: (sonnet, default)" || bad "env: scheduled line" "$out"
+  [ "$(python3 "$J" get "$id" claude_bin)" = "$FH/.local/bin/claude" ] && [ "$(python3 "$J" get "$id" env.HOME)" = "$FH" ] && [ "$(python3 "$J" get "$id" model_default)" = sonnet ] \
+    && ok "env: job records claude_bin (HOME/.local/bin/claude when none on PATH), env.HOME, model_default" || bad "env: job fields" "$(cat "$RUN_AGENT_HOME/jobs/$id.json")"
+  grep -q "^#$id  .*  (sonnet, default)  at " <<<"$(RUN_AGENT_HUMAN=1 "$S" --jobs)" && ok "env: --jobs shows (sonnet, default)" || bad "env: --jobs default" "$("$S" --jobs)"
+  wait_for 25 grep -q "  #$id  fired  " "$LOG" && ok "env: job from a stripped env fired" || bad "env: fired" "$(tail -3 "$LOG"; cat "$RUN_AGENT_HOME/logs/$id.log" 2>/dev/null)"
+  wait_for 5 grep -q "arg=worker: repo (sonnet)" "$RA_OUT" && ok "env: the recorded claude binary ran" || bad "env: claude ran" "$(cat "$RA_OUT")"
+  wait_for 3 TM display -p -t t:0 '#{pane_dead}' >/dev/null
+  # (R13d) the recorded claude exits 127 (bad binary, missing model...): the runner sees it, logs the first error line,
+  # leaves it on screen and marks the job failed; the failure is shown once to the next human --jobs
+  mkdir -p "$T/bin127"; printf '#!/usr/bin/env bash\necho "claude: no such model zork" >&2\nexit 127\n' > "$T/bin127/claude"; chmod +x "$T/bin127/claude"
+  R=$(( $(date +%s) + 3 ))
+  keys "PATH='$T/bin127:$PATH' '$S' worker '.' --at $R --at-text 'in 3s' > '$T/sched127.out' 2>&1"
+  wait_for 5 grep -q '^scheduled #' "$T/sched127.out"; id=$(sed -n 's/^scheduled #\([0-9]*\):.*/\1/p' "$T/sched127.out")
+  [ "$(python3 "$J" get "$id" claude_bin)" = "$T/bin127/claude" ] && ok "start: job records the claude found on PATH at creation" || bad "start: claude_bin" "$(python3 "$J" get "$id" claude_bin)"
+  wait_for 40 grep -q "  #$id  failed: claude did not start  " "$LOG" && ok "start: claude exit 127 -> jobs.log 'failed: claude did not start'" || bad "start: did not start" "$(tail -3 "$LOG")"
+  grep -q "  #$id  failed: claude did not start  .*  (claude: no such model zork)$" "$LOG" && ok "start: the first stderr line is in the log line" || bad "start: stderr line" "$(tail -1 "$LOG")"
+  [ "$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['outcome'])" "$RUN_AGENT_HOME/done/$id.json")" = "failed: claude did not start" ] && ok "start: done/<id>.json outcome failed" || bad "start: outcome" "$(cat "$RUN_AGENT_HOME/done/$id.json")"
+  TM capture-pane -p -t t:0 -S - | grep -q "claude: no such model zork" && ok "start: the error stays on screen in the pane" || bad "start: pane" "$(TM capture-pane -p -t t:0 -S - | grep -v '^$' | tail -4)"
+  out=$(RUN_AGENT_HUMAN=1 "$S" --jobs 2>&1)
+  grep -q "^20[0-9-]* [0-9:]* [AP]M ET  #$id  failed: claude did not start (claude: no such model zork)  claude --agent worker" <<<"$out" && ok "failures: the next human --jobs prints the failed run with time and reason" || bad "failures: shown" "$out"
+  ! grep -q "#$id  failed" <<<"$(RUN_AGENT_HUMAN=1 "$S" --jobs 2>&1)" && ok "failures: printed once, then marked seen" || bad "failures: marked seen" "$(RUN_AGENT_HUMAN=1 "$S" --jobs)"
+  # (R14) a job file from before v1.3.1 (no claude_bin, env or model_default) is listed and fires as before
+  TM respawn-pane -k -t t:0 -c "$T/repo/sub" "$PANE_ENV bash --norc --noprofile"; sleep 0.5   # the 127 job left a shell with bin127 on PATH
+  R=$(( $(date +%s) + 600 ))
+  keys "'$S' worker '.' --at $R --at-text 'in 10m' > '$T/schedold.out' 2>&1"
+  wait_for 5 grep -q '^scheduled #' "$T/schedold.out"; id=$(sed -n 's/^scheduled #\([0-9]*\):.*/\1/p' "$T/schedold.out")
+  wait_for 3 bash -c "[ \"\$(python3 '$J' get $id pid)\" != 0 ]"
+  strip_new() { python3 -c "import json,sys; p=sys.argv[1]; j=json.load(open(p)); [j.pop(k,None) for k in ('claude_bin','env','model_default')]; json.dump(j,open(p,'w'))" "$RUN_AGENT_HOME/jobs/$1.json"; }
+  strip_new "$id"
+  out=$(RUN_AGENT_HUMAN=1 "$S" --jobs 2>&1)
+  grep -q "^#$id  claude --agent worker \".\" --name \"worker: repo (sonnet)\"  at .* ET (in 10m, in 10m)  \[sleeping (pid [0-9]*)\]$" <<<"$out" && ok "old job: --jobs lists a pre-1.3.1 job file (no default-model note)" || bad "old job: --jobs" "$out"
+  "$S" --cancel "$id" >/dev/null 2>&1
+  R=$(( $(date +%s) + 4 )); : > "$RA_OUT"
+  keys "'$S' worker '.' --at $R --at-text 'in 4s' > '$T/schedold2.out' 2>&1"
+  wait_for 3 grep -q '^scheduled #' "$T/schedold2.out"; id=$(sed -n 's/^scheduled #\([0-9]*\):.*/\1/p' "$T/schedold2.out")
+  strip_new "$id"
+  wait_for 15 grep -q "  #$id  fired  " "$LOG" && ok "old job: a pre-1.3.1 job file fires" || bad "old job: fired" "$(tail -3 "$LOG"; cat "$RUN_AGENT_HOME/logs/$id.log" 2>/dev/null)"
+  wait_for 5 grep -q "arg=worker: repo (sonnet)" "$RA_OUT" && ok "old job: claude ran (PATH's claude, today's behaviour)" || bad "old job: claude ran" "$(cat "$RA_OUT")"
+  wait_for 3 TM display -p -t t:0 '#{pane_dead}' >/dev/null
+  # (R3) --install-denied: denied-until one week out, the helper review job scheduled once, in its own window
+  keys "'$S' --install-denied > '$T/inst.out' 2>&1; '$S' --install-denied >> '$T/inst.out' 2>&1; echo end >> '$T/inst.out'"
+  wait_for 15 grep -q '^end$' "$T/inst.out"
+  [ "$(cat "$RUN_AGENT_HOME/denied-until")" = "denied-until: $(date -d '+7 days' +%Y-%m-%d)" ] && ok "denied: denied-until = today + 7 days" || bad "denied: denied-until" "$(cat "$RUN_AGENT_HOME/denied-until" 2>&1)"
+  grep -q '^scheduled #[0-9]*: claude --agent helper "Review ~/.claude/run-agent/denied.log: for each entry propose the allow rule, then remove the PermissionDenied hook from settings.json and this note" --name "helper: repo ([a-z0-9-]*)" ([a-z0-9-]*, default) at .* ET (one week after install ('"$(date -d '+7 days' +%Y-%m-%d)"'), in 16[78]h [0-9]*m)$' "$T/inst.out" \
+    && ok "denied: review job scheduled one week out with the exact helper prompt" || bad "denied: review job" "$(cat "$T/inst.out")"
+  grep -q '^already scheduled: #[0-9]*  claude --agent helper "Review' "$T/inst.out" && ok "denied: a second --install-denied schedules nothing more" || bad "denied: idempotent" "$(cat "$T/inst.out")"
+  id=$(sed -n 's/^scheduled #\([0-9]*\):.*/\1/p' "$T/inst.out" | head -1)
+  [ "$(python3 "$J" get "$id" target)" = window ] && grep -q "^#$id  claude --agent helper" <<<"$("$S" --jobs)" && ok "denied: --jobs lists it, opens in a new window" || bad "denied: jobs/window" "$(python3 "$J" get "$id" target; "$S" --jobs)"
+  "$S" --cancel "$id" >/dev/null 2>&1; rm -f "$RUN_AGENT_HOME/denied-until"
 else
   echo "SKIP tmux checks (tmux not installed)"
 fi
@@ -578,7 +649,7 @@ grep -q 'AskUserQuestion once: header "Unsure", question "I could not place `zzq
   && grep -qF -- "--step 'worker zzqx | '<the chosen option label or the typed text>" <<<"$out" && ! grep -qi 'best reading\|--effort' <<<"$out" \
   && ok "step: unsure word -> one question, answer appended after ' | ', no guessed reading" || bad "step: unsure" "$out"
 out=$("$S" --step 'worker zzqx | Drop it')
-grep -q 'header "Run?"' <<<"$out" && grep -q 'Replace this session with: claude --agent worker "." --name "worker: repo"' <<<"$out" && grep -qF -- "--step 'worker | '" <<<"$out" \
+grep -q 'header "Run?"' <<<"$out" && grep -q 'Replace this session with: claude --agent worker "." --name "worker: repo (sonnet)"' <<<"$out" && grep -qF -- "--step 'worker | '" <<<"$out" \
   && ok "step: 'Drop it' -> the confirm question for the rest" || bad "step: drop it" "$out"
 out=$("$S" --step 'worker zzqx | Part of the prompt')
 grep -q 'claude --agent worker "zzqx"' <<<"$out" && ok "step: 'Part of the prompt' -> word moved into the prompt" || bad "step: prompt" "$out"
@@ -617,6 +688,67 @@ out=$( (exec -a claude bash -c "printf '{\"command_args\":\"planner \\\\\"x\\\\\
 python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert not d['reason'].startswith('ignored'), d" "$out" && ok "hook: a typed /run-agent inside an agent session is the human's (split kept)" || bad "hook: human in agent" "$out"
 python3 -c "import json,sys; s=json.load(open(sys.argv[1])); hs=s['hooks']['UserPromptExpansion']; h=[x for x in hs if x['matcher']=='run-agent'][0]['hooks'][0]; assert h['command'].endswith('run-agent.sh --hook') and h['timeout']>=60, h" "$(dirname "$S")/../../../settings.json" \
   && ok "hook: settings.json has the run-agent UserPromptExpansion hook, timeout >= 60 s" || bad "hook: settings.json"
+# v1.3.1 (R13a): the commands the auto-mode classifier blocked, replayed against the shipped allow rules. A compound
+# command is split on && || ; | and newlines; every part must start with an allowed prefix (Bash(<prefix> *)) or be a
+# read-only command (tail, grep, cat...). install.sh writes the clone's absolute path into the ~/files/claude-config rules.
+REPO=$(cd "$(dirname "$S")/../../.." && pwd)
+allowed() {
+  python3 - "$REPO" "$1" <<'PY'
+import json, os, re, sys
+repo, cmd = sys.argv[1], sys.argv[2]
+rules = json.load(open(os.path.join(repo, "settings.json")))["permissions"]["allow"]
+pre = []
+for r in rules:
+    m = re.fullmatch(r"Bash\((.*)\)", r)
+    if m:
+        pat = m.group(1).replace("~/files/claude-config", repo)
+        # "<prog> *": the program then a space; "<dir>/*": any path under the folder (a plain prefix)
+        pre.append((pat[:-2], True) if pat.endswith(" *") else (pat.rstrip("*"), False))
+READ_ONLY = {"tail", "head", "cat", "grep", "ls", "wc", "echo", "sort", "cd", "pwd"}
+parts = [p.strip() for p in re.split(r"\s*(?:&&|\|\||;|\||\n)\s*", cmd) if p.strip()]
+bad = [p for p in parts if not (any(p == x or p.startswith(x + (" " if sp else "")) for x, sp in pre) or p.split()[0] in READ_ONLY)]
+print("ok" if not bad else "blocked: " + " / ".join(bad))
+PY
+}
+HOOK_RA='~/.claude/skills/run-agent/scripts/run-agent.sh'
+pogo1="$REPO/skills/run-agent/scripts/run-agent.sh worker \"Report only: out/ladder-opt-s28 compute race per plans/PLAN.md R10–R12\" --at 1793410200 2>&1 | tail -3"
+pogo2="cd $T/pogo; $HOOK_RA worker \"Report only\" --at 1793410200 -- --model sonnet --effort low 2>&1 | tail -5; $HOOK_RA --jobs 2>&1 | tail -5"
+slay="cd $T/slay-the-spire-advisor; $HOOK_RA --next evaluator \".\"; export PATH=\$HOME/.dotnet:\$PATH; dotnet test src/Advisor.Tests 2>&1 | tail -3"
+[ "$(allowed "$pogo1")" = ok ] && ok "rules: pogo incident 1 (clone path run-agent.sh ... | tail) is allowed" || bad "rules: pogo 1" "$(allowed "$pogo1")"
+[ "$(allowed "$pogo2")" = ok ] && ok "rules: pogo incident 2 (cd; ~/.claude run-agent.sh ...; --jobs | tail) is allowed" || bad "rules: pogo 2" "$(allowed "$pogo2")"
+[ "$(allowed "$slay")" = 'blocked: export PATH=$HOME/.dotnet:$PATH / dotnet test src/Advisor.Tests 2>&1' ] \
+  && ok "rules: slay-the-spire incident: run-agent parts allowed, only 'export PATH' and 'dotnet test' are not (its own rules)" || bad "rules: slay" "$(allowed "$slay")"
+[ "$(allowed "bash ~/.claude/skills/run-agent/scripts/test.sh")" = ok ] && [ "$(allowed "bash $REPO/skills/run-agent/scripts/test.sh")" = ok ] && [ "$(allowed 'run-agent jobs')" = ok ] \
+  && [ "$(allowed '~/.local/bin/run-agent worker "." dry')" = ok ] && ok "rules: bash <scripts>/test.sh, run-agent jobs, ~/.local/bin/run-agent are allowed" || bad "rules: other forms"
+[ "$(allowed "env X=1 $HOOK_RA --jobs")" = "blocked: env X=1 $HOOK_RA --jobs" ] && ok "rules: a prefix before the program is not covered (no * before the program)" || bad "rules: env prefix" "$(allowed "env X=1 $HOOK_RA --jobs")"
+python3 -c "
+import json,sys; a=json.load(open(sys.argv[1]))['permissions']['allow']
+want=['Bash(~/.claude/skills/run-agent/scripts/run-agent.sh *)','Bash(~/files/claude-config/skills/run-agent/scripts/run-agent.sh *)','Bash(bash ~/.claude/skills/run-agent/scripts/*)','Bash(bash ~/files/claude-config/skills/run-agent/scripts/*)','Bash(~/.local/bin/run-agent *)','Bash(run-agent *)']
+assert all(w in a for w in want), a; assert not any(r.startswith('Bash(*') for r in a), a
+h=json.load(open(sys.argv[1]))['hooks']['PermissionDenied'][0]['hooks'][0]; assert h['command'].endswith('run-agent.sh --denied'), h" "$REPO/settings.json" \
+  && ok "rules: settings.json holds the six rules and the PermissionDenied hook" || bad "rules: settings.json"
+# (R2) --denied: the PermissionDenied hook appends run-agent denials to denied.log, ignores the rest, prints nothing
+DL="$RUN_AGENT_HOME/denied.log"; rm -f "$DL"
+out=$(printf '{"tool_name":"Bash","tool_input":{"command":"x run-agent.sh --jobs","description":"d"},"reason":"[Self-Modification]"}' | "$S" --denied 2>&1); rc=$?
+[ "$rc" = 0 ] && [ -z "$out" ] && grep -q "^20[0-9-]* [0-9:]* [AP]M ET  Bash  x run-agent.sh --jobs  \[Self-Modification\]$" "$DL" && ok "denied: a run-agent denial -> one denied.log line (ET time, tool, command, reason), nothing printed" || bad "denied: logged" "rc=$rc out=$out $(cat "$DL" 2>&1)"
+printf '{"tool_name":"Bash","tool_input":{"command":"rm -rf x"},"reason":"r"}' | "$S" --denied; echo garbage | "$S" --denied; rc=$?
+[ "$rc" = 0 ] && [ "$(wc -l < "$DL")" = 1 ] && ok "denied: other denials and bad input are ignored, exit 0" || bad "denied: ignored" "rc=$rc $(cat "$DL")"
+# (R11) --clean drops done/ and logs/ files older than 30 days; --jobs warns past 50 MB
+mkdir -p "$RUN_AGENT_HOME/done" "$RUN_AGENT_HOME/logs"
+echo '{}' > "$RUN_AGENT_HOME/done/900.json"; touch -d '40 days ago' "$RUN_AGENT_HOME/done/900.json" "$RUN_AGENT_HOME/logs/900.log"; echo '{}' > "$RUN_AGENT_HOME/done/901.json"
+out=$("$S" --clean 2>&1)
+[ ! -e "$RUN_AGENT_HOME/done/900.json" ] && [ ! -e "$RUN_AGENT_HOME/logs/900.log" ] && [ -e "$RUN_AGENT_HOME/done/901.json" ] && grep -q "^removed 2 file(s) older than 30 days" <<<"$out" && ok "clean: removes done/logs files older than 30 days, keeps newer" || bad "clean" "$out $(ls "$RUN_AGENT_HOME/done" "$RUN_AGENT_HOME/logs")"
+truncate -s 60M "$RUN_AGENT_HOME/logs/big.log"
+grep -q "^state dir 60 MB, trim with run-agent clean$" <<<"$("$S" --jobs 2>&1)" && ok "size: --jobs warns when the state dir passes 50 MB" || bad "size" "$("$S" --jobs)"
+rm -f "$RUN_AGENT_HOME/logs/big.log"
+[ ! -e "$HOME/.claude/run-agent/runner.log" ] && ! grep -q 'runner\.log' "$(dirname "$S")"/run-agent.sh "$(dirname "$S")"/runner.sh "$(dirname "$S")"/*.py && ok "runner.log: gone and nothing writes it" || bad "runner.log" "$(grep -n 'runner\.log' "$(dirname "$S")"/run-agent.sh "$(dirname "$S")"/runner.sh "$(dirname "$S")"/*.py)"
+# (R5) the confirm question and texts name the default model; a typed model is shown as typed
+export RUN_AGENT_NOW=$(TZ=America/New_York date -d '2026-10-22 18:00' +%s)
+printf '{"five_hour":{"utilization":29.0,"resets_at":"2026-10-23T00:20:00.251269+00:00"}}' > "$RUN_AGENT_USAGE_FILE"
+out=$("$S" --step 'worker 1 hour before the window'); grep -q 'model: sonnet (default; type fable/opus to change)' <<<"$out" && grep -q '(sonnet, default)' <<<"$out" \
+  && ok "step: no model typed -> 'model: sonnet (default; type fable/opus to change)' and (sonnet, default)" || bad "step: default model" "$out"
+out=$("$S" --step 'worker fable 1 hour before the window'); grep -q -- '--model fable' <<<"$out" && ! grep -q 'default' <<<"$out" && ok "step: typed fable -> fable, no 'default'" || bad "step: typed model" "$out"
+unset RUN_AGENT_NOW
 # several runs joined by +
 out=$("$S" --relaunch "planner \"Plan A\" in $T + planner \"Plan B\" in $T dry")
 [ "$(grep -c '^run [12]:' <<<"$out")" = 2 ] && grep -q '^opens in: one new tmux window, 2 panes tiled' <<<"$out" && ok "group: dry lists each run and the one window" || bad "group: dry" "$out"

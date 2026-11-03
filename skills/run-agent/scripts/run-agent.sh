@@ -53,11 +53,11 @@ USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--target split|win
                          skip (and log) the ones already overdue. Prints nothing
   --cwd <dir>, -C <dir>  start the new session in <dir> (must exist; <folder> = its basename);
                          outside tmux the printed command starts with cd '\''<dir>'\'' &&
-  --resolve <dir>        print "<absolute dir><TAB>exists|missing" by the --cwd rules (exit 2 on a
-                         bare name found nowhere, or a path that is a file); creates nothing
   --clean                delete done/*.json and logs/* older than 30 days under ~/.claude/run-agent
   --denied               PermissionDenied hook: append denials whose command names run-agent to denied.log
-  --install-denied       write denied-until (one week) and schedule the helper review job once (install.sh)'
+  --install-denied       write denied-until (one week) and schedule the helper review job once (install.sh)
+  --resolve <dir>        print "<absolute dir><TAB>exists|missing" by the --cwd rules (exit 2 on a
+                         bare name found nowhere, or a path that is a file); creates nothing'
 # Built-in subagents that `claude --agent` accepts (checked 2026-10-14; Bash and claude-code-guide are refused).
 BUILTINS=(claude general-purpose Explore Plan statusline-setup)
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -103,7 +103,9 @@ resolve() {
 
 list_agents() {
   local d f
-  for d in "$HOME/.claude/agents" "$PWD/.claude/agents" ${dir:+"$dir/.claude/agents"}; do
+  local dirs=("$HOME/.claude/agents" "$PWD/.claude/agents" ${dir:+"$dir/.claude/agents"})
+  [ -n "${RUN_AGENT_AGENTS_DIR:-}" ] && dirs=("$RUN_AGENT_AGENTS_DIR")   # tests: one fixed agents folder
+  for d in "${dirs[@]}"; do
     [ -d "$d" ] || continue
     for f in "$d"/*.md; do [ -f "$f" ] && basename "$f" .md; done
   done
@@ -198,7 +200,9 @@ PY
 # frontmatter `model:`, else settings.json "model", else sonnet. Printed so the user sees what a run defaults to.
 default_model() {
   local f m
-  for f in "$PWD/.claude/agents/$1.md" ${dir:+"$dir/.claude/agents/$1.md"} "$HOME/.claude/agents/$1.md"; do
+  local dirs=("$PWD/.claude/agents" ${dir:+"$dir/.claude/agents"} "$HOME/.claude/agents")
+  [ -n "${RUN_AGENT_AGENTS_DIR:-}" ] && dirs=("$RUN_AGENT_AGENTS_DIR")   # tests: one fixed agents folder
+  for f in "${dirs[@]/%//$1.md}"; do
     [ -f "$f" ] || continue
     m=$(awk 'NR==1 && $0!="---" {exit} NR>1 && $0=="---" {exit} /^model:/ {sub(/^model:[ \t]*/,""); gsub(/["\x27 \t]/,""); print; exit}' "$f")
     [ -n "$m" ] && { echo "$m"; return; }

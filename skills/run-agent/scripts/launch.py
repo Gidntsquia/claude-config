@@ -422,7 +422,7 @@ def step(raw, here):
                 f"appended inside the quotes, verbatim; then follow what it prints, the same way.")
     if kind == "confirm":
         header, q, yes = question(d)
-        note = f"   (no model typed: the run uses {d['model_default']}, default)\n" if d.get("model_default") else ""
+        note = f"   ({d['model_default']}, default): no model typed, the run uses {d['model_default']}\n" if d.get("model_default") else ""
         return (f'1. Call AskUserQuestion once: header "{header}", question text exactly:\n{q}\n' + note +
                 f'   options: "{yes}" and "No".\n' + then("the answer, Yes or No, or the free text the user typed"))
     if kind == "unsure":
