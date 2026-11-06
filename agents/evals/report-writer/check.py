@@ -8,7 +8,9 @@
         no_summary_sections, ending (names the microcosm again), terms_once, style (golden r5/B's essence: thread, voice,
         turn, rhythm, headings, shared sentences), visuals (a block or a reasoned
         "none" in NOTES.md ## Visuals for every middle section with 3+ figures), opening_ledger (ledger.jsonl: form and title
-        shape differ from the two entries before), ai_tells (every regex-checkable tell of docs/ai-tells.md), checker_line (last line: loops/raised/fixed/open/tokens/wall or "checker: off"), expected
+        shape differ from the two entries before), focus group (outline_present, outline_match, outline_budget,
+        unasked_once, focus_findings: outline.md in the report dir, its recap, rows, budgets and ## Left out; report headings
+        equal the outline rows; no non-"advances" focus finding left in checker/findings.json), ai_tells (every regex-checkable tell of docs/ai-tells.md), checker_line (last line: loops/raised/fixed/open/tokens/wall or "checker: off"), expected
 
 <outdir> holds numbers.json, report.html and cards/measure.json (from render.py). --data is the directory that
 numbers.json's "file" paths are relative to (default: the fixture's data dir next to this script). Prints one line per
@@ -1822,6 +1824,320 @@ def check_opening_ledger(outdir):
            + (", ".join(f"{r.get('form')} / {r.get('title_shape')!r}" for r in prev) or "none"))
 
 
+# ---------- focus: outline.md and the checker's per-section focus findings (2026-11-06) ----------------------------------
+FOCUS_KINDS = ("advances", "restates", "tours", "mechanism", "data-shape")
+LENGTH_CAP = {"short": 600, "long": 1100}
+
+
+def prose_words(body):
+    """prose words of one section's Markdown: block lines (::…), the quote, the who line, the sources line and headings
+    are left out; a {key} counts as one word, an [[id]] as its words. build.py counts the same way (cards/measure.json words)"""
+    n = 0
+    for l in body.splitlines():
+        s = l.strip()
+        if not s or s.startswith(("::", ">", "~ ", "#", "📚", "---")):
+            continue
+        s = re.sub(r"\{[A-Za-z0-9_]+@?\}", "N", s)
+        s = re.sub(r"\[\[(.+?)\]\]", r"\1", s)
+        n += len([w for w in s.split() if re.search(r"\w", w)])
+    return n
+
+
+def report_sections(src):
+    """report.md → [(heading, body)]: the # title with everything up to the first ## (the opening card), then every ## section"""
+    parts = re.split(r"^## ", src, flags=re.M)
+    head = parts[0]
+    m = re.search(r"^# (.+)$", head, re.M)
+    out = [(m.group(1).strip() if m else "", head[m.end():] if m else head)]
+    for x in parts[1:]:
+        ls = x.splitlines()
+        out.append((ls[0].strip(), "\n".join(ls[1:])))
+    return out
+
+
+def quoted_ask(src):
+    return " ".join(" ".join(l[2:].strip() for l in src.splitlines() if l.startswith("> ")).split())
+
+
+def _cell(c):
+    return c.strip().strip("`").strip().strip('"“”').strip()
+
+
+def parse_outline(outdir):
+    """outline.md → {"recap", "rows": [{n, heading, clause, keys, words}], "left_out": [(name, reason)], "raw"} or None"""
+    p = os.path.join(outdir, "outline.md")
+    if not os.path.exists(p):
+        return None
+    t = open(p, encoding="utf-8").read()
+
+    def sec(name):
+        m = re.search(rf"^##\s*{name}\s*$(.*?)(?=^##\s|\Z)", t, re.S | re.M)
+        return None if m is None else m.group(1)
+    rows = []
+    for l in (sec("Sections") or "").splitlines():
+        if not l.strip().startswith("|"):
+            continue
+        c = [x.strip() for x in l.strip().strip("|").split("|")]
+        if len(c) < 5 or re.match(r"^:?-+:?$", c[0]) or c[1].lower() == "heading":
+            continue
+        w = re.search(r"\d+", c[4])
+        rows.append({"n": c[0], "heading": _cell(c[1]), "clause": _cell(c[2]),
+                     "keys": re.findall(r"\{([A-Za-z0-9_]+)\}", c[3]) or re.findall(r"[A-Za-z][A-Za-z0-9_]*", c[3]),
+                     "words": int(w.group(0)) if w else None})
+    left = []
+    lo = sec("Left out")
+    for l in (lo or "").splitlines():
+        m = re.match(r"^\s*[-*]\s+(.+)$", l)
+        if not m:
+            continue
+        parts = re.split(r"\s+(?:—|–|-)\s+|:\s+", m.group(1), maxsplit=1)
+        left.append((_cell(parts[0]), parts[1].strip() if len(parts) > 1 else ""))
+    recap = " ".join((sec("Recap") or "").split())
+    return {"recap": recap, "rows": rows, "left_out": left, "has_left_out": lo is not None,
+            "has_title": bool(re.search(r"^# Outline\s*$", t, re.M))}
+
+
+def _load_src(outdir):
+    p = os.path.join(outdir, "report.md")
+    return open(p, encoding="utf-8").read() if os.path.exists(p) else None
+
+
+def check_outline_present(outdir, N):
+    """R1-R3: outline.md has # Outline, a three-sentence ## Recap with a numbers.json {key}, a ## Sections row per section
+    whose clause is a verbatim fragment (<=12 words) of the quoted ask and whose 1-2 keys exist, middle budgets 60-180 that
+    sum to at most the ## Length cap (short 600, long 1100), and a ## Left out list with a reason (<=8 words) per item"""
+    o, src = parse_outline(outdir), _load_src(outdir)
+    if o is None:
+        bad("outline_present", "no outline.md in the report dir")
+        return
+    probs = []
+    if not o["has_title"]:
+        probs.append("no '# Outline' line")
+    ns = len(sentences(o["recap"])) if o["recap"] else 0
+    if ns != 3:
+        probs.append(f"## Recap has {ns} sentences (needs exactly three)")
+    rk = [k for k in re.findall(r"\{([A-Za-z0-9_]+)\}", o["recap"])]
+    if not any(k in N for k in rk):
+        probs.append("## Recap names no {key} from numbers.json (the deciding figure)")
+    ask = quoted_ask(src or "")
+    if not ask:
+        probs.append("report.md has no quoted ask (> …) to match clauses against")
+    if len(o["rows"]) < 3:
+        probs.append(f"## Sections has {len(o['rows'])} rows (opening, middle sections and ending need at least three)")
+    for r in o["rows"]:
+        tag = f"row {r['n']} {r['heading'][:40]!r}"
+        cl = " ".join(r["clause"].split())
+        if not cl:
+            probs.append(f"{tag}: empty ask clause")
+        elif ask and cl not in ask:
+            probs.append(f"{tag}: clause {cl[:50]!r} is not a verbatim fragment of the quoted ask")
+        elif len(cl.split()) > 12:
+            probs.append(f"{tag}: clause is {len(cl.split())} words (at most 12)")
+        if not 1 <= len(r["keys"]) <= 2:
+            probs.append(f"{tag}: {len(r['keys'])} settling keys (needs one or two)")
+        miss = [k for k in r["keys"] if k not in N]
+        if miss:
+            probs.append(f"{tag}: keys not in numbers.json: {miss}")
+        if r["words"] is None:
+            probs.append(f"{tag}: no word budget")
+    mid = o["rows"][1:-1]
+    for r in mid:
+        if r["words"] is not None and not 60 <= r["words"] <= 180:
+            probs.append(f"middle row {r['heading'][:40]!r}: budget {r['words']} words (60-180)")
+    length = (notes_section(outdir, "Length") or "").strip().lower()
+    lw = re.match(r"\W*(short|long)\b", length)
+    total = sum(r["words"] or 0 for r in mid)
+    if lw and total > LENGTH_CAP[lw.group(1)]:
+        probs.append(f"middle budgets sum to {total} words, over the {lw.group(1)} cap of {LENGTH_CAP[lw.group(1)]}")
+    if not o["has_left_out"]:
+        probs.append("no ## Left out section")
+    for name, why in o["left_out"]:
+        if not why or len(why.split()) > 8:
+            probs.append(f"## Left out {name!r}: reason must be 1-8 words (has {len(why.split())})")
+    if probs:
+        bad("outline_present", "; ".join(probs[:6]))
+    else:
+        ok("outline_present", f"recap 3 sentences, {len(o['rows'])} rows with clauses from the ask, middle budgets {total} words"
+           + (f" (cap {LENGTH_CAP[lw.group(1)]}, {lw.group(1)})" if lw else " (NOTES.md has no ## Length, cap not checked)")
+           + f", {len(o['left_out'])} left out")
+
+
+def check_outline_match(outdir):
+    """R2/R6: the report's # title and ## headings, in order, equal outline.md's heading column one to one"""
+    o, src = parse_outline(outdir), _load_src(outdir)
+    if o is None or src is None:
+        bad("outline_match", "no outline.md" if o is None else "no report.md")
+        return
+    heads = [h for h, _ in report_sections(src)]
+    rows = [r["heading"] for r in o["rows"]]
+    norm = lambda s: " ".join(s.split())
+    for i in range(max(len(heads), len(rows))):
+        a = heads[i] if i < len(heads) else None
+        b = rows[i] if i < len(rows) else None
+        if a is None or b is None or norm(a) != norm(b):
+            where = "title" if i == 0 else f"section {i}"
+            bad("outline_match", f"{where}: report.md has {a!r}, outline.md row {i + 1} has {b!r}"
+                + (" (a section with no outline row)" if b is None or (a is not None and norm(a) not in map(norm, rows)) else ""))
+            return
+    ok("outline_match", f"{len(heads)} headings (title + {len(heads) - 1} sections) equal the outline rows in order")
+
+
+def check_outline_budget(outdir):
+    """R3: each middle section's prose words (cards/measure.json "words", else counted from report.md) <= its row's budget
+    x 1.15, and the middle total <= the ## Length cap"""
+    o, src = parse_outline(outdir), _load_src(outdir)
+    if o is None or src is None:
+        bad("outline_budget", "no outline.md" if o is None else "no report.md")
+        return
+    mp = os.path.join(outdir, "cards", "measure.json")
+    mw = None
+    if os.path.exists(mp):
+        try:
+            mw = {" ".join(w["section"].split()): w["words"] for w in json.load(open(mp)).get("words", [])}
+        except (ValueError, KeyError, TypeError, AttributeError):
+            mw = None
+    secs = report_sections(src)
+    counted = {" ".join(h.split()): prose_words(b) for h, b in secs}
+    src_of = "measure.json" if mw else "report.md (measure.json has no words)"
+    W = mw or counted
+    budget = {" ".join(r["heading"].split()): r["words"] for r in o["rows"]}
+    probs, parts = [], []
+    mids = [" ".join(h.split()) for h, _ in secs[1:-1]]
+    for h in mids:
+        w, b = W.get(h), budget.get(h)
+        if w is None:
+            probs.append(f"{h[:40]!r}: no word count in {src_of}")
+            continue
+        if mw and counted.get(h) is not None and counted[h] != w:
+            probs.append(f"{h[:40]!r}: measure.json says {w} words, report.md has {counted[h]} (rebuild)")
+        if b is None:
+            probs.append(f"{h[:40]!r}: no outline row with a budget")
+        elif w > b * 1.15:
+            probs.append(f"{h[:40]!r}: {w} words over budget {b} x 1.15 = {int(b * 1.15)}")
+        parts.append(f"{w}/{b}")
+    total = sum(W.get(h) or 0 for h in mids)
+    length = (notes_section(outdir, "Length") or "").strip().lower()
+    lw = re.match(r"\W*(short|long)\b", length)
+    if lw and total > LENGTH_CAP[lw.group(1)]:
+        probs.append(f"middle prose is {total} words, over the {lw.group(1)} cap of {LENGTH_CAP[lw.group(1)]}")
+    if probs:
+        bad("outline_budget", "; ".join(probs[:6]))
+    else:
+        ok("outline_budget", f"middle sections words/budget {', '.join(parts)}, total {total}"
+           + (f" (cap {LENGTH_CAP[lw.group(1)]})" if lw else "") + f", from {src_of}")
+
+
+def body_sentences(src):
+    """every sentence of the report's prose, the quote, who line, headings, blocks, sources and checker lines left out"""
+    out = []
+    for para in re.split(r"\n\s*\n", src):
+        ls = [l for l in para.splitlines() if l.strip() and not l.strip().startswith(("#", ">", "~ ", "::", "📚", "---"))]
+        if ls:
+            out += sentences(" ".join(ls))
+    return out
+
+
+def check_unasked_once(outdir):
+    """R5: each arm, mechanism or figure named in outline.md ## Left out is mentioned in at most one sentence of the body"""
+    o, src = parse_outline(outdir), _load_src(outdir)
+    if o is None or src is None:
+        bad("unasked_once", "no outline.md" if o is None else "no report.md")
+        return
+    sents = body_sentences(src)
+    probs, seen = [], []
+    for name, _ in o["left_out"]:
+        km = re.fullmatch(r"\{([A-Za-z0-9_]+)\}", name)
+        if km:
+            pat = re.compile(r"\{" + re.escape(km.group(1)) + r"@?\}")
+            hits = [s for s in sents if pat.search(s)]
+        else:
+            pat = re.compile(r"(?<!\w)" + re.escape(name) + r"(?!\w)", re.I)
+            hits = [s for s in sents if pat.search(re.sub(r"\{[A-Za-z0-9_]+@?\}", "N", s))]
+        seen.append(f"{name} {len(hits)}")
+        if len(hits) > 1:
+            probs.append(f"{name!r} in {len(hits)} sentences: " + " | ".join(h[:50] for h in hits[:3]))
+    if probs:
+        bad("unasked_once", "; ".join(probs[:5]))
+    else:
+        ok("unasked_once", ", ".join(seen) if seen else "## Left out is empty")
+
+
+def check_focus_findings(outdir):
+    """R4/R7-R9: no checker/findings.json entry has a "focus" other than "advances" for a section still in report.md or
+    outline.md; a section cut on such a finding has its action in NOTES.md ## Focus; a "recap" finding has a ## Checker
+    row; no middle paragraph opens with Overall / In summary / In short / To recap; a fully built report's NOTES.md has a
+    ## Focus row per middle section and ends with outline.md's recap verbatim"""
+    o, src = parse_outline(outdir), _load_src(outdir)
+    if src is None:
+        bad("focus_findings", "no report.md")
+        return
+    probs = []
+    heads = {" ".join(h.split()) for h, _ in report_sections(src)}
+    rows = {" ".join(r["heading"].split()) for r in (o["rows"] if o else [])}
+    focus_notes = notes_section(outdir, "Focus")
+    fp = os.path.join(outdir, "checker", "findings.json")
+    F = []
+    if os.path.exists(fp):
+        try:
+            F = json.load(open(fp, encoding="utf-8"))
+        except ValueError:
+            probs.append("checker/findings.json is not JSON")
+    fe = [f for f in F if isinstance(f, dict) and "focus" in f]
+    cut = []
+    for f in fe:
+        h = " ".join(str(f.get("section", "")).split())
+        if f.get("focus") not in FOCUS_KINDS:
+            probs.append(f"finding for {h[:40]!r} has focus {f.get('focus')!r}, not one of {', '.join(FOCUS_KINDS)}")
+        if f.get("focus") == "advances":
+            continue
+        if h in heads or h in rows:
+            probs.append(f"{h[:40]!r} is {f.get('focus')} and still in the report")
+        else:
+            cut.append(h)
+            if not focus_notes or _norm_head(h)[:30] not in _norm_head(focus_notes):
+                probs.append(f"{h[:40]!r} was cut ({f.get('focus')}) but NOTES.md ## Focus has no row for it")
+    for f in F:
+        if isinstance(f, dict) and str(f.get("claim") or "").strip().lower() == "recap":
+            if "recap" not in (notes_section(outdir, "Checker") or "").lower():
+                probs.append("a 'recap' finding has no NOTES.md ## Checker row")
+    if fe:
+        mids = [" ".join(h.split()) for h, _ in report_sections(src)[1:-1]]
+        have = {" ".join(str(f.get("section", "")).split()) for f in fe}
+        nof = [h for h in mids if h not in have]
+        if nof:
+            probs.append(f"no focus finding for {nof[0][:40]!r}" + (f" and {len(nof) - 1} more" if len(nof) > 1 else ""))
+    for h, b in report_sections(src)[1:-1]:
+        for para in re.split(r"\n\s*\n", b):
+            m = re.match(r"\s*(Overall|In summary|In short|To recap)\b", para)
+            if m:
+                probs.append(f"{h[:30]!r}: a paragraph opens with {m.group(1)!r}")
+    built = False
+    lp = ledger_path()
+    if os.path.exists(lp):
+        me = os.path.realpath(outdir)
+        built = any(f'"out": "{me}"' in l or f'"out":"{me}"' in l for l in open(lp, encoding="utf-8"))
+    if built:
+        if focus_notes is None:
+            probs.append("NOTES.md has no ## Focus")
+        else:
+            for h, _ in report_sections(src)[1:-1]:
+                if _norm_head(h) and _norm_head(h)[:30] not in _norm_head(focus_notes):
+                    probs.append(f"NOTES.md ## Focus has no row for {h[:40]!r}")
+                    break
+        if o and o["recap"]:
+            nt = open(os.path.join(outdir, "NOTES.md"), encoding="utf-8").read() if os.path.exists(os.path.join(outdir, "NOTES.md")) else ""
+            tail = " ".join(nt.split())
+            if not tail.endswith(o["recap"]):
+                probs.append("NOTES.md does not end with outline.md's recap verbatim")
+    if probs:
+        bad("focus_findings", "; ".join(probs[:6]))
+    else:
+        ok("focus_findings", (f"{len(fe)} focus findings, {sum(1 for f in fe if f.get('focus') == 'advances')} advances"
+                              + (f", cut on a finding: {', '.join(c[:30] for c in cut)}" if cut else "")) if fe
+           else ("no focus findings (checker off or not run)" if not F else "no focus entries in findings.json")
+           + ("" if built else "; not in the ledger, NOTES.md ## Focus not required"))
+
+
 def main():
     a = sys.argv[1:]
     if not a:
@@ -1875,6 +2191,11 @@ def main():
         check_ai_tells(page, N)
         check_visuals(outdir)
         check_opening_ledger(outdir)
+        check_outline_present(outdir, N)
+        check_outline_match(outdir)
+        check_outline_budget(outdir)
+        check_unasked_once(outdir)
+        check_focus_findings(outdir)
         check_checker_line_prose(page, outdir)
         check_expected(outdir, N, page, expected, traps)
         print("\n".join(out_lines))

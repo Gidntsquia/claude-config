@@ -44,6 +44,11 @@ agents/evals/report-writer/ledger.jsonl (or $REPORT_LEDGER) and appends it last:
 "first_sentence_sha1"}. "form" is the opening form named on NOTES.md's "## Openings" line "pick: <form>" (moment,
 log-line, break, expected-vs-got, person); "title_shape" is the title with figures as N and nouns as _ ("The _ that
 cost a _"); check.py's opening_ledger fails a form or title shape equal to either of the two entries before it.
+Focus: cards/measure.json gets "words": [{"section", "words"}], one entry per section (the # title's opening card, then
+every ## section), counting prose only: block lines (::…), the quote, the who line, headings and the sources line are left
+out, a {key} is one word. check.py's focus group (outline_present, outline_match, outline_budget, unasked_once,
+focus_findings) compares these to the budgets in the writer's outline.md (| # | heading | ask clause | settles with |
+words |) and reads ## Recap and ## Left out there. A --no-cards build updates "words" in an existing measure.json.
 --md/--numbers build another Markdown + numbers pair in the same dir (a send-back NEEDS-DATA.md with needs-data.json).
 fmt: 2 (two decimals), 0, 1, "int", "," (thousands), "%1" (value is a fraction, printed as a percent with one
 decimal). "field": a.b[0].c, [name=x].y, list[-1], [?k=v]...|agg; for a text file, a regex with one capturing group.
@@ -786,6 +791,40 @@ def write_ledger(outdir, blocks):
 BLOCKS = ("bars", "table", "split", "pair")
 
 
+def prose_words(body):
+    """prose words of one section (same count as check.py's focus group)"""
+    n = 0
+    for l in body.splitlines():
+        t = l.strip()
+        if not t or t.startswith(("::", ">", "~ ", "#", "📚", "---")):
+            continue
+        t = re.sub(r"\{[A-Za-z0-9_]+@?\}", "N", t)
+        t = re.sub(r"\[\[(.+?)\]\]", r"\1", t)
+        n += len([w for w in t.split() if re.search(r"\w", w)])
+    return n
+
+
+def section_words(src):
+    """report.md → [{"section", "words"}]: the # title (opening card, up to the first ##), then every ## section"""
+    parts = re.split(r"^## ", src, flags=re.M)
+    m = re.search(r"^# (.+)$", parts[0], re.M)
+    out = [{"section": m.group(1).strip() if m else "", "words": prose_words(parts[0][m.end():] if m else parts[0])}]
+    for x in parts[1:]:
+        ls = x.splitlines()
+        out.append({"section": ls[0].strip(), "words": prose_words("\n".join(ls[1:]))})
+    return out
+
+
+def write_words(outdir, src):
+    mp = os.path.join(outdir, "cards", "measure.json")
+    if not os.path.exists(mp):
+        return None
+    m = json.load(open(mp))
+    m["words"] = section_words(src)
+    json.dump(m, open(mp, "w"), indent=1, ensure_ascii=False)
+    return m["words"]
+
+
 def pack(items, h):
     """items (kind, html, block index) → groups of at most PACK css px; a heading, quote or who line sticks to what follows"""
     groups, cur, cur_h = [], [], 0
@@ -870,6 +909,8 @@ def build(outdir, data, cards=True, md="report.md", numbers="numbers.json"):
         if spec.strip().startswith("off") and not os.listdir(ck):
             open(os.path.join(ck, "OFF.txt"), "w").write("checker: off (built with --no-checker)\n")
     if not cards:
+        if md == "report.md":
+            write_words(outdir, src)
         print(f"build: {len(named)} card(s), {len(set(used))} figures used of {len(N)}; no cards (--no-cards)")
         return
     m2, summary = measure(outdir, "phone", html)
@@ -879,6 +920,8 @@ def build(outdir, data, cards=True, md="report.md", numbers="numbers.json"):
           + (f"; unused keys: {', '.join(unused[:12])}{' …' if len(unused) > 12 else ''}" if unused else "")
           + (f"; blocks: {nblk}" if nblk else "") + f"; {summary}")
     if md == "report.md":
+        W = write_words(outdir, src) or []
+        print("words: " + ", ".join(f"{w['section'][:24]} {w['words']}" for w in W))
         row = write_ledger(outdir, blocks)
         print(f"ledger: {row['form'] or 'NO FORM (NOTES.md ## Openings lacks a pick: line)'} | {row['title_shape']} → {LEDGER}")
 

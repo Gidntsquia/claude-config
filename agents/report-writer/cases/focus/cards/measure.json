@@ -1,0 +1,245 @@
+{
+ "mode": "phone",
+ "scale": 2,
+ "css_width_px": 390,
+ "phone_viewport_px": 844,
+ "cards": [
+  {
+   "index": 1,
+   "slug": "the-wait-that-cost-a-second",
+   "css_height_px": 753,
+   "png": "cards/01-the-wait-that-cost-a-second.png",
+   "png_width_px": 780,
+   "png_height_px": 1506
+  },
+  {
+   "index": 2,
+   "slug": "where-did-the-extra-second-l",
+   "css_height_px": 639,
+   "png": "cards/02-where-did-the-extra-second-l.png",
+   "png_width_px": 780,
+   "png_height_px": 1278
+  },
+  {
+   "index": 3,
+   "slug": "how-much-work-did-the-idle-w",
+   "css_height_px": 726,
+   "png": "cards/03-how-much-work-did-the-idle-w.png",
+   "png_width_px": 780,
+   "png_height_px": 1454
+  },
+  {
+   "index": 4,
+   "slug": "why-trust-the-morning-over-t",
+   "css_height_px": 704,
+   "png": "cards/04-why-trust-the-morning-over-t.png",
+   "png_width_px": 780,
+   "png_height_px": 1410
+  },
+  {
+   "index": 5,
+   "slug": "were-the-answers-right",
+   "css_height_px": 762,
+   "png": "cards/05-were-the-answers-right.png",
+   "png_width_px": 780,
+   "png_height_px": 1524
+  },
+  {
+   "index": 6,
+   "slug": "part-6",
+   "css_height_px": 361,
+   "png": "cards/06-part-6.png",
+   "png_width_px": 780,
+   "png_height_px": 724
+  }
+ ],
+ "paragraphs": [
+  {
+   "card": "the-wait-that-cost-a-second",
+   "box": "",
+   "text": "you, in the round 9 planner session (fixture plans/PLAN.md, ## Ask)",
+   "lines": 2
+  },
+  {
+   "card": "the-wait-that-cost-a-second",
+   "box": "",
+   "text": "Number 4 was next round's battles.",
+   "lines": 1
+  },
+  {
+   "card": "the-wait-that-cost-a-second",
+   "box": "",
+   "text": "A little before 11:55 on Saturday morning the GPU was partway through generation",
+   "lines": 5
+  },
+  {
+   "card": "the-wait-that-cost-a-second",
+   "box": "",
+   "text": "Across the run, 42.6% of the GPU's time was tail, the stretch after the quick wo",
+   "lines": 5
+  },
+  {
+   "card": "the-wait-that-cost-a-second",
+   "box": "",
+   "text": "Number 4 gives the idle workers something to do: each picks a team likely to sur",
+   "lines": 6
+  },
+  {
+   "card": "the-wait-that-cost-a-second",
+   "box": "",
+   "text": "But the same generation with the fix on (r9pre-ab-tail-1) took 12.94 s. Three ru",
+   "lines": 5
+  },
+  {
+   "card": "where-did-the-extra-second-l",
+   "box": "",
+   "text": "The fix cost 1.03 s a generation. You asked for less waiting and the chip found ",
+   "lines": 3
+  },
+  {
+   "card": "where-did-the-extra-second-l",
+   "box": "",
+   "text": "It landed in the tail, the one place it was supposed to leave. The morning runs ",
+   "lines": 4
+  },
+  {
+   "card": "where-did-the-extra-second-l",
+   "box": "",
+   "text": "In the afternoon's plain run (r9-ab-default-1), generation 7 spent 6.58 s in the",
+   "lines": 5
+  },
+  {
+   "card": "where-did-the-extra-second-l",
+   "box": "",
+   "text": "The main battles shrank by about three seconds, because some had already been fo",
+   "lines": 5
+  },
+  {
+   "card": "where-did-the-extra-second-l",
+   "box": "",
+   "text": "Why the tail grows is the one thing the files do not say. The log shows speculat",
+   "lines": 6
+  },
+  {
+   "card": "how-much-work-did-the-idle-w",
+   "box": "",
+   "text": "A lot of it, and most of it for teams that were about to be cut. The run with th",
+   "lines": 8
+  },
+  {
+   "card": "how-much-work-did-the-idle-w",
+   "box": "",
+   "text": "So the chip was busy where it used to sit, and more than half of that busy time ",
+   "lines": 4
+  },
+  {
+   "card": "how-much-work-did-the-idle-w",
+   "box": "",
+   "text": "A long run makes it far worse. The one long run with the fix on (r9pre-full-tail",
+   "lines": 7
+  },
+  {
+   "card": "how-much-work-did-the-idle-w",
+   "box": "",
+   "text": "The 40-generation standard run with the fix, full-tail-1, is not run: it exited ",
+   "lines": 6
+  },
+  {
+   "card": "why-trust-the-morning-over-t",
+   "box": "",
+   "text": "Because the morning has three runs a side and the afternoon has one. That aftern",
+   "lines": 7
+  },
+  {
+   "card": "why-trust-the-morning-over-t",
+   "box": "",
+   "text": "The files for that afternoon run also quarrel. The summary file runs.json has r9",
+   "lines": 5
+  },
+  {
+   "card": "why-trust-the-morning-over-t",
+   "box": "",
+   "text": "The lit fork's evidence-profile.json has the tail share at 35.2%, by a different",
+   "lines": 5
+  },
+  {
+   "card": "why-trust-the-morning-over-t",
+   "box": "",
+   "text": "None of them did enough to change the answer. The certain feed, which pushes bat",
+   "lines": 6
+  },
+  {
+   "card": "were-the-answers-right",
+   "box": "",
+   "text": "Tail v2, the same speculation with the trigger at a quarter of the workers idle ",
+   "lines": 7
+  },
+  {
+   "card": "were-the-answers-right",
+   "box": "",
+   "text": "They were right, and the five-generation checkpoints with the fix on matched the",
+   "lines": 5
+  },
+  {
+   "card": "were-the-answers-right",
+   "box": "",
+   "text": "Generation 7 of the first plain run took 12.84 s with the wait in it and 12.94 s",
+   "lines": 6
+  },
+  {
+   "card": "were-the-answers-right",
+   "box": "",
+   "text": "So the ask is built, it gets the right answers, and it is slower by 1.03 s a war",
+   "lines": 5
+  },
+  {
+   "card": "were-the-answers-right",
+   "box": "",
+   "text": "Compact state, the other change from this round (battle state kept on the chip i",
+   "lines": 4
+  },
+  {
+   "card": "part-6",
+   "box": "",
+   "text": "If you want the wait back, run tail v2 three a side against plain, then profile ",
+   "lines": 4
+  },
+  {
+   "card": "part-6",
+   "box": "",
+   "text": "📚 fixture/data/runs-all.json (walls, tail shares, tail logs), runs/r9-ab-*/gpu-",
+   "lines": 8
+  },
+  {
+   "card": "part-6",
+   "box": "checked",
+   "text": "checker: off",
+   "lines": 1
+  }
+ ],
+ "ellipsis": 0,
+ "horizontal_scroll": false,
+ "overflow": [],
+ "first_screen": {
+  "problem": null,
+  "verdict": null,
+  "next_action": null,
+  "deciding": null,
+  "wrong_or_missing": null,
+  "decision_chart": null,
+  "decision_table": null,
+  "bottom_px": null,
+  "moved": []
+ },
+ "desktop_first_screen": {
+  "problem": null,
+  "verdict": null,
+  "next_action": null,
+  "deciding": null,
+  "wrong_or_missing": null,
+  "decision_chart": null,
+  "decision_table": null,
+  "bottom_px": null,
+  "viewport_px": 1250
+ }
+}

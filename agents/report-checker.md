@@ -41,7 +41,8 @@ report did not influence. Never rewrite an existing `cold.md`: when the prompt s
 
 ## Step b — read the report and list what looks off
 
-Now read `report.md`, `numbers.json` and `report.html`. The report is an essay, not a form: a quoted ask with a
+Now read `outline.md` first (the writer's plan: a three-sentence `## Recap`, a `## Sections` table of `| # | heading |
+ask clause | settles with | words |` and a `## Left out` list), then `report.md`, `numbers.json` and `report.html`. The report is an essay, not a form: a quoted ask with a
 who line, a one-line label, a microcosm (one named typical unit told as an event), a "But" paragraph with both arms'
 means and n, sections that each settle one figure, traps and failed runs told as plain sentences in the body, an
 ending that returns to the microcosm with its after numbers and the state of the ask, a sources line and a checker
@@ -84,6 +85,28 @@ An empty list means clean. Name the `numbers.json` key whenever a figure is invo
 words whenever a claim is. `high` = the state of the ask the ending gives would change, or a trap is shown as a
 plain figure or is not told in the body; `medium` = a figure is wrong but the state of the ask stands;
 `low` = wording (direction word without spread, missing source).
+
+Then add one focus entry per middle section (every `##` section after the `---` answer except the last, the
+ending), in report order, judged against that section's outline row:
+
+```json
+{"section": "<heading, exactly as in report.md>", "focus": "advances" | "restates" | "tours" | "mechanism" | "data-shape",
+ "found": "<one sentence why>", "severity": "medium"}
+```
+
+- `advances`: the section settles its row's `settles with` key for its `ask clause`, and nothing more.
+- `restates`: its figures were settled in an earlier section or in the answer, and it adds no new one.
+- `tours`: it is about an arm, candidate or source the ask did not name (one in `## Left out`, or one `question.txt`
+  lists and `ASK.md` does not).
+- `mechanism`: it explains why a figure moved when that figure is not the section's key.
+- `data-shape`: its subject comes from the bulk of the data (the biggest file, the most rows, the study's own
+  categories) rather than from its clause of the ask.
+
+Pick the first that applies when several do; a section is judged by the clause it serves, not by whether it is well
+written. Then read the recap against the finished thread: when the ending, the answer or the deciding figure says
+something the recap does not (another state of the ask, another key, another direction), add a `high` entry with
+`"claim": "recap"` and the recap sentence it contradicts in `found`. The cold pass (step a) is unchanged; it never
+opens `outline.md`.
 
 Then reply with the findings in one short list (key or row, found, severity), and the path of both files.
 Open nothing. The whole read (steps b to d) should take a few minutes: list what looks off, recompute only that.

@@ -15,7 +15,11 @@ Two side agents for study data (not part of the plan loop):
 claude --agent report-writer   # The essay the data supports, in a storyteller's voice: your ask quoted first, one
     # unit of the study in one of five opening forms (moment, log-line, break, expected-vs-got, person; never the form
     # of the last two reports in evals/report-writer/ledger.jsonl), the "But", then the answer; middle sections that
-    # compare carry a block (::table, ::split stacked bar, ::pair before/after, ::bars); every figure a sourced {key}; one build makes the
+    # compare carry a block (::table, ::split stacked bar, ::pair before/after, ::bars); before any prose it writes
+    # outline.md (a three-sentence recap, one row per section tied to a verbatim clause of your ask with its {key} and
+    # word budget, and a Left out list of arms that get one sentence at most); check.py's focus group holds the report
+    # to it and the checker scores each middle section (advances/restates/tours/mechanism/data-shape), the writer cutting
+    # any that does not advance; every figure a sourced {key}; one build makes the
     # page and 390 px phone cards; a report-checker subagent gives a cold verdict in the background and reads the
     # essay once (a second read only when a high finding moves the ending). Opus medium.
 claude --agent report-checker  # Second set of eyes: answers the question cold from the data, then checks every

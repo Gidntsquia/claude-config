@@ -1,0 +1,593 @@
+{
+ "w_base_1": {
+  "label": "default warm s/gen ab-base-1",
+  "value": 11.76357308,
+  "unit": "s",
+  "fmt": 2,
+  "run": "ab-base-1",
+  "file": "runs-all.json",
+  "field": "[name=ab-base-1].warmPerGen"
+ },
+ "w_base_2": {
+  "label": "default warm s/gen ab-base-2",
+  "value": 11.658118558333335,
+  "unit": "s",
+  "fmt": 2,
+  "run": "ab-base-2",
+  "file": "runs-all.json",
+  "field": "[name=ab-base-2].warmPerGen"
+ },
+ "w_base_3": {
+  "label": "default warm s/gen ab-base-3",
+  "value": 11.686485493,
+  "unit": "s",
+  "fmt": 2,
+  "run": "ab-base-3",
+  "file": "runs-all.json",
+  "field": "[name=ab-base-3].warmPerGen"
+ },
+ "w_base_mean": {
+  "label": "default warm s/gen mean",
+  "value": 11.702725710444446,
+  "unit": "s",
+  "fmt": 2,
+  "run": "ab-base-1..3",
+  "derived": {
+   "op": "mean",
+   "of": [
+    "w_base_1",
+    "w_base_2",
+    "w_base_3"
+   ]
+  }
+ },
+ "w_stack_1": {
+  "label": "compact state warm s/gen ab-stack-1",
+  "value": 11.04437284,
+  "unit": "s",
+  "fmt": 2,
+  "run": "ab-stack-1",
+  "file": "runs-all.json",
+  "field": "[name=ab-stack-1].warmPerGen"
+ },
+ "w_stack_2": {
+  "label": "compact state warm s/gen ab-stack-2",
+  "value": 11.057319415666667,
+  "unit": "s",
+  "fmt": 2,
+  "run": "ab-stack-2",
+  "file": "runs-all.json",
+  "field": "[name=ab-stack-2].warmPerGen"
+ },
+ "w_stack_3": {
+  "label": "compact state warm s/gen ab-stack-3",
+  "value": 11.388477537166663,
+  "unit": "s",
+  "fmt": 2,
+  "run": "ab-stack-3",
+  "file": "runs-all.json",
+  "field": "[name=ab-stack-3].warmPerGen"
+ },
+ "w_stack_mean": {
+  "label": "compact state warm s/gen mean",
+  "value": 11.163389930944442,
+  "unit": "s",
+  "fmt": 2,
+  "run": "ab-stack-1..3",
+  "derived": {
+   "op": "mean",
+   "of": [
+    "w_stack_1",
+    "w_stack_2",
+    "w_stack_3"
+   ]
+  }
+ },
+ "stack_diff": {
+  "label": "compact state minus default, warm s/gen",
+  "value": -0.5393357795000036,
+  "unit": "s",
+  "fmt": 2,
+  "run": "ab-stack-1..3 vs ab-base-1..3",
+  "derived": {
+   "op": "diff",
+   "of": [
+    "w_stack_mean",
+    "w_base_mean"
+   ]
+  }
+ },
+ "w_r9pre_def_1": {
+  "label": "default (11:53 A/B) warm s/gen r9pre-ab-default-1",
+  "value": 12.795708197500003,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-default-1",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-default-1].warmPerGen"
+ },
+ "w_r9pre_def_2": {
+  "label": "default (11:53 A/B) warm s/gen r9pre-ab-default-2",
+  "value": 12.677335104666668,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-default-2",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-default-2].warmPerGen"
+ },
+ "w_r9pre_def_3": {
+  "label": "default (11:53 A/B) warm s/gen r9pre-ab-default-3",
+  "value": 12.337915447333335,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-default-3",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-default-3].warmPerGen"
+ },
+ "w_r9pre_def_mean": {
+  "label": "default (11:53 A/B) warm s/gen mean",
+  "value": 12.603652916500002,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-default-1..3",
+  "derived": {
+   "op": "mean",
+   "of": [
+    "w_r9pre_def_1",
+    "w_r9pre_def_2",
+    "w_r9pre_def_3"
+   ]
+  }
+ },
+ "w_r9pre_def_n": {
+  "label": "default (11:53 A/B) warm s/gen n",
+  "value": 3,
+  "unit": "",
+  "fmt": "int",
+  "run": "r9pre-ab-default-1..3",
+  "derived": {
+   "op": "count",
+   "of": [
+    "w_r9pre_def_1",
+    "w_r9pre_def_2",
+    "w_r9pre_def_3"
+   ]
+  }
+ },
+ "w_r9pre_tail_1": {
+  "label": "tail speculation warm s/gen r9pre-ab-tail-1",
+  "value": 13.889046858000006,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-tail-1",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-tail-1].warmPerGen"
+ },
+ "w_r9pre_tail_2": {
+  "label": "tail speculation warm s/gen r9pre-ab-tail-2",
+  "value": 13.648551173833333,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-tail-2",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-tail-2].warmPerGen"
+ },
+ "w_r9pre_tail_3": {
+  "label": "tail speculation warm s/gen r9pre-ab-tail-3",
+  "value": 13.359526273500002,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-tail-3",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-tail-3].warmPerGen"
+ },
+ "w_r9pre_tail_mean": {
+  "label": "tail speculation warm s/gen mean",
+  "value": 13.632374768444448,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-tail-1..3",
+  "derived": {
+   "op": "mean",
+   "of": [
+    "w_r9pre_tail_1",
+    "w_r9pre_tail_2",
+    "w_r9pre_tail_3"
+   ]
+  }
+ },
+ "w_r9pre_cert_1": {
+  "label": "tail with certain feed warm s/gen r9pre-ab-certain-1",
+  "value": 13.09552812433334,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-certain-1",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-certain-1].warmPerGen"
+ },
+ "w_r9pre_cert_2": {
+  "label": "tail with certain feed warm s/gen r9pre-ab-certain-2",
+  "value": 13.290574383166662,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-certain-2",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-certain-2].warmPerGen"
+ },
+ "w_r9pre_cert_3": {
+  "label": "tail with certain feed warm s/gen r9pre-ab-certain-3",
+  "value": 13.201110492999996,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-certain-3",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-certain-3].warmPerGen"
+ },
+ "w_r9pre_cert_mean": {
+  "label": "tail with certain feed warm s/gen mean",
+  "value": 13.195737666833333,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-certain-1..3",
+  "derived": {
+   "op": "mean",
+   "of": [
+    "w_r9pre_cert_1",
+    "w_r9pre_cert_2",
+    "w_r9pre_cert_3"
+   ]
+  }
+ },
+ "w_r9pre_cert_n": {
+  "label": "tail with certain feed warm s/gen n",
+  "value": 3,
+  "unit": "",
+  "fmt": "int",
+  "run": "r9pre-ab-certain-1..3",
+  "derived": {
+   "op": "count",
+   "of": [
+    "w_r9pre_cert_1",
+    "w_r9pre_cert_2",
+    "w_r9pre_cert_3"
+   ]
+  }
+ },
+ "tail_diff": {
+  "label": "tail minus default, warm s/gen",
+  "value": 1.0287218519444465,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-tail-1..3 vs r9pre-ab-default-1..3",
+  "derived": {
+   "op": "diff",
+   "of": [
+    "w_r9pre_tail_mean",
+    "w_r9pre_def_mean"
+   ]
+  }
+ },
+ "cert_diff": {
+  "label": "tail with certain feed minus default, warm s/gen",
+  "value": 0.5920847503333313,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-certain-1..3 vs r9pre-ab-default-1..3",
+  "derived": {
+   "op": "diff",
+   "of": [
+    "w_r9pre_cert_mean",
+    "w_r9pre_def_mean"
+   ]
+  }
+ },
+ "w_tailv2": {
+  "label": "tail v2 warm s/gen (one run)",
+  "value": 9.1,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9-ab-tailv2-1",
+  "file": "ab-tailv2.json",
+  "field": "warmPerGen"
+ },
+ "w_tailv2_n": {
+  "label": "tail v2 n",
+  "value": 1,
+  "unit": "",
+  "fmt": "int",
+  "run": "r9-ab-tailv2-1",
+  "derived": {
+   "op": "count",
+   "of": [
+    "w_tailv2"
+   ]
+  }
+ },
+ "w_r9def_runsall": {
+  "label": "r9-ab-default-1 warm s/gen (runs-all)",
+  "value": 12.604095989,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9-ab-default-1",
+  "file": "runs-all.json",
+  "field": "[name=r9-ab-default-1].warmPerGen"
+ },
+ "w_r9def_runsjson": {
+  "label": "r9-ab-default-1 warm s/gen (runs.json)",
+  "value": 12.795708197500003,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9-ab-default-1",
+  "file": "runs.json",
+  "field": "ab.default[0].warmPerGen"
+ },
+ "w_r9tail_runsall": {
+  "label": "r9-ab-tail-1 warm s/gen (runs-all)",
+  "value": 12.117728528666667,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9-ab-tail-1",
+  "file": "runs-all.json",
+  "field": "[name=r9-ab-tail-1].warmPerGen"
+ },
+ "w_r9_n": {
+  "label": "afternoon A/B runs per arm",
+  "value": 1,
+  "unit": "",
+  "fmt": "int",
+  "run": "r9-ab-default-1",
+  "derived": {
+   "op": "count",
+   "of": [
+    "w_r9def_runsall"
+   ]
+  }
+ },
+ "ts_r9def_runsjson": {
+  "label": "r9-ab-default-1 tail share (runs.json)",
+  "value": 0.4257628503697101,
+  "unit": "",
+  "fmt": "%1",
+  "run": "r9-ab-default-1",
+  "file": "runs.json",
+  "field": "ab.default[0].tailShare"
+ },
+ "ts_r9def_lit": {
+  "label": "r9-ab-default-1 tail share (evidence-profile)",
+  "value": 0.352,
+  "unit": "",
+  "fmt": "%1",
+  "run": "r9-ab-default-1",
+  "file": "lit/evidence-profile.json",
+  "field": "tail_share"
+ },
+ "ts_r9def_runsall": {
+  "label": "r9-ab-default-1 tail share (runs-all)",
+  "value": 0.41973451714562315,
+  "unit": "",
+  "fmt": "%1",
+  "run": "r9-ab-default-1",
+  "file": "runs-all.json",
+  "field": "[name=r9-ab-default-1].tailShare"
+ },
+ "ft_gens": {
+  "label": "full-tail-1 generations done",
+  "value": 14,
+  "unit": "",
+  "fmt": "int",
+  "run": "full-tail-1",
+  "file": "full/full-tail-1.json",
+  "field": "gens_done"
+ },
+ "ft_planned": {
+  "label": "full-tail-1 generations planned",
+  "value": 40,
+  "unit": "",
+  "fmt": "int",
+  "run": "full-tail-1",
+  "file": "full/full-tail-1.json",
+  "field": "gens_planned"
+ },
+ "verify_tail": {
+  "label": "tail speculation verify_3v3 winner agreement",
+  "value": 100.0,
+  "unit": "%",
+  "fmt": 2,
+  "run": "tail speculation",
+  "file": "tail/verify3v3-tail.log",
+  "field": "per-matchup winner agreement ([\\d.]+)%"
+ },
+ "det_tail_ckpts": {
+  "label": "tail 5-gen checkpoints identical to default",
+  "value": 5,
+  "unit": "",
+  "fmt": "int",
+  "run": "det-r9",
+  "file": "det-r9.txt",
+  "field": "POGO_GPU_STUDY=tail 5-gen vs default 5-gen: IDENTICAL \\((\\d+) checkpoints"
+ },
+ "gw_def1_g7": {
+  "label": "gen 7 wall, r9pre-ab-default-1",
+  "value": 12.841731944,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-default-1",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-default-1].genWalls[7]"
+ },
+ "gw_tail1_g7": {
+  "label": "gen 7 wall, r9pre-ab-tail-1",
+  "value": 12.944920389000007,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-tail-1",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-tail-1].genWalls[7]"
+ },
+ "gw_def1_g8": {
+  "label": "gen 8 wall, r9pre-ab-default-1",
+  "value": 17.467861199999998,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-default-1",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-default-1].genWalls[8]"
+ },
+ "gw_tail1_g8": {
+  "label": "gen 8 wall, r9pre-ab-tail-1",
+  "value": 19.589497002000005,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9pre-ab-tail-1",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-tail-1].genWalls[8]"
+ },
+ "ts_default1": {
+  "label": "default tail share r9pre-ab-default-1",
+  "value": 0.4257628503697101,
+  "fmt": "%1",
+  "run": "r9pre-ab-default-1",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-default-1].tailShare"
+ },
+ "tl1_pool": {
+  "label": "tail log pool, r9pre-ab-tail-1",
+  "value": 182630,
+  "unit": "",
+  "fmt": ",",
+  "run": "r9pre-ab-tail-1",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-tail-1].tailLog.pool"
+ },
+ "tl1_speculated": {
+  "label": "tail log speculated, r9pre-ab-tail-1",
+  "value": 65127,
+  "unit": "",
+  "fmt": ",",
+  "run": "r9pre-ab-tail-1",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-tail-1].tailLog.speculated"
+ },
+ "tl1_discarded": {
+  "label": "tail log discarded, r9pre-ab-tail-1",
+  "value": 36514,
+  "unit": "",
+  "fmt": ",",
+  "run": "r9pre-ab-tail-1",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-tail-1].tailLog.discarded"
+ },
+ "tl1_served": {
+  "label": "tail log served, r9pre-ab-tail-1",
+  "value": 21928,
+  "unit": "",
+  "fmt": ",",
+  "run": "r9pre-ab-tail-1",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-ab-tail-1].tailLog.served"
+ },
+ "tl1_discard_pct": {
+  "label": "share of speculated battles discarded, r9pre-ab-tail-1",
+  "value": 56.06584058838884,
+  "unit": "%",
+  "fmt": 0,
+  "run": "r9pre-ab-tail-1",
+  "derived": {
+   "op": "pct",
+   "of": [
+    "tl1_discarded",
+    "tl1_speculated"
+   ]
+  }
+ },
+ "tl1_served_pct": {
+  "label": "share of the pool served from speculation, r9pre-ab-tail-1",
+  "value": 12.006789684060669,
+  "unit": "%",
+  "fmt": 0,
+  "run": "r9pre-ab-tail-1",
+  "derived": {
+   "op": "pct",
+   "of": [
+    "tl1_served",
+    "tl1_pool"
+   ]
+  }
+ },
+ "tail_s_def1_g7": {
+  "label": "about-tail seconds in gen 7 of r9pre-ab-default-1 (run share × gen wall)",
+  "value": 5.467532396161198,
+  "unit": "s",
+  "fmt": 1,
+  "run": "r9pre-ab-default-1",
+  "derived": {
+   "op": "mul",
+   "of": [
+    "ts_default1",
+    "gw_def1_g7"
+   ]
+  }
+ },
+ "pf_def_g7_kernel": {
+  "label": "gen 7 kernel seconds, r9-ab-default-1 (gpu-profile)",
+  "value": 6.5814097920000005,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9-ab-default-1",
+  "file": "runs/r9-ab-default-1/gpu-profile.json",
+  "field": "generations[7].buckets.kernel"
+ },
+ "pf_def_g7_tail": {
+  "label": "gen 7 tail seconds, r9-ab-default-1 (gpu-profile)",
+  "value": 5.035501568000001,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9-ab-default-1",
+  "file": "runs/r9-ab-default-1/gpu-profile.json",
+  "field": "generations[7].buckets.tail"
+ },
+ "pf_tail_g7_kernel": {
+  "label": "gen 7 kernel seconds, r9-ab-tail-1 (gpu-profile)",
+  "value": 3.3104957440000002,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9-ab-tail-1",
+  "file": "runs/r9-ab-tail-1/gpu-profile.json",
+  "field": "generations[7].buckets.kernel"
+ },
+ "pf_tail_g7_tail": {
+  "label": "gen 7 tail seconds, r9-ab-tail-1 (gpu-profile)",
+  "value": 6.6138081280000005,
+  "unit": "s",
+  "fmt": 2,
+  "run": "r9-ab-tail-1",
+  "file": "runs/r9-ab-tail-1/gpu-profile.json",
+  "field": "generations[7].buckets.tail"
+ },
+ "ts_r9tail_runsall": {
+  "label": "r9-ab-tail-1 tail share (runs-all)",
+  "value": 0.5539287228725012,
+  "fmt": "%1",
+  "run": "r9-ab-tail-1",
+  "file": "runs-all.json",
+  "field": "[name=r9-ab-tail-1].tailShare"
+ },
+ "gw_fulltail_pre_g79": {
+  "label": "gen 79 wall, r9pre-full-tail",
+  "value": 127.1377199029997,
+  "unit": "s",
+  "fmt": 1,
+  "run": "r9pre-full-tail",
+  "file": "runs-all.json",
+  "field": "[name=r9pre-full-tail].genWalls[79]"
+ },
+ "gw_full100def_g79": {
+  "label": "gen 79 wall, r9-full-default",
+  "value": 10.918662790999981,
+  "unit": "s",
+  "fmt": 1,
+  "run": "r9-full-default",
+  "file": "runs-all.json",
+  "field": "[name=r9-full-default].genWalls[79]"
+ }
+}

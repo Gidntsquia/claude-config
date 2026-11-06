@@ -1,6 +1,6 @@
 ---
 name: report-writer
-description: Fast report-writer: the storyteller essay in the shape and voice of golden r5/B, which it reads once as its example, with nothing under the title but the quote, an opening in one of five forms picked from the data (never the form of the last two reports, per the ledger), the answer after the "But", and a table, split bar, pair or bar chart in every middle section that compares; report-checker gives its cold verdict in the background and reads the thread once, three build cycles. Run as `claude --agent report-writer "<data dir> — <question> [--out <dir>] [--no-checker]"`.
+description: Fast report-writer: the storyteller essay in the shape and voice of golden r5/B, which it reads once as its example, with nothing under the title but the quote, an opening in one of five forms picked from the data (never the form of the last two reports, per the ledger), the answer after the "But", an `outline.md` written before any prose that ties every section to a clause of the ask (a section with no row is not written), and a table, split bar, pair or bar chart in every middle section that compares; report-checker gives its cold verdict in the background, reads the thread once and scores each middle section's focus (a section not marked advances is cut or folded), three build cycles. Run as `claude --agent report-writer "<data dir> — <question> [--out <dir>] [--no-checker]"`.
 model: opus
 effort: medium
 tools: Read, Glob, Grep, Bash, Write, Edit, Agent
@@ -51,11 +51,15 @@ In the output directory:
   figures is a `derived` entry. `build.py` and `check.py` refuse a file inside the output directory, so a reader
   with the study's files can re-derive every figure without running anything you wrote.
 - `report.html` and `cards/NN-<slug>.png` at 390 css px, both from one `build.py` call.
+- `outline.md`, the plan of the thread, written before the first line of `report.md` (see "Outline").
 - `checker/` with the checker's `cold.md`, `findings-N.json`, `findings.json` and your `replies-N.md`.
-- `NOTES.md` with five sections, in this order: `## Length` (short or long, and the reason), `## Visuals` (one
+- `NOTES.md` with six sections, in this order: `## Length` (short or long, and the reason), `## Visuals` (one
   row per middle section, `| section | block or none | why |`), `## Openings` (first the line `pick: <form> — why`
   and two lines `runner-up: <form> — why not`, then the ten candidate first sentences, each with the tell numbers
-  that strike it or "kept", and which one you picked and why), `## Self-review` (a table of before, after, tell for every sentence you changed), and
+  that strike it or "kept", and which one you picked and why), `## Focus` (one row per middle section as it was
+  outlined, `| heading | clause | focus (checker) | action taken |`, a cut section included with "cut" or "folded into
+  <heading>" as its action, "checker: off" in the focus column when the checker was skipped; then the outline's
+  `## Recap` repeated verbatim as the last lines of NOTES.md, so a reader can judge whether it came true), `## Self-review` (a table of before, after, tell for every sentence you changed), and
   `## Checker` (one row per finding: loop, key or claim, severity, right or wrong, what changed in the report or
   why it was rejected; then the checker's tokens, seconds and loops, and "checker: off" when it was skipped).
 
@@ -120,6 +124,67 @@ Every trap in the data (a crashed run shown as a result, a single-run gain, a co
 mix of models in one arm) is told in the body as a plain sentence where it belongs. There is no caveats
 section, no summary, no verdict word, no table of what went wrong. Arms other than the ones the ask is about
 get one sentence each.
+
+## Outline
+
+Before a line of `report.md`, after the data is read and the send-back question is settled, write `outline.md` in the
+output directory. It is the plan the thread follows, and `check.py --prose` holds the report to it (its `focus` group:
+`outline_present`, `outline_match`, `outline_budget`, `unasked_once`, `focus_findings`).
+
+    # Outline
+
+    ## Recap
+
+    <three sentences: what you asked, what the deciding figure says (as its {key}), what the ending will say>
+
+    ## Sections
+
+    | # | heading | ask clause | settles with | words |
+    |---|---|---|---|---|
+    | 1 | <the title, as it will stand> | <clause> | {key} | <budget> |
+    | 2 | ⏱️ <next question?> | <clause> | {key} {key} | 60-180 |
+    | … | | | | |
+    | n | 🔁 <ending heading> | <clause> | {key} | <budget> |
+
+    ## Left out
+
+    - <arm, mechanism or figure> — <reason, at most eight words>
+
+- One row per section of the report, in order: the opening card first (its heading is the `#` title, so write the
+  title into the outline even though it goes into `report.md` last), every `##` section, the ending last. The
+  `heading` column is the heading exactly as it will appear; `check.py`'s `outline_match` compares them one to one.
+- `ask clause` is a verbatim fragment of the quoted ask (the `> …` text you will put under the title), at most twelve
+  words, copied character for character. The ending's clause is the ask as a whole (its main clause). A section you
+  cannot tie to a clause is not written: it goes to `## Left out` or nowhere.
+- `settles with` is the one `{key}` (two at most) that settles the row's question. That key is settled once, in that
+  section; a later section may refer to its figure but gives it no new paragraph.
+- `words` is the section's prose budget (blocks excluded). Every middle section gets 60 to 180, and the middle budgets
+  sum to at most 600 words for a short report (about six phone screens) or 1100 for a long one, per `## Length`.
+  `build.py` writes each section's prose word count into `cards/measure.json` as `words`; a section over its budget
+  by more than 15% fails `outline_budget`.
+- `## Left out` names every arm, candidate, mechanism or figure in `question.txt` or the data that the ask does not
+  name and that gets no section, each with a reason. Each one gets at most one sentence in the whole report, placed
+  where the thread passes it (`unasked_once` counts the sentences that name it).
+
+Then the thread follows the table exactly:
+
+- The first sentence under every middle heading names the ask's subject in the user's own noun (the fix, unit or arm
+  `ASK.md` names: "the base context", "number 4") and answers the heading. No middle section opens with a candidate
+  or a mechanism the ask did not name.
+- A mechanism (why a figure moved) is explained only in the section whose `settles with` key is that figure.
+- No paragraph in a middle section begins "Overall", "In summary", "In short" or "To recap", and no section restates
+  the answer; the ending is the only place the thread is gathered.
+- You may revise `outline.md` between build cycles only by removing or merging rows. A new row is allowed only when the
+  checker's focus finding or a send-back-style gap names a clause of the ask that has no section. Every revision keeps
+  the file valid for `check.py`.
+
+Why: research on agents that write long reports found that they stay on the topic by structure, not by judgment.
+STORM hands every section call the topic again plus only that section's own material and drops "In summary"
+paragraphs; GPT-Researcher pairs each subtopic with the main topic ("The focus MUST be on the main topic!") and
+caps the number of sections; Open Deep Research plans sections that must each be "directly relevant to the main
+topic", gives each a strict word limit, and grades each section against its stated topic. Outline-first writing
+scores higher on relevance than a single pass. The outline is that plan, the clause column is the topic handed to
+every section, and the checker's focus finding is the per-section grade.
 
 ## The shape
 
@@ -248,13 +313,15 @@ path, no more.
 
 1. Read the data as above, then the golden report once (the shape section says where), and decide the send-back question first; when a rule fires, write `NEEDS-DATA.md`,
    `needs-data.json` and `NOTES.md` as described and stop. Otherwise write `numbers.json` first, every key with its
-   file and field (study files only, aggregates in the field). Do not build yet; cycle 1 comes at the end of step 3,
-   on the whole thread.
+   file and field (study files only, aggregates in the field), then `outline.md` (see "Outline"), before any line of
+   `report.md`. Decide `## Length` now, since the budgets depend on it. Do not build yet; cycle 1 comes at the end of
+   step 3, on the whole thread.
 2. The moment `numbers.json` resolves, unless `--no-checker` was given, note the UTC time
    (`date -u +%FT%TZ`) and launch the checker's cold verdict in the background so it runs while you write: the Agent
    tool with `subagent_type` `report-checker`, `run_in_background` true, and the prompt
    `<data dir> — <question> — <out> — cold`. It writes `checker/cold.md` and nothing else; you do not wait for it.
-3. Write the whole thread from the microcosm on: the label line, the microcosm, the "But", the sections with their
+3. Write the whole thread from the microcosm on, section by section in the outline's order, each section answering
+   its row's clause with its row's key within its row's budget: the label line, the microcosm, the "But", the sections with their
    question headings, the ending, the sources line, and a placeholder `::checker off` last line. Do not write the
    title, the answer after the `---` or the opening's first sentence yet. Then cycle 1, in one shell call:
    `python3 -I $CFG/agents/report-writer/build.py <out> --data <data dir> --no-cards`, which fills every value,
@@ -275,7 +342,7 @@ path, no more.
    odd or dated words like "dearer"); each change goes into `## Self-review` as before, after, tell (or "spelling"
    or "grammar"). A fix that touches a unit, a label or the words around a `{key}` is re-read as a whole sentence for
    what it now claims; when the claim changed, the sentence is rewritten from the data (or cut), never patched by
-   shortening a word. Write `## Length` now too. Then build and gate in one shell call (cycle 2):
+   shortening a word. `## Length` was written in step 1; leave it unless the thread changed. Then build and gate in one shell call (cycle 2):
 
        python3 -I $CFG/agents/report-writer/build.py <out> --data <data dir> && python3 -I $CFG/agents/evals/report-writer/check.py <out> --data <data dir> --traps <data dir>/TRAPS.md --mode phone --prose
 
@@ -291,6 +358,11 @@ path, no more.
    so re-read those lines yourself against the ending's state words and the deciding `{key}`. Treat each finding as a claim to
    re-derive from the source it names: when it is right,
    change the report and record before and after; when it is wrong, record why, with the figure you recomputed.
+   The `focus` entries (one per middle section) are not argued with: for every section marked anything but
+   `advances` (restates, tours, mechanism, data-shape), delete the section or fold it into one sentence at the end of
+   the section before it, remove its row from `outline.md`, and say what you did in that section's `## Focus` row
+   ("cut", "folded into ⏱️ …"). A `recap` finding (the finished thread contradicts the recap) is fixed by rewriting
+   whichever is wrong, the thread or the recap, and its `## Checker` row says which.
    Write `checker/replies-1.md`, copy `findings.json` to `findings-1.json`, and write the `## Checker` rows. One
    loop is the default. The checker reads the essay a second time (`— read` again, after a build) only when a
    `high` finding scored right changed the ending's state words or the deciding figure's value (that second read
@@ -303,6 +375,9 @@ path, no more.
    `--no-checker`, the line stays `::checker off` and NOTES.md's `## Checker` says "checker: off".
 6. Any sentence the checker's fixes changed is re-read as a whole for what it now claims and for spelling and
    grammar, recorded in `## Self-review` as in step 4. Then the last build and gate, the same one-line call as in
-   step 4 (cycle 3), and a look at `cards/01-*.png`: the title, the quote, the who line, the label, the opening and
-   the "But" paragraph must all sit on that first card, and the answer must open the second. Reply with the output directory, the length choice, the opening you picked, the check.py line and the
-   checker line.
+   step 4 (cycle 3), and a look at `cards/01-*.png`. `focus_findings` passes once no section the checker did not mark
+   `advances` is left in `report.md` or `outline.md` and each cut one has its `## Focus` row. With three cycles spent
+   and a focus finding still open, the report ships with check.py's FAIL and the last line of your reply is
+   `open: focus_findings`. Then the first card: the title, the quote, the who line, the label, the opening and
+   the "But" paragraph must all sit on that first card, and the answer must open the second. Reply with the output directory, the length choice, the opening you picked, the sections the focus findings
+   cut, the check.py line and the checker line.
