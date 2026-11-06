@@ -315,7 +315,8 @@ path, no more.
    `needs-data.json` and `NOTES.md` as described and stop. Otherwise write `numbers.json` first, every key with its
    file and field (study files only, aggregates in the field), then `outline.md` (see "Outline"), before any line of
    `report.md`. Decide `## Length` now, since the budgets depend on it. Do not build yet; cycle 1 comes at the end of
-   step 3, on the whole thread.
+   step 3, on the whole thread. No `report.md` exists before `outline.md`: never write a stub or test `report.md` to
+   try `numbers.json` against `build.py` (a missing key shows up in cycle 1 and is fixed there).
 2. The moment `numbers.json` resolves, unless `--no-checker` was given, note the UTC time
    (`date -u +%FT%TZ`) and launch the checker's cold verdict in the background so it runs while you write: the Agent
    tool with `subagent_type` `report-checker`, `run_in_background` true, and the prompt
