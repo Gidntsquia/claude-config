@@ -6,7 +6,9 @@
         the essay form (report-writer since 2026-10-21; golden r5): figures resolve, numbers, traps-in-body, most_runs, cards,
         card1 (quote + who + [note] + microcosm + "But" with two means and n on one screen), voice, voice_prose, prose_shape,
         no_summary_sections, ending (names the microcosm again), terms_once, style (golden r5/B's essence: thread, voice,
-        turn, rhythm, headings, shared sentences), ai_tells (every regex-checkable tell of docs/ai-tells.md), checker_line (last line: loops/raised/fixed/open/tokens/wall or "checker: off"), expected
+        turn, rhythm, headings, shared sentences), visuals (a block or a reasoned
+        "none" in NOTES.md ## Visuals for every middle section with 3+ figures), opening_ledger (ledger.jsonl: form and title
+        shape differ from the two entries before), ai_tells (every regex-checkable tell of docs/ai-tells.md), checker_line (last line: loops/raised/fixed/open/tokens/wall or "checker: off"), expected
 
 <outdir> holds numbers.json, report.html and cards/measure.json (from render.py). --data is the directory that
 numbers.json's "file" paths are relative to (default: the fixture's data dir next to this script). Prints one line per
@@ -1478,7 +1480,7 @@ def check_style(page, outdir, N=None):
             ft = visible_text(first).strip()
             scene = bool(re.search(r"\b\d\d?:\d\d\b|\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening|noon|night)\b|\b20\d\d-\d\d-\d\d\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d{1,2}\b", ft, re.I) or 'class="id"' in first)
             if not scene:
-                turn_probs.append(f"first body block is not a scene (no clock time, date or [[identifier]]): {ft[:60]!r}")
+                turn_probs.append(f"first body block is not an opening (moment, log-line, break, expected-vs-got or person: no clock time, date or [[identifier]]): {ft[:60]!r}")
             keys = re.findall(r'data-key="([^"]+)"', first)
             if N:
                 means = [k for k in keys if "|mean" in str(N.get(k, {}).get("field", "")) or N.get(k, {}).get("derived", {}).get("op") == "mean"]
@@ -1673,6 +1675,153 @@ def check_most_runs_prose(N, traps_path):
         ok("most_runs", f"{len(exp)} candidates, no n below the file with most runs")
 
 
+
+# ---------- --prose: visual blocks and the opening ledger (2026-11-06) -----------------------------------------------------
+BLOCK_KINDS = ("bars", "table", "split", "pair")
+FORMS = ("moment", "log-line", "break", "expected-vs-got", "person")
+
+
+def _norm_head(t):
+    return " ".join(re.findall(r"[a-z0-9]+", t.lower()))
+
+
+def notes_section(outdir, name):
+    p = os.path.join(outdir, "NOTES.md")
+    if not os.path.exists(p):
+        return None
+    m = re.search(rf"^##\s*{name}\s*$(.*?)(?=^##\s|\Z)", open(p, encoding="utf-8").read(), re.S | re.M)
+    return m.group(1) if m else None
+
+
+def middle_sections(src):
+    """report.md → [(heading, body)] for every ## section after the --- answer except the last (the ending)"""
+    after = src.split("\n---\n", 1)[1] if "\n---\n" in src else src
+    secs = re.split(r"^## ", after, flags=re.M)[1:]
+    out = [(x.splitlines()[0].strip(), "\n".join(x.splitlines()[1:])) for x in secs]
+    return out[:-1]
+
+
+def check_visuals(outdir):
+    """R4/R5: every middle section with three or more distinct {key}s carries a ::bars/::table/::split/::pair block, or its
+    NOTES.md ## Visuals row says none with a reason; the row's block matches the section; a block cell is a {key}, [[id]] or
+    words; the sentence before a block shares no {key} with the block; ## Visuals has a row for every middle section"""
+    md = os.path.join(outdir, "report.md")
+    if not os.path.exists(md):
+        bad("visuals", "no report.md")
+        return
+    src = open(md, encoding="utf-8").read()
+    secs = middle_sections(src)
+    vis = notes_section(outdir, "Visuals")
+    probs = []
+    rows = []
+    if vis is None:
+        probs.append("NOTES.md has no ## Visuals")
+    else:
+        for l in vis.splitlines():
+            c = [x.strip() for x in l.strip().strip("|").split("|")]
+            if l.strip().startswith("|") and len(c) >= 3 and not re.match(r"^:?-+:?$", c[0]) and c[0].lower() != "section":
+                rows.append((c[0], c[1].lower(), " ".join(c[2:]).strip()))
+    nblocks, summary = 0, []
+    for head, body in secs:
+        keys = set(re.findall(r"\{([A-Za-z0-9_]+)@?\}", body))
+        blks = re.findall(r"^::(bars|table|split|pair)\b(.*)$", body, re.M)
+        nblocks += len(blks)
+        hn = _norm_head(head)
+        row = next((r for r in rows if _norm_head(r[0]) and (_norm_head(r[0]) in hn or hn in _norm_head(r[0]))), None)
+        if row is None and rows:
+            hw = set(hn.split())
+            best = max(rows, key=lambda r: len(hw & set(_norm_head(r[0]).split())))
+            if len(hw & set(_norm_head(best[0]).split())) >= max(2, len(hw) // 2):
+                row = best
+        if vis is not None and row is None:
+            probs.append(f"## Visuals has no row for {head!r}")
+        said = None if row is None else next((k for k in BLOCK_KINDS + ("none",) if k in row[1]), None)
+        if blks:
+            kinds = [k for k, _ in blks]
+            if row is not None and said not in kinds:
+                probs.append(f"{head!r}: ## Visuals says {row[1]!r}, the section has {kinds}")
+        elif len(keys) >= 3:
+            if row is None or said != "none" or len(row[2].split()) < 3:
+                probs.append(f"{head!r}: {len(keys)} figures and no block" + ("" if row is None else f" (## Visuals says {row[1]!r} {row[2][:40]!r})"))
+        elif row is not None and said not in (None, "none"):
+            probs.append(f"{head!r}: ## Visuals says {row[1]!r}, the section has no block")
+        summary.append(f"{len(keys)}k/{'+'.join(k for k, _ in blks) or 'none'}")
+        # the sentence before a block names what it shows and repeats none of its figures
+        lines = body.splitlines()
+        for i, l in enumerate(lines):
+            m = re.match(r"^::(bars|table|split|pair)\b(.*)$", l)
+            if not m:
+                continue
+            spec = m.group(2)
+            bkeys = set(re.findall(r"\{([A-Za-z0-9_]+)@?\}", spec)) | set(re.findall(r"(?<![={\w])([A-Za-z][A-Za-z0-9_]*)(?=\s|$|\|)", spec.split("|")[0] if m.group(1) in ("bars", "split") else ""))
+            if m.group(1) == "split" and len(spec.split("|")) > 1:
+                bkeys |= set(spec.split("|")[1].split())
+            if m.group(1) == "pair":
+                mm = re.match(r"\s*left=(.+?)\s+right=([^|]+)", spec)
+                if mm:
+                    bkeys |= set(mm.group(1).split()) | set(mm.group(2).split())
+            j = i - 1
+            while j >= 0 and not lines[j].strip():
+                j -= 1
+            before = lines[j] if j >= 0 and not lines[j].startswith(("::", "#")) else ""
+            dup = bkeys & set(re.findall(r"\{([A-Za-z0-9_]+)@?\}", before))
+            if dup:
+                probs.append(f"{head!r}: the sentence before the ::{m.group(1)} repeats {sorted(dup)}")
+            if m.group(1) == "table":
+                cells = [c.strip() for r in spec.split(";;")[1:] for c in r.split("|") if not c.strip().startswith("cap=")]
+                for c in cells:
+                    rest = re.sub(r"\[\[.+?\]\]", "", re.sub(r"\{[A-Za-z0-9_]+@?\}", "", c))
+                    if re.search(r"\d", rest):
+                        probs.append(f"{head!r}: table cell {c!r} is not a {{key}}, [[id]] or words")
+    if probs:
+        bad("visuals", "; ".join(probs[:6]))
+    else:
+        ok("visuals", f"{len(secs)} middle sections ({', '.join(summary)}), {nblocks} blocks, ## Visuals row for each")
+
+
+def ledger_path():
+    return os.environ.get("REPORT_LEDGER") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "ledger.jsonl")
+
+
+def check_opening_ledger(outdir):
+    """R6/R7: this report's ledger line (build.py writes it) names one of the five forms; NOTES.md ## Openings names the
+    pick and two runners-up, each with a reason; the form and the title shape differ from both entries before it"""
+    lp = ledger_path()
+    rows = []
+    if os.path.exists(lp):
+        for l in open(lp, encoding="utf-8"):
+            try:
+                rows.append(json.loads(l))
+            except ValueError:
+                pass
+    me = os.path.realpath(outdir)
+    idx = next((i for i, r in enumerate(rows) if r.get("out") == me), None)
+    if idx is None:
+        ok("opening_ledger", "not in the ledger (no full build.py build of this folder), skipped")
+        return
+    row = rows[idx]
+    prev = [r for r in rows[:idx] if r.get("out") != me][-2:]
+    probs = []
+    form = row.get("form")
+    if form not in FORMS:
+        probs.append(f"ledger form {form!r}: NOTES.md ## Openings needs a 'pick: <form>' line, one of {', '.join(FORMS)}")
+    op = notes_section(outdir, "Openings") or ""
+    ru = [l for l in op.splitlines() if re.match(r"^\W*runner[- ]?up\W*\s*[:=]?\s*\**`?(" + "|".join(FORMS) + r")\b", l.strip(), re.I)]
+    ru_ok = [l for l in ru if len(re.split(r"[—:-]\s", l, maxsplit=2)[-1].split()) >= 3]
+    if len(ru_ok) < 2:
+        probs.append(f"NOTES.md ## Openings names {len(ru_ok)} runners-up with a reason (needs two 'runner-up: <form> — why' lines)")
+    for r in prev:
+        if form and r.get("form") == form:
+            probs.append(f"form {form!r} repeats the ledger entry for {r.get('out')} ({r.get('ts')})")
+        if row.get("title_shape") and r.get("title_shape") == row.get("title_shape"):
+            probs.append(f"title shape {row['title_shape']!r} repeats {r.get('out')}")
+    if probs:
+        bad("opening_ledger", "; ".join(probs))
+    else:
+        ok("opening_ledger", f"form {form}, title shape {row.get('title_shape')!r}; last two: "
+           + (", ".join(f"{r.get('form')} / {r.get('title_shape')!r}" for r in prev) or "none"))
+
+
 def main():
     a = sys.argv[1:]
     if not a:
@@ -1724,6 +1873,8 @@ def main():
         golden_values()
         check_style(page, outdir, N)
         check_ai_tells(page, N)
+        check_visuals(outdir)
+        check_opening_ledger(outdir)
         check_checker_line_prose(page, outdir)
         check_expected(outdir, N, page, expected, traps)
         print("\n".join(out_lines))

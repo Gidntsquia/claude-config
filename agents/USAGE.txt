@@ -13,7 +13,9 @@ claude --agent planner     # only when EVAL.md says replan (big changes)
 Two side agents for study data (not part of the plan loop):
 
 claude --agent report-writer   # The essay the data supports, in a storyteller's voice: your ask quoted first, one
-    # moment of the study as a scene, the "But", then the answer; every figure a sourced {key}; one build makes the
+    # unit of the study in one of five opening forms (moment, log-line, break, expected-vs-got, person; never the form
+    # of the last two reports in evals/report-writer/ledger.jsonl), the "But", then the answer; middle sections that
+    # compare carry a block (::table, ::split stacked bar, ::pair before/after, ::bars); every figure a sourced {key}; one build makes the
     # page and 390 px phone cards; a report-checker subagent gives a cold verdict in the background and reads the
     # essay once (a second read only when a high finding moves the ending). Opus medium.
 claude --agent report-checker  # Second set of eyes: answers the question cold from the data, then checks every

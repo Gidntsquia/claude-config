@@ -2,8 +2,9 @@
 //
 //   node cards.mjs <outdir> desktop|phone      (called by render.py; PLAYWRIGHT_DIR overrides the playwright install)
 //
-// Writes <outdir>/cards/measure.json: per card {index, slug, css_height_px, png, png_width_px, png_height_px, scale},
-// per paragraph {card, text, lines}, ellipsis count, horizontal_scroll. Phone PNGs: <outdir>/cards/NN-<slug>.png at
+// Writes <outdir>/cards/measure.json: per card {index, slug, css_height_px, scroll_width_px, png, png_width_px, png_height_px, scale},
+// per block (::bars/::table/::split/::pair) {card, kind, css_height_px, scroll_width_px, right_px}, per paragraph
+// {card, text, lines}, ellipsis count, page_scroll_width_px, horizontal_scroll. Phone PNGs: <outdir>/cards/NN-<slug>.png at
 // SCALE x device pixels (2x by default: 780 px wide for 390 css px, sharp on a phone). Exit 1 if playwright is missing.
 import { createRequire } from 'node:module';
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -24,7 +25,20 @@ const inProjects = projectsDir && existsSync(projectsDir)
 const npmRoot = (() => { try { return execSync('npm root -g', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return null; } })();
 const candidates = [process.env.PLAYWRIGHT_DIR, resolve(process.cwd(), 'node_modules/playwright'), ...inProjects,
   npmRoot && `${npmRoot}/playwright`].filter(Boolean);
-const pwDir = candidates.find((d) => existsSync(d));
+// A playwright whose headless Chromium build is not downloaded fails at launch ("Executable doesn't exist"), so the first
+// candidate whose chromium-headless-shell revision (playwright-core/browsers.json) is in the browser cache wins.
+const browsersDir = process.env.PLAYWRIGHT_BROWSERS_PATH || `${process.env.HOME}/.cache/ms-playwright`;
+const hasBrowser = (d) => {
+  for (const b of [`${d}/../playwright-core/browsers.json`, `${d}/node_modules/playwright-core/browsers.json`]) {
+    try {
+      const shell = JSON.parse(readFileSync(b, 'utf8')).browsers.find((x) => x.name === 'chromium-headless-shell');
+      if (shell) return existsSync(`${browsersDir}/chromium_headless_shell-${shell.revision}`);
+    } catch { /* no browsers.json here */ }
+  }
+  return false;
+};
+const present = candidates.filter((d) => existsSync(d));
+const pwDir = (process.env.PLAYWRIGHT_DIR && existsSync(process.env.PLAYWRIGHT_DIR)) ? process.env.PLAYWRIGHT_DIR : (present.find(hasBrowser) || present[0]);
 if (!pwDir) { console.error(`cards.mjs: playwright not found (looked in $PLAYWRIGHT_DIR, ./node_modules, ${projectsDir || 'the projects folder'}/*/node_modules, npm root -g); install it: npm i -g playwright && npx playwright install chromium`); process.exit(1); }
 const { chromium } = createRequire(import.meta.url)(pwDir);
 
@@ -42,7 +56,12 @@ await page.goto(`file://${tmp}`);
 await page.waitForLoadState('load');
 await page.evaluate(() => { for (const d of document.querySelectorAll('details')) d.open = true; });
 const info = await page.evaluate(() => {
-  const cards = [...document.querySelectorAll('section.card')].map((c, i) => ({ index: i + 1, slug: c.id, css_height_px: Math.ceil(c.getBoundingClientRect().height) }));
+  const cards = [...document.querySelectorAll('section.card')].map((c, i) => ({ index: i + 1, slug: c.id, css_height_px: Math.ceil(c.getBoundingClientRect().height),
+    scroll_width_px: Math.max(c.scrollWidth, ...[...c.querySelectorAll('*')].map((e) => Math.ceil(e.getBoundingClientRect().right - document.documentElement.getBoundingClientRect().left))) }));
+  // every ::bars/::table/::split/::pair block: its card, kind, height and widest extent (css px)
+  const blocks = [...document.querySelectorAll('section.card [data-block]')].map((b) => ({ card: b.closest('section.card').id, kind: b.dataset.block,
+    css_height_px: Math.ceil(b.getBoundingClientRect().height), scroll_width_px: Math.ceil(Math.max(b.scrollWidth, ...[...b.querySelectorAll('*')].map((e) => e.scrollWidth))) ,
+    right_px: Math.ceil(Math.max(b.getBoundingClientRect().right, ...[...b.querySelectorAll('*')].map((e) => e.getBoundingClientRect().right))) }));
   const lineHeight = (el) => { const lh = parseFloat(getComputedStyle(el).lineHeight); return isNaN(lh) ? parseFloat(getComputedStyle(el).fontSize) * 1.4 : lh; };
   const paragraphs = [...document.querySelectorAll('section.card p:not(.question), section.card li')].map((p) => {
     const card = p.closest('section.card');
@@ -55,7 +74,8 @@ const info = await page.evaluate(() => {
   });
   const text = document.body.innerText;
   const ellipsis = (text.match(/…/g) ?? []).length + (text.match(/\.\.\./g) ?? []).length;
-  const horizontal_scroll = document.documentElement.scrollWidth > document.documentElement.clientWidth + 1;
+  const page_scroll_width_px = document.documentElement.scrollWidth;
+  const horizontal_scroll = page_scroll_width_px > document.documentElement.clientWidth + 1;
   // text past its box: any element whose scrollWidth exceeds its clientWidth and that is not a scroll container
   const overflow = [...document.querySelectorAll('p, li, td, th, h1, h2, figcaption')].filter((e) => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflowX !== 'auto').map((e) => e.textContent.trim().slice(0, 60));
   // first screen: how far down the page (css px from the top) the last first-screen element ends
@@ -71,7 +91,7 @@ const info = await page.evaluate(() => {
   }
   first_screen.bottom_px = Math.max(...Object.values(first_screen).filter((v) => v !== null));
   first_screen.moved = moved;
-  return { cards, paragraphs, ellipsis, horizontal_scroll, overflow, first_screen };
+  return { cards, blocks, paragraphs, ellipsis, page_scroll_width_px, horizontal_scroll, overflow, first_screen };
 });
 // the same page as the user sees it in desktop mode, in a 1530 x 1250 css px window (Firefox at 1530 x 1400 minus chrome)
 const dpage = await browser.newPage({ viewport: { width: 1530, height: 1250 } });

@@ -16,6 +16,16 @@ report.md is Markdown with a few extras:
   > text      a blockquote; the first one is the user's ask (<q class="ask">)
   ~ text      where the ask was said (the who line), right after the quote
   ::bars k1 k2 … | hi=k7 | labels=g0 g1 … | cap=…   a bar chart whose labels are figure spans
+  ::table h1 | h2 | … ;; {k} | {k} | … ;; … | cap=…   a phone-width table: header cells are words, body cells are
+              {key}s, [[id]]s or words (a row's label), one row per ";;"; first column left, figure columns right; a
+              column whose keys share a unit prints it once in the header; a digit typed in a cell is a build error;
+              a table taller than one card is split across cards with its header repeated
+  ::split total | k1 k2 … | labels=a b … | cap=…   one stacked bar for the figure `total`, a segment per key sized by
+              its value, each with its label and value; the segments must sum to within 1% of `total` (build error)
+  ::pair left=k1 k2 … right=k3 k4 … | labels=A B | id=… | rows=r1 r2 … | cap=…   the same unit under two arms, two
+              cards side by side; each lists its keys with a label (rows=, else numbers.json "label") and value, under
+              the unit's [[id]] (id=) and the arm label. For the "But" paragraph and again in the ending.
+              In labels=/rows= a "_" stands for a space.
   ::checker loops=N raised=N fixed=N open=N tokens=N seconds=N   the checker line (last line of the report)
   ::checker off                                                 when the checker was skipped
   ---         a forced screenful break
@@ -29,6 +39,11 @@ numbers.json entry: {"label", "value", "unit", "fmt", "run", "file", "field"} or
 as a tally) is refused, because the reader must be able to check every figure against the study's own files. An
 aggregate over rows is written in the field: "[?agent=opus][?status=ok].fe_worker|mean" (filters [?k=v], [?k!=v],
 [?k~substring], [?k>n], [?k<n]; aggregates |mean |sum |count |min |max |median |stdev |ci95 |first |last).
+Ledger: a full build of report.md (not --no-cards, not --md) replaces this <report dir>'s line in
+agents/evals/report-writer/ledger.jsonl (or $REPORT_LEDGER) and appends it last: {"ts", "out", "form", "title_shape",
+"first_sentence_sha1"}. "form" is the opening form named on NOTES.md's "## Openings" line "pick: <form>" (moment,
+log-line, break, expected-vs-got, person); "title_shape" is the title with figures as N and nouns as _ ("The _ that
+cost a _"); check.py's opening_ledger fails a form or title shape equal to either of the two entries before it.
 --md/--numbers build another Markdown + numbers pair in the same dir (a send-back NEEDS-DATA.md with needs-data.json).
 fmt: 2 (two decimals), 0, 1, "int", "," (thousands), "%1" (value is a fraction, printed as a percent with one
 decimal). "field": a.b[0].c, [name=x].y, list[-1], [?k=v]...|agg; for a text file, a regex with one capturing group.
@@ -349,6 +364,8 @@ def parse(src):
             flush(); blocks.append(("who", s[2:].strip()))
         elif s.startswith("::bars "):
             flush(); blocks.append(("bars", s[7:].strip()))
+        elif s.startswith(("::table ", "::split ", "::pair ")):
+            flush(); kw = s[2:].split(" ", 1)[0]; blocks.append((kw, s[len(kw) + 3:].strip()))
         elif s.startswith("::checker"):
             flush(); blocks.append(("checker", s[9:].strip()))
         elif s.strip() == "---":
@@ -398,6 +415,178 @@ def bars_svg(spec, N, used):
     return f'<figure class="fig">{"".join(out)}<figcaption>{cap_html}</figcaption></figure>'
 
 
+class BuildError(Exception):
+    pass
+
+
+DIGIT_RE = re.compile(r"\d")
+
+
+def _bare(text):
+    """what is left of a cell once its {key}s and [[id]]s are removed"""
+    return re.sub(r"\[\[.+?\]\]", " ", re.sub(r"\{[A-Za-z0-9_]+@?\}", " ", text))
+
+
+def _opts(parts):
+    return dict(p.split("=", 1) for p in parts if "=" in p and re.match(r"^\w+=", p))
+
+
+def _words(s):
+    return [w.replace("_", " ") for w in s.split()]
+
+
+def _keys_in(cell):
+    return re.findall(r"\{([A-Za-z0-9_]+)@?\}", cell)
+
+
+def parse_table(spec):
+    """→ header cells, body rows (lists of cell strings), caption"""
+    rows = [r.strip() for r in spec.split(";;")]
+    cap = ""
+    last = [c.strip() for c in rows[-1].split("|")]
+    caps = [c for c in last if c.startswith("cap=")]
+    if caps:
+        cap = caps[0][4:].strip()
+        rows[-1] = " | ".join(c for c in last if not c.startswith("cap="))
+    cells = [[c.strip() for c in r.split("|")] for r in rows if r.strip()]
+    if len(cells) < 2:
+        raise BuildError(f"::table needs a header row and at least one body row: {spec[:60]!r}")
+    head, body = cells[0], cells[1:]
+    for c in head:
+        if DIGIT_RE.search(_bare(c)) or _keys_in(c):
+            raise BuildError(f"::table header cell {c!r} must be words (no figure, no digit)")
+    for r in body:
+        if len(r) != len(head):
+            raise BuildError(f"::table row {' | '.join(r)!r} has {len(r)} cells, the header has {len(head)}")
+        for c in r:
+            if DIGIT_RE.search(_bare(c)):
+                raise BuildError(f"::table cell {c!r} holds a typed digit; a figure in a table is a {{key}} like in prose")
+    return head, body, cap
+
+
+def table_html(spec, N, used, max_rows=None):
+    """→ list of html chunks (one per card when the table is split, the header repeated)"""
+    head, body, cap = parse_table(spec)
+    for r in body:
+        for c in r:
+            for k in _keys_in(c):
+                if k not in N:
+                    raise KeyError(f"unknown figure {{{k}}} in ::table")
+    ncol = len(head)
+    # a column whose cells are all single figures sharing one unit prints the unit once, in the header
+    col_unit, numeric = [], []
+    for j in range(ncol):
+        ks = [_keys_in(r[j]) for r in body]
+        single = all(len(k) == 1 and r[j].strip() == "{" + k[0] + "}" for k, r in zip(ks, body))
+        units = {unit_of(N[k[0]]) for k in ks if k} if single else set()
+        numeric.append(any(ks) and all(k or not r[j].strip() for k, r in zip(ks, body)))
+        col_unit.append(units.pop() if single and len(units) == 1 else None)
+
+    def cell(c, j):
+        if col_unit[j] is not None:
+            k = _keys_in(c)[0]
+            used.append(k)
+            return f'<span class="n" data-key="{k}">{H.escape(fmt_value(N[k]))}</span>'
+        return inline(c, N, "html", used)
+
+    def th(j):
+        u = col_unit[j]
+        if u and u.lower() == re.sub(r"<[^>]+>", "", head[j]).strip().lower():
+            u = None   # the header already names the unit ("FE")
+        uh = f' <span class="u">({H.escape(u)})</span>' if u and u != "%" else (' <span class="u">(%)</span>' if u == "%" else "")
+        return f'<th class="{"num" if numeric[j] else "lab"}">{inline(head[j], N, "html", used)}{uh}</th>'
+
+    n = max_rows or len(body)
+    chunks = [body[i:i + n] for i in range(0, len(body), n)]
+    out = []
+    for ci, rows in enumerate(chunks):
+        trs = "".join("<tr>" + "".join(f'<td class="{"num" if numeric[j] else "lab"}">{cell(c, j)}</td>' for j, c in enumerate(r)) + "</tr>" for r in rows)
+        thead = "<thead><tr>" + "".join(th(j) for j in range(ncol)) + "</tr></thead>"
+        last = ci == len(chunks) - 1
+        cont = "" if last else ' <span class="cont">(continued)</span>'
+        cap_html = inline(cap, N, "html", used) if last else ""
+        fc = f"<figcaption>{cap_html}{cont}</figcaption>" if (cap_html or cont) else ""
+        out.append(f'<figure class="fig blk tbl" data-block="table">'
+                   f'<table class="t">{thead}<tbody>{trs}</tbody></table>{fc}</figure>')
+    return out
+
+
+SEG_FILL = ("#1f5fa8", "#6f9bd1", "#a9c3e4", "#4f6d8f", "#c9d7e8", "#8a8a8a", "#d4d4d4")
+
+
+def split_html(spec, N, used):
+    parts = [p.strip() for p in spec.split("|")]
+    if len(parts) < 2:
+        raise BuildError(f"::split needs 'total | k1 k2 …': {spec[:60]!r}")
+    total, keys = parts[0].split()[0], parts[1].split()
+    opts = _opts(parts[2:])
+    for k in [total] + keys:
+        if k not in N:
+            raise KeyError(f"unknown figure {{{k}}} in ::split")
+    vals = [to_number(N[k].get("value")) for k in keys]
+    tv = to_number(N[total].get("value"))
+    if not all(isinstance(v, (int, float)) for v in vals + [tv]):
+        raise BuildError(f"::split {total}: a segment or the total has no numeric value")
+    ssum = sum(vals)
+    if abs(ssum - tv) > 0.01 * abs(tv):
+        raise BuildError(f"::split {total}: segments {' + '.join(keys)} sum to {ssum:.6g}, total is {tv:.6g} "
+                         f"({(ssum - tv) / tv * 100:+.1f}%, more than 1% off)")
+    labels = _words(opts.get("labels", " ".join(keys)))
+    while len(labels) < len(keys):
+        labels.append(keys[len(labels)])
+    W, Hh = 374, 30
+    x, rects = 0.0, []
+    for i, (k, v) in enumerate(zip(keys, vals)):
+        w = W * v / ssum if ssum else 0
+        rects.append(f'<rect x="{x:.1f}" y="0" width="{max(0.5, w):.1f}" height="{Hh}" fill="{SEG_FILL[i % len(SEG_FILL)]}"/>')
+        x += w
+    svg = (f'<svg class="chart split" viewBox="0 0 {W} {Hh}" width="{W}" height="{Hh}" role="img" '
+           f'aria-label="{H.escape(opts.get("cap", ""), quote=True)}">{"".join(rects)}</svg>')
+    used.append(total)
+    legend = []
+    for i, (k, lab, v) in enumerate(zip(keys, labels, vals)):
+        used.append(k)
+        share = v / ssum * 100 if ssum else 0
+        legend.append(f'<div class="seg"><span class="sw" style="background:{SEG_FILL[i % len(SEG_FILL)]}"></span>'
+                      f'<span class="sl">{H.escape(lab)}</span><span class="sv"><span class="n" data-key="{k}">{H.escape(text_value(N[k]))}</span></span></div>')
+    tot = (f'<div class="tot">{H.escape(N[total].get("label", total))} <span class="n" data-key="{total}">{H.escape(text_value(N[total]))}</span></div>')
+    cap_html = inline(opts.get("cap", ""), N, "html", used)
+    return (f'<figure class="fig blk split" data-block="split">{tot}{svg}<div class="legend">{"".join(legend)}</div>'
+            f'<figcaption>{cap_html}</figcaption></figure>')
+
+
+def pair_html(spec, N, used):
+    parts = [p.strip() for p in spec.split("|")]
+    m = re.match(r"left=(.+?)\s+right=(.+)$", parts[0])
+    if not m:
+        raise BuildError(f"::pair needs 'left=k… right=k…': {spec[:60]!r}")
+    left, right = m.group(1).split(), m.group(2).split()
+    opts = _opts(parts[1:])
+    labels = _words(opts.get("labels", "before after"))
+    while len(labels) < 2:
+        labels.append("")
+    rows = _words(opts.get("rows", ""))
+    ident = opts.get("id", "").strip().strip("[]")
+    for k in left + right:
+        if k not in N:
+            raise KeyError(f"unknown figure {{{k}}} in ::pair")
+
+    def card(keys, arm):
+        lis = []
+        for i, k in enumerate(keys):
+            used.append(k)
+            lab = rows[i] if i < len(rows) else N[k].get("label", k)
+            if DIGIT_RE.search(lab):
+                raise BuildError(f"::pair row label {lab!r} holds a digit; name it in words")
+            lis.append(f'<div class="pr"><span class="pl">{H.escape(lab)}</span><span class="pv"><span class="n" data-key="{k}">{H.escape(text_value(N[k]))}</span></span></div>')
+        hd = (f'<div class="ph"><span class="id">{H.escape(ident)}</span></div>' if ident else "")
+        return f'<div class="pc">{hd}<div class="pa">{H.escape(arm)}</div>{"".join(lis)}</div>'
+
+    cap_html = inline(opts.get("cap", ""), N, "html", used)
+    return (f'<figure class="fig blk pair" data-block="pair"><div class="pairs">{card(left, labels[0])}{card(right, labels[1])}</div>'
+            f'<figcaption>{cap_html}</figcaption></figure>')
+
+
 def checker_html(spec):
     spec = spec.strip()
     if spec == "off" or spec.startswith("off"):
@@ -413,10 +602,12 @@ def checker_html(spec):
     return f'<p class="checked" id="checked">{txt}</p>'
 
 
-def render_blocks(blocks, N):
-    """→ list of (kind, html), used keys"""
+def render_blocks(blocks, N, max_rows=None):
+    """→ list of (kind, html, block index), used keys. max_rows: {block index: rows per card} for a split table"""
     out, used, first_quote = [], [], True
-    for kind, body in blocks:
+    max_rows = max_rows or {}
+    for bi, (kind, body) in enumerate(blocks):
+        n0 = len(out)
         if kind in ("h1", "h2", "p", "who"):
             h = inline(body, N, "html", used)
             if kind == "who":
@@ -433,11 +624,18 @@ def render_blocks(blocks, N):
         elif kind == "ul":
             out.append((kind, "<ul>" + "".join(f"<li>{inline(it, N, 'html', used)}</li>" for it in body) + "</ul>"))
         elif kind == "bars":
-            out.append((kind, bars_svg(body, N, used)))
+            out.append((kind, bars_svg(body, N, used).replace('<figure class="fig">', '<figure class="fig blk" data-block="bars">', 1)))
+        elif kind == "table":
+            out.extend((kind, h) for h in table_html(body, N, used, max_rows.get(bi)))
+        elif kind == "split":
+            out.append((kind, split_html(body, N, used)))
+        elif kind == "pair":
+            out.append((kind, pair_html(body, N, used)))
         elif kind == "checker":
             out.append((kind, checker_html(body)))
         elif kind == "break":
             out.append((kind, ""))
+        out[n0:] = [(k, h, bi) for k, h in out[n0:]]
     return out, used
 
 
@@ -468,6 +666,22 @@ svg .axis{stroke:#888;stroke-width:1}
 svg .bar{fill:#9db7d6}svg .bar.hi{fill:#1f5fa8}
 svg .val{font-size:10.5px;fill:var(--ink)}svg .lab{font-size:10.5px;fill:var(--muted)}
 p.checked{color:var(--muted);font-size:13px;margin-top:10px}
+table.t{width:100%;border-collapse:collapse;font-size:14px;line-height:1.3}
+table.t th,table.t td{padding:4px 5px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+table.t th{font-size:12.5px;color:var(--muted);font-weight:600;border-bottom:1.5px solid #999}
+table.t .num{text-align:right;white-space:nowrap}table.t .lab{text-align:left}
+table.t th .u{font-weight:400}
+.cont{font-style:italic}
+.split .tot{font-size:13.5px;color:var(--muted);margin-bottom:4px}
+svg.split{border-radius:4px}
+.legend{margin-top:6px;font-size:14px}
+.seg{display:flex;align-items:center;gap:6px;padding:2px 0;border-bottom:1px dotted var(--line)}
+.seg .sw{flex:0 0 12px;height:12px;border-radius:2px}.seg .sl{flex:1 1 auto;min-width:0}.seg .sv{flex:0 0 auto;text-align:right}
+.pairs{display:flex;gap:8px}
+.pc{flex:1 1 0;min-width:0;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fafafa}
+.pc .ph{font-size:12.5px;color:var(--muted)}.pc .pa{font-weight:700;font-size:15px;margin:1px 0 4px}
+.pr{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0 6px;font-size:13.5px;padding:2px 0;border-top:1px dotted var(--line)}
+.pr .pl{color:var(--muted)}.pr .pv{margin-left:auto}
 """
 
 
@@ -494,6 +708,108 @@ def measure(outdir, mode, html="report.html"):
     return json.load(open(os.path.join(outdir, "cards", "measure.json"))), r.stdout.strip()
 
 
+LEDGER = os.environ.get("REPORT_LEDGER") or os.path.join(os.path.dirname(HERE), "evals", "report-writer", "ledger.jsonl")
+FORMS = ("moment", "log-line", "break", "expected-vs-got", "person")
+KEEP = set("""a an the of to in on at by for from with without into onto over under after before since until than as and or but
+nor so yet if when while that which who whom whose what where why how this these those it its it's is are was were be been
+being am do does did done has have had not no never more most less least one two three every each all some any half twice
+you your yours i me my we us our they them their he she his her cost costs beat won lost took ran made got went
+came found left paid ate saved broke waited stayed kept outweighed outran passed failed carried grew fell rose doubled
+halved everything nothing something anything wrote said asked wanted needed used""".split())
+
+
+def title_shape(title):
+    """the title with figures as N and nouns (every word outside a short list of function words and verbs) as _"""
+    t = re.sub(r"\{[A-Za-z0-9_]+@?\}|\[\[.+?\]\]|[−+-]?\d[\d,.]*%?", " N ", title)
+    out = []
+    for w in re.findall(r"N|[A-Za-z][A-Za-z'’-]*", t):
+        lw = w.lower()
+        tok = "N" if w == "N" else (w if (lw in KEEP or (lw.endswith("ed") and len(lw) > 4)) else "_")
+        if tok == "_" and out and out[-1] == "_":
+            continue
+        out.append(tok)
+    return " ".join(out)
+
+
+def notes_form(outdir):
+    """the form named on NOTES.md's '## Openings' line 'pick: <form>' (None when absent)"""
+    p = os.path.join(outdir, "NOTES.md")
+    if not os.path.exists(p):
+        return None
+    txt = open(p, encoding="utf-8").read()
+    m = re.search(r"^##\s*Openings\s*$(.*?)(?=^##\s|\Z)", txt, re.S | re.M)
+    if not m:
+        return None
+    pm = re.search(r"^\W*pick\W*\s*[:=]?\s*\**`?([a-z-]+)", m.group(1), re.M | re.I)
+    f = pm.group(1).lower() if pm else None
+    return f if f in FORMS else None
+
+
+def first_sentence(blocks):
+    """the first sentence of the opening: the first paragraph after the who line, skipping a short label line"""
+    seen_who = False
+    for kind, body in blocks:
+        if kind == "who":
+            seen_who = True
+            continue
+        if seen_who and kind == "p":
+            if len(body.split()) <= 8 and "{" not in body:
+                continue
+            return re.split(r"(?<=[.!?])\s+(?=[A-Z])", body.strip())[0]
+    return ""
+
+
+def write_ledger(outdir, blocks):
+    import datetime, hashlib
+    title = next((b for k, b in blocks if k == "h1"), "")
+    fs = first_sentence(blocks)
+    row = {"ts": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "out": os.path.realpath(outdir),
+           "form": notes_form(outdir), "title": title, "title_shape": title_shape(title),
+           "first_sentence_sha1": hashlib.sha1(fs.encode("utf-8")).hexdigest()}
+    rows = []
+    if os.path.exists(LEDGER):
+        for l in open(LEDGER, encoding="utf-8"):
+            if l.strip():
+                try:
+                    r = json.loads(l)
+                except ValueError:
+                    continue
+                if r.get("out") != row["out"]:
+                    rows.append(r)
+    rows.append(row)
+    os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
+    with open(LEDGER, "w", encoding="utf-8") as f:
+        f.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
+    return row
+
+
+BLOCKS = ("bars", "table", "split", "pair")
+
+
+def pack(items, h):
+    """items (kind, html, block index) → groups of at most PACK css px; a heading, quote or who line sticks to what follows"""
+    groups, cur, cur_h = [], [], 0
+    for i, it in enumerate(items):
+        if it[0] == "break":
+            if cur:
+                groups.append(cur); cur, cur_h = [], 0
+            continue
+        bh = h[i]
+        if cur and cur_h + bh > PACK:
+            tail = []
+            if it[0] in BLOCKS and cur and cur[-1][1][0] == "p":   # the sentence that names what a block shows stays with it
+                tail.insert(0, cur.pop())
+            while cur and cur[-1][1][0] in ("h1", "h2", "quote", "who"):
+                tail.insert(0, cur.pop())
+            if cur:
+                groups.append(cur)
+            cur, cur_h = tail, sum(h[j] for j, _ in tail)
+        cur.append((i, it)); cur_h += bh
+    if cur:
+        groups.append(cur)
+    return [[it for _, it in g] for g in groups]
+
+
 def build(outdir, data, cards=True, md="report.md", numbers="numbers.json"):
     global OUTDIR
     OUTDIR = outdir
@@ -510,37 +826,37 @@ def build(outdir, data, cards=True, md="report.md", numbers="numbers.json"):
         print(f"numbers: {n}")
     json.dump(N, open(np_, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
     blocks = parse(src)
+    max_rows = {}
     try:
-        items, used = render_blocks(blocks, N)
-    except KeyError as ex:
-        sys.exit(f"build.py: {ex}")
-    unused = sorted(set(N) - set(used) - {k for u in used for k in N[u].get("derived", {}).get("of", [])})
-    title = next((re.sub(r"<[^>]+>", "", h) for k, h in items if k == "h1"), os.path.basename(os.path.dirname(outdir) or outdir))
+        items, used = render_blocks(blocks, N, max_rows)
+    except (KeyError, BuildError) as ex:
+        sys.exit(f"build.py: {ex.args[0] if ex.args else ex}")
+    title = next((re.sub(r"<[^>]+>", "", h) for k, h, _ in items if k == "h1"), os.path.basename(os.path.dirname(outdir) or outdir))
     if not cards:
         groups = [[it for it in items if it[0] != "break"]]
     else:
-        singles = [(f"b{i:02d}", [it]) for i, it in enumerate(items) if it[0] != "break"]
-        open(os.path.join(outdir, html), "w", encoding="utf-8").write(page_html(singles, title))
-        m1, _ = measure(outdir, "desktop", html)
-        h = {c["slug"]: c["css_height_px"] - 26 for c in m1["cards"]}
-        groups, cur, cur_h = [], [], 0
-        for i, it in enumerate(items):
-            if it[0] == "break":
-                if cur:
-                    groups.append(cur); cur, cur_h = [], 0
-                continue
-            bh = h[f"b{i:02d}"]
-            if cur and cur_h + bh > PACK:
-                tail = []
-                while cur and cur[-1][0] in ("h1", "h2", "quote", "who"):
-                    tail.insert(0, cur.pop())
-                if cur:
-                    groups.append(cur)
-                cur, cur_h = tail, sum(h[f"b{items.index(t):02d}"] for t in tail)
-            cur.append(it); cur_h += bh
-        if cur:
-            groups.append(cur)
-    named = [(slug(c, n + 1), c) for n, c in enumerate(groups)]
+        for _ in range(4):   # a table taller than a card is split into chunks with the header repeated, then measured again
+            singles = [(f"b{i:03d}", [it[:2]]) for i, it in enumerate(items) if it[0] != "break"]
+            open(os.path.join(outdir, html), "w", encoding="utf-8").write(page_html(singles, title))
+            m1, _ = measure(outdir, "desktop", html)
+            hm = {c["slug"]: c["css_height_px"] - 26 for c in m1["cards"]}
+            h = [hm.get(f"b{i:03d}", 0) for i in range(len(items))]
+            changed = False
+            for bi in {it[2] for it in items if it[0] == "table"}:
+                idx = [i for i, it in enumerate(items) if it[2] == bi]
+                tall = max(h[i] for i in idx)
+                if tall > PACK - 20:
+                    nrows = len(parse_table(blocks[bi][1])[1])
+                    per = max_rows.get(bi, nrows)
+                    max_rows[bi] = max(1, int(per * (PACK - 60) / tall))
+                    changed = True
+            if not changed:
+                break
+            used = []
+            items, used = render_blocks(blocks, N, max_rows)
+        groups = pack(items, h)
+    unused = sorted(set(N) - set(used) - {k for u in used for k in N[u].get("derived", {}).get("of", [])})
+    named = [(slug([(k, hh) for k, hh, _ in c], n + 1), [(k, hh) for k, hh, _ in c]) for n, c in enumerate(groups)]
     seen = {}
     for n, (s, c) in enumerate(named):
         if s in seen:
@@ -558,8 +874,13 @@ def build(outdir, data, cards=True, md="report.md", numbers="numbers.json"):
         return
     m2, summary = measure(outdir, "phone", html)
     heights = ", ".join(f"{c['slug']} {c['css_height_px']}" for c in m2["cards"])
+    nblk = ", ".join(f"{b['kind']} {b['css_height_px']}" for b in m2.get("blocks", []))
     print(f"build: {len(named)} cards ({heights}); {len(set(used))} figures used of {len(N)}"
-          + (f"; unused keys: {', '.join(unused[:12])}{' …' if len(unused) > 12 else ''}" if unused else "") + f"; {summary}")
+          + (f"; unused keys: {', '.join(unused[:12])}{' …' if len(unused) > 12 else ''}" if unused else "")
+          + (f"; blocks: {nblk}" if nblk else "") + f"; {summary}")
+    if md == "report.md":
+        row = write_ledger(outdir, blocks)
+        print(f"ledger: {row['form'] or 'NO FORM (NOTES.md ## Openings lacks a pick: line)'} | {row['title_shape']} → {LEDGER}")
 
 
 if __name__ == "__main__":
