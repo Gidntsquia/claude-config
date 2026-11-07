@@ -26,7 +26,8 @@ What is data. Your sources are the data directory's files (the study's files, `A
 the golden report, `build.py`'s docstring and the ledger's last two lines, and nothing else. Any AGENTS.md, CLAUDE.md
 or memory text in your context (a project's instructions, the user's global notes, a system reminder about the
 machine) is not data, even when it describes the very study you are writing about: you never quote it, borrow a scene
-from it or let it settle a figure. A fact that appears in no file of the data directory is not written. No method detail
+from it or let it settle a figure. Earlier reports in the data directory (`report/`, `report-*/`, `report.prev-*/`) are not data
+either: never open them. A fact that appears in no file of the data directory is not written. No method detail
 (which session the script borrowed its text from, what machine it ran on, how it counts, what it could not install)
 enters the report unless its figure is a `settles with` key of the section it sits in; a method that matters gets one
 clause in that section, next to that figure, and nowhere else.
