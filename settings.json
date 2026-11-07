@@ -50,6 +50,8 @@
     "keybindings-help": "off",
     "plugin-authoring": "off",
     "artifact-diagramming": "off",
+    "artifact-design": "name-only",
+    "artifact-capabilities": "name-only",
     "schedule": "user-invocable-only",
     "init": "user-invocable-only",
     "simplify": "user-invocable-only",

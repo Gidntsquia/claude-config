@@ -108,11 +108,30 @@ PROJECTS="$(expand "$PROJECTS")"
 # absolute path ($R). Claude Code matches Bash rules on the literal command text, so a `~` rule never matches the
 # absolute path an agent types; the committed settings.json keeps the `~` form (no personal path in the repo) and the
 # installed copy carries the real one. Idempotent; drops duplicate rules.
+# It also adds this clone's mods (mods/defer-artifact) to env.CLAUDE_CODE_PLUGIN_DIRS as absolute paths, after any
+# directories already there (in <file>, in the installed settings.json, or in the shell's CLAUDE_CODE_PLUGIN_DIRS).
 settings_rules() {
-  "$PY" - "$1" "$R" <<'PYEOF'
-import json, sys
-f, repo = sys.argv[1], sys.argv[2]
+  local rn="$R"; [ "$OS" = windows ] && command -v cygpath >/dev/null 2>&1 && rn="$(cygpath -m "$R")"
+  "$PY" - "$1" "$R" "$C/settings.json" "$OS" "$rn" <<'PYEOF'
+import json, os, sys
+f, repo, installed, osname, native = sys.argv[1:6]
 s = json.load(open(f))
+sep = ";" if osname == "windows" else ":"
+def dirs_in(v):
+    return [d for d in (v or "").split(sep) if d.strip()]
+prior = []
+try:
+    prior = dirs_in(json.load(open(installed)).get("env", {}).get("CLAUDE_CODE_PLUGIN_DIRS"))
+except Exception:
+    pass
+mods = [native.rstrip("/") + "/mods/" + m for m in sorted(os.listdir(os.path.join(repo, "mods")))
+        if os.path.isfile(os.path.join(repo, "mods", m, ".claude-plugin", "plugin.json"))] if os.path.isdir(os.path.join(repo, "mods")) else []
+dirs = []
+for d in dirs_in(s.get("env", {}).get("CLAUDE_CODE_PLUGIN_DIRS")) + prior + dirs_in(os.environ.get("CLAUDE_CODE_PLUGIN_DIRS")) + mods:
+    if d not in dirs:
+        dirs.append(d)
+if dirs:
+    s.setdefault("env", {})["CLAUDE_CODE_PLUGIN_DIRS"] = sep.join(dirs)
 allow = s.setdefault("permissions", {}).setdefault("allow", [])
 out = []
 for r in allow:
@@ -168,6 +187,10 @@ if [ -n "$CHECK" ]; then
   if [ -f "$C/settings.json" ] && "$PY" -c 'import json,sys; json.load(open(sys.argv[1]))' "$C/settings.json" 2>/dev/null; then
     pass "settings.json parses ($SETTINGS)"
   else fail "settings.json missing or not valid JSON"; fi
+  if [ "$SETTINGS" = keep ]; then skip "defer-artifact mod (settings.json kept; add $R/mods/defer-artifact to env.CLAUDE_CODE_PLUGIN_DIRS to load it)"
+  elif "$PY" -c 'import json,sys,os; v=json.load(open(sys.argv[1])).get("env",{}).get("CLAUDE_CODE_PLUGIN_DIRS",""); d=sys.argv[2]; sys.exit(0 if d in v.replace(";",":").split(":") and os.path.isfile(os.path.join(d,".claude-plugin","plugin.json")) else 1)' "$C/settings.json" "$(if [ "$OS" = windows ] && command -v cygpath >/dev/null 2>&1; then cygpath -m "$R"; else echo "$R"; fi)/mods/defer-artifact" 2>/dev/null; then
+    pass "defer-artifact mod in env.CLAUDE_CODE_PLUGIN_DIRS ($R/mods/defer-artifact)"
+  else fail "defer-artifact mod missing from env.CLAUDE_CODE_PLUGIN_DIRS in settings.json (rerun install.sh)"; fi
   if [ "$SETTINGS" = replace ]; then
     gen="$C/.settings.check.$$"
     if settings_generate "$gen" 2>/dev/null && [ -f "$C/settings.json" ] && ! [ -L "$C/settings.json" ] && \

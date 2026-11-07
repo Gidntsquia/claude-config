@@ -46,7 +46,7 @@ scenario() {  # $1 = a|b
     [ -f "$REAL_HOME/.claude.json" ] && cp "$REAL_HOME/.claude.json" "$H/.claude.json"
     if [ "$name" = b ]; then
       mkdir -p "$H/.claude/agents"
-      printf '%s\n' '{"model": "haiku", "statusLine": {"type": "command", "command": "echo my-status"}, "permissions": {"deny": ["Bash(rm -rf:*)"]}}' > "$H/.claude/settings.json"
+      printf '%s\n' '{"model": "haiku", "statusLine": {"type": "command", "command": "echo my-status"}, "permissions": {"deny": ["Bash(rm -rf:*)"]}, "env": {"CLAUDE_CODE_PLUGIN_DIRS": "/opt/my-mod"}}' > "$H/.claude/settings.json"
       printf 'my own rules\n' > "$H/.claude/CLAUDE.md"
       printf -- '---\nname: planner\ndescription: my planner\n---\nmine\n' > "$H/.claude/agents/planner.md"
       cp "$H/.claude/CLAUDE.md" "$H/claude.md.orig"; cp "$H/.claude/agents/planner.md" "$H/planner.md.orig"
@@ -67,12 +67,14 @@ scenario() {  # $1 = a|b
         *) expect "a: settings.json has the repo's statusLine" sh -c "grep -q statusline.sh '$s'" ;;
       esac
       expect "a: CLAUDE.md is linked" test -L "$H/.claude/CLAUDE.md"
+      expect "a: env.CLAUDE_CODE_PLUGIN_DIRS is the defer-artifact mod" test "$(jget "$s" env | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("CLAUDE_CODE_PLUGIN_DIRS",""))')" = "$R/mods/defer-artifact"
       expect "a: planner agent installed" test -e "$H/.claude/agents/planner.md"
     else
       expect "b: model unchanged" test "$(jget "$s" model)" = '"haiku"'
       expect "b: statusLine unchanged" test "$(jget "$s" statusLine)" = '{"type": "command", "command": "echo my-status"}'
       expect "b: deny list kept and unioned" "$PY" -c "import json,sys;d=json.load(open(sys.argv[1]))['permissions']['deny'];assert d[0]=='Bash(rm -rf:*)' and len(d)>1" "$s"
       expect "b: repo keys added (promptCacheTtl)" sh -c "grep -q promptCacheTtl '$s'"
+      expect "b: your CLAUDE_CODE_PLUGIN_DIRS kept, mod joined after it" test "$(jget "$s" env | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("CLAUDE_CODE_PLUGIN_DIRS",""))')" = "/opt/my-mod:$R/mods/defer-artifact"
       expect "b: original settings kept as settings.json.pre-link" test -f "$s.pre-link"
       expect "b: CLAUDE.md byte-identical" cmp -s "$H/.claude/CLAUDE.md" "$H/claude.md.orig"
       expect "b: planner.md is now the repo's (--agent-clash replace)" sh -c "grep -q '^name: planner\$' '$H/.claude/agents/planner.md' && ! cmp -s '$H/.claude/agents/planner.md' '$H/planner.md.orig'"
@@ -81,6 +83,7 @@ scenario() {  # $1 = a|b
     out="$(./install.sh 2>&1)"; rc=$?
     expect "$name: rerun with no flags exits 0 (got $rc)" test "$rc" = 0
     expect "$name: rerun with no flags reuses saved choices" sh -c "echo \"\$1\" | grep -q 'reusing saved choices'" _ "$out"
+    expect "$name: rerun lists the mod dir once" test "$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["env"]["CLAUDE_CODE_PLUGIN_DIRS"].split(":").count(sys.argv[2]))' "$s" "$R/mods/defer-artifact")" = 1
     expect "$name: rerun made no .pre-link of the repo's own files" sh -c "! ls '$H/.claude' '$H/.claude/agents' '$H/.claude/skills' 2>/dev/null | grep -v '^planner.pre-link.md\$' | grep -v '^settings.json.pre-link\$' | grep -q pre-link"
     out="$(./install.sh --check 2>&1)"
     expect "$name: --check shows every repo agent installed or kept (no SKIP agent)" sh -c "! echo \"\$1\" | grep -q '^SKIP agent'" _ "$out"

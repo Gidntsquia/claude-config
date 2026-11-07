@@ -1,0 +1,6 @@
+{
+  "name": "defer-artifact",
+  "version": "1.0.0",
+  "description": "Puts the built-in Artifact tool behind ToolSearch, so its 38 KB schema leaves every request until Claude loads it. Needs Claude Code 2.1.293 or later.",
+  "author": { "name": "claude-config" }
+}

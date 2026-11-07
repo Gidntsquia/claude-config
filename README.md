@@ -62,6 +62,7 @@ To update, tell Claude: "update my claude-config to the latest release, followin
 - `/restore-sessions` reopens the Claude Code sessions a Windows Update restart or WSL stop killed, each in its own tmux pane.
 - `review-skill` audits a SKILL.md for correctness, edge cases, and token use. `test-speedup` sets up parallel runs and fast/slow tiers for a slow test suite.
 - `weekly-roundup` builds an artifact of what I worked on in the past week from git activity. `write-readme` writes a README like this one and moves the detail into the wiki.
+- The `defer-artifact` mod (`mods/defer-artifact/`, Claude Code 2.1.293+) keeps the Artifact tool's schema out of every session (about 9.6k tokens per request); Claude loads it through ToolSearch when you ask for an artifact. install.sh turns it on through `CLAUDE_CODE_PLUGIN_DIRS`; disable it in `/plugin` or remove that entry to turn it off.
 - `statusline.sh` draws the status line in the gruvbox colors from my starship prompt, with a different color for each model.
 - With `--terminal`, new terminal tabs open tmux with 4 panes in your projects folder and the starship prompt. On WSL that is the Windows Terminal profile for your distro (in JetBrainsMono Nerd Font, with Windows Terminal kept at 18% volume after reboots); on macOS it is an iTerm2 "Claude tmux" profile. `--default-profile` also makes it the profile new windows open with.
 - On WSL it also links `wsl/local-tools/`, scripts Claude uses to open, place, screenshot and close Windows windows.

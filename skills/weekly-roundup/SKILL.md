@@ -22,6 +22,7 @@ place. The pooled raw data lives inside the page in
 `<script type="application/json" id="roundup-data">`; `gather_data.py` reads it, swaps in this
 machine's fresh data, and writes the merged pool back out. Never rely on this machine's
 `state.json` to find the week's page; another machine may have made it.
+The `Artifact` tool may be deferred: before its first read or publish, load it with ToolSearch (`select:Artifact`).
 
 1. Read the Roundup Archive (`Artifact` action: read, `url` = `archive_url` below). Keep the
    saved file path; step 5 rebuilds from it. Its `weeks-data` block lists every week's `url` by

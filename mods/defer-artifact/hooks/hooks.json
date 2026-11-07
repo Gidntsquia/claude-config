@@ -1,0 +1,4 @@
+{
+  "description": "defer-artifact: mark the built-in Artifact tool deferred",
+  "modules": ["./register.js"]
+}

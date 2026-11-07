@@ -17,3 +17,7 @@ archive/
 # The report-writer study fixtures live in ~/files/agent-eval-experiment/report-writer/{cases,fixtures} since 2026-10-21
 # Generated report-writer eval output
 agents/evals/report-writer/out/
+
+# Claude Code writes these beside a mod loaded with --plugin-dir
+mods/*/.claude-plugin/types/
+mods/*/tsconfig.json
