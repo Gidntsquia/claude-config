@@ -400,6 +400,9 @@ path, no more.
    so re-read those lines yourself against the ending's state words and the deciding `{key}`. Treat each finding as a claim to
    re-derive from the source it names: when it is right,
    change the report and record before and after; when it is wrong, record why, with the figure you recomputed.
+   A finding that asks for a method detail (which session the audit borrowed, what its method prefers, what machine it
+   ran on) is right only when that detail changes a figure the section settles; otherwise reject it under "What is
+   data" and keep the detail out (`machinery_aside` fails a method sentence with no settling key).
    The `focus` entries (one per middle section) are not argued with: for every section marked anything but
    `advances` (restates, tours, mechanism, data-shape), delete the section or fold it into one sentence at the end of
    the section before it, remove its row from `outline.md`, and say what you did in that section's `## Focus` row

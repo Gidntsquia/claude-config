@@ -2355,7 +2355,8 @@ def check_split_sliver(outdir, N):
 
 
 MACHINERY_RE = re.compile(r"\b(the (?:audit|script|study))\b(?:\s+(?!and\b|or\b)[\w’'-]+){0,2}?\s+"
-                          r"(counts?|counted|counting|borrow(?:s|ed)?|ran|runs?|measur(?:es|ed|e)|tall(?:ies|ied|y))\b", re.I)
+                          r"(counts?|counted|counting|borrow(?:s|ed)?|ran|runs?|measur(?:es|ed|e)|tall(?:ies|ied|y)|reads?|took|takes?|"
+                          r"used|uses?|prefers?|preferred|picks?|picked|chose|chooses?)\b", re.I)
 
 
 def check_machinery_aside(outdir):
