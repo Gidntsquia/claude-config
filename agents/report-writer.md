@@ -250,7 +250,8 @@ one unit of the study in the opening's form, and the answer lands as the turn af
    `ASK.md` names, "the base context", "number 4"), not for a side thing the study used to measure it. Write one line
    per form at the top of `## Openings`, `fit: expected-vs-got — fit — /context says {ctx_given}, the script {A_total}`
    or `fit: moment — no-fit — the only timed unit is the borrowed session, not the base context`. Pick the form that
-   fits best. Only then read the last two lines of the ledger (`tail -2 $CFG/agents/evals/report-writer/ledger.jsonl`):
+   fits best. Only then read the last two lines of the ledger that are not your own output directory's line (a rerun of
+   the same folder already has one): `grep -v "\"out\": \"$(realpath <out>)\"" $CFG/agents/evals/report-writer/ledger.jsonl | tail -2`, once, and do not reread it:
    when two forms fit equally well, take the one the last two lines did not use; when the best fit is the last line's
    form, keep it and say in the `pick:` line why it beat the runner-up (`pick: expected-vs-got — the only form whose
    detail is the base context itself; runner-up log-line fits less, its line is about the script`). Title shapes
