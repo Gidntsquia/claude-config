@@ -3,7 +3,7 @@
 The 2026-11-06 19:53 ET base-context report (`~/files/base-context-cleanup/plans/audit-report/report/`, session
 `9702e65f`, launched from the project root so the project's AGENTS.md was in the writer's context). Copied as shipped:
 `report.md`, `numbers.json`, `outline.md`, `NOTES.md`, plus `report.html`, `cards/measure.json` and
-`checker/findings.json` so `check.py` can run. It passed the 30 checks of its day; it must FAIL the four slip checks:
+`checker/findings.json`, `checker/cold.md` so `check.py` can run. It passed the 30 checks of its day; it must FAIL the four slip checks:
 
 - `doubled_unit`: "{a_unused_n} listings" (unit `listings`, prints "7 listings listings") and "{fe_rate}
   Fable-equivalent tokens (FE)" (unit `FE`, spelled out after the figure).
