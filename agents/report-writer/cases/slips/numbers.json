@@ -1,0 +1,557 @@
+{
+ "ref_chars": {
+  "label": "reference request characters",
+  "value": 103524,
+  "unit": "characters",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.reconciliation.measured.chars"
+ },
+ "ref_billed": {
+  "label": "reference request billed tokens",
+  "value": 36621,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.reconciliation.measured.billed_tokens"
+ },
+ "ref_ratio": {
+  "label": "measured characters per token",
+  "value": 2.826902596870648,
+  "unit": "characters",
+  "fmt": 2,
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.reconciliation.measured.chars_per_token"
+ },
+ "A_total": {
+  "label": "Section A raw tokens",
+  "value": 21684,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.totals_raw.A"
+ },
+ "fe_turn": {
+  "label": "Section A FE per turn",
+  "value": 542.1,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.fe_per_turn_cached"
+ },
+ "fe_rate": {
+  "label": "study rule: FE per raw token per cached turn",
+  "value": 0.025,
+  "unit": "FE",
+  "fmt": 3,
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "pricing.fe_per_token_cached"
+ },
+ "ctx_given": {
+  "label": "/context loaded total",
+  "value": 24753,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.reconciliation.given"
+ },
+ "A_measured": {
+  "label": "Section A at measured ratio",
+  "value": 30657,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.reconciliation.section_a_at_measured_ratio"
+ },
+ "p_tools": {
+  "label": "built-in tool schemas and deferred names, raw",
+  "value": 15789,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind~tool].raw_tokens|sum"
+ },
+ "p_tools_fe": {
+  "label": "tools FE",
+  "value": 394.725,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind~tool].fe_per_turn_cached|sum"
+ },
+ "p_sys": {
+  "label": "system prompt raw",
+  "value": 2863,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind=system prompt].raw_tokens|sum"
+ },
+ "p_sys_fe": {
+  "label": "system prompt FE",
+  "value": 71.575,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind=system prompt].fe_per_turn_cached|sum"
+ },
+ "p_skills": {
+  "label": "skill listings raw",
+  "value": 923,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind~skill description].raw_tokens|sum"
+ },
+ "p_skills_fe": {
+  "label": "skill listings FE",
+  "value": 23.075000000000003,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind~skill description].fe_per_turn_cached|sum"
+ },
+ "p_agents": {
+  "label": "agent listings raw",
+  "value": 914,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind~agent listing].raw_tokens|sum"
+ },
+ "p_agents_fe": {
+  "label": "agent listings FE",
+  "value": 22.85,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind~agent listing].fe_per_turn_cached|sum"
+ },
+ "p_memory": {
+  "label": "CLAUDE.md files raw",
+  "value": 477,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind~CLAUDE].raw_tokens|sum"
+ },
+ "p_memory_fe": {
+  "label": "CLAUDE.md files FE",
+  "value": 11.925,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind~CLAUDE].fe_per_turn_cached|sum"
+ },
+ "p_style": {
+  "label": "output style raw",
+  "value": 362,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind=output style].raw_tokens|sum"
+ },
+ "p_style_fe": {
+  "label": "output style FE",
+  "value": 9.05,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind=output style].fe_per_turn_cached|sum"
+ },
+ "p_cmd": {
+  "label": "hook and statusline commands raw",
+  "value": 35,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind~command].raw_tokens|sum"
+ },
+ "p_cmd_fe": {
+  "label": "commands FE",
+  "value": 0.8750000000000001,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind~command].fe_per_turn_cached|sum"
+ },
+ "p_settings": {
+  "label": "settings.json raw",
+  "value": 321,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind=settings.json].raw_tokens|sum"
+ },
+ "p_settings_fe": {
+  "label": "settings.json FE",
+  "value": 8.025,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?kind=settings.json].fe_per_turn_cached|sum"
+ },
+ "p_config": {
+  "label": "hooks, settings, statusline raw",
+  "unit": "tokens",
+  "fmt": ",",
+  "derived": {
+   "op": "sum",
+   "of": [
+    "p_cmd",
+    "p_settings"
+   ]
+  },
+  "value": 356
+ },
+ "p_config_fe": {
+  "label": "hooks, settings, statusline FE",
+  "unit": "FE",
+  "fmt": 1,
+  "derived": {
+   "op": "sum",
+   "of": [
+    "p_cmd_fe",
+    "p_settings_fe"
+   ]
+  },
+  "value": 8.9
+ },
+ "artifact_raw": {
+  "label": "Artifact tool schema raw",
+  "value": 9598,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[name=Artifact].raw_tokens"
+ },
+ "artifact_fe": {
+  "label": "Artifact tool schema FE",
+  "value": 239.95000000000002,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[name=Artifact].fe_per_turn_cached"
+ },
+ "a_used": {
+  "label": "Section A raw in listings used in window",
+  "value": 1504,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?sessions>0].raw_tokens|sum"
+ },
+ "a_unused": {
+  "label": "Section A raw in listings unused in window",
+  "value": 333,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?sessions<1].raw_tokens|sum"
+ },
+ "a_unused_n": {
+  "label": "listings unused in window",
+  "value": 7,
+  "unit": "listings",
+  "fmt": "int",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?sessions<1]|count"
+ },
+ "a_counted": {
+  "label": "Section A raw with a session count",
+  "unit": "tokens",
+  "fmt": ",",
+  "derived": {
+   "op": "sum",
+   "of": [
+    "a_used",
+    "a_unused"
+   ]
+  },
+  "value": 1837
+ },
+ "a_notmeasured": {
+  "label": "Section A raw with no session count",
+  "unit": "tokens",
+  "fmt": ",",
+  "derived": {
+   "op": "diff",
+   "of": [
+    "A_total",
+    "a_counted"
+   ]
+  },
+  "value": 19847
+ },
+ "rw_sessions": {
+  "label": "report-writer sessions in window",
+  "value": 87,
+  "unit": "sessions",
+  "fmt": "int",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=A][?name=report-writer].sessions|first"
+ },
+ "B_total": {
+  "label": "Section B raw",
+  "value": 84073,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.totals_raw.B"
+ },
+ "B_unused": {
+  "label": "Section B raw unused in window",
+  "value": 45422,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=B][?sessions<1][?raw_tokens>-1].raw_tokens|sum"
+ },
+ "B_used": {
+  "label": "Section B raw used in window",
+  "unit": "tokens",
+  "fmt": ",",
+  "derived": {
+   "op": "diff",
+   "of": [
+    "B_total",
+    "B_unused"
+   ]
+  },
+  "value": 38651
+ },
+ "B_skills": {
+  "label": "Section B skill bodies raw",
+  "value": 58066,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=B][?kind=skill body].raw_tokens|sum"
+ },
+ "B_agents": {
+  "label": "Section B agent files raw",
+  "value": 25614,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=B][?kind=agent file].raw_tokens|sum"
+ },
+ "B_unknown_n": {
+  "label": "Section B rows with built-in text not on disk",
+  "value": 12,
+  "unit": "rows",
+  "fmt": "int",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=B][?reason~not on disk]|count"
+ },
+ "sws_raw": {
+  "label": "setup-writing-style body raw",
+  "value": 10519,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.rows[?section=B][?name=anthropic-skills:setup-writing-style].raw_tokens|first"
+ },
+ "C_total": {
+  "label": "Section C raw",
+  "value": 40796,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "global",
+  "file": "context-audit.json",
+  "field": "global.totals_raw.C"
+ },
+ "pogo_sess": {
+  "label": "pogo-gbl-team-generator sessions in window",
+  "value": 234,
+  "unit": "sessions",
+  "fmt": "int",
+  "run": "pogo-gbl-team-generator",
+  "file": "context-audit.json",
+  "field": "projects[name=pogo-gbl-team-generator].sessions"
+ },
+ "pogo_A": {
+  "label": "pogo-gbl-team-generator Section A over global",
+  "value": 1565,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "pogo-gbl-team-generator",
+  "file": "context-audit.json",
+  "field": "projects[name=pogo-gbl-team-generator].delta_raw.A"
+ },
+ "pogo_B": {
+  "label": "pogo-gbl-team-generator Section B over global",
+  "value": 1047,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "pogo-gbl-team-generator",
+  "file": "context-audit.json",
+  "field": "projects[name=pogo-gbl-team-generator].delta_raw.B"
+ },
+ "pogo_fe": {
+  "label": "pogo-gbl-team-generator FE per turn over global",
+  "value": 39.125,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "pogo-gbl-team-generator",
+  "file": "context-audit.json",
+  "field": "projects[name=pogo-gbl-team-generator].fe_delta_per_turn"
+ },
+ "eval_A": {
+  "label": "agent-eval-experiment Section A over global",
+  "value": 3781,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "agent-eval-experiment",
+  "file": "context-audit.json",
+  "field": "projects[name=agent-eval-experiment].delta_raw.A"
+ },
+ "eval_B": {
+  "label": "agent-eval-experiment Section B over global",
+  "value": 486,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "agent-eval-experiment",
+  "file": "context-audit.json",
+  "field": "projects[name=agent-eval-experiment].delta_raw.B"
+ },
+ "eval_fe": {
+  "label": "agent-eval-experiment FE per turn over global",
+  "value": 94.525,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "agent-eval-experiment",
+  "file": "context-audit.json",
+  "field": "projects[name=agent-eval-experiment].fe_delta_per_turn"
+ },
+ "asst_A": {
+  "label": "assistant-agent Section A over global",
+  "value": 347,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "assistant-agent",
+  "file": "context-audit.json",
+  "field": "projects[name=assistant-agent].delta_raw.A"
+ },
+ "asst_B": {
+  "label": "assistant-agent Section B over global",
+  "value": 8984,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "assistant-agent",
+  "file": "context-audit.json",
+  "field": "projects[name=assistant-agent].delta_raw.B"
+ },
+ "asst_fe": {
+  "label": "assistant-agent FE per turn over global",
+  "value": 8.675,
+  "unit": "FE",
+  "fmt": 1,
+  "run": "assistant-agent",
+  "file": "context-audit.json",
+  "field": "projects[name=assistant-agent].fe_delta_per_turn"
+ },
+ "dsb_sess": {
+  "label": "deadlock-street-brawl-helper sessions in window",
+  "value": 96,
+  "unit": "sessions",
+  "fmt": "int",
+  "run": "deadlock-street-brawl-helper",
+  "file": "context-audit.json",
+  "field": "projects[name=deadlock-street-brawl-helper].sessions"
+ },
+ "dsb_A": {
+  "label": "deadlock-street-brawl-helper Section A over global",
+  "value": 13466,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "deadlock-street-brawl-helper",
+  "file": "context-audit.json",
+  "field": "projects[name=deadlock-street-brawl-helper].delta_raw.A"
+ },
+ "eval_agents_md": {
+  "label": "agent-eval-experiment AGENTS.md raw",
+  "value": 3654,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "agent-eval-experiment",
+  "file": "context-audit.json",
+  "field": "projects[name=agent-eval-experiment].rows[?kind=project CLAUDE.md].raw_tokens|first"
+ },
+ "asst_mcp": {
+  "label": "assistant MCP tool schemas raw",
+  "value": 3977,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "assistant-agent",
+  "file": "context-audit.json",
+  "field": "projects[name=assistant-agent].rows[?kind~tool schemas][?name=assistant].raw_tokens|first"
+ },
+ "pogo_md": {
+  "label": "pogo project CLAUDE.md raw",
+  "value": 1364,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "pogo-gbl-team-generator",
+  "file": "context-audit.json",
+  "field": "projects[name=pogo-gbl-team-generator].rows[?kind=project CLAUDE.md].raw_tokens|first"
+ },
+ "a_rest": {
+  "label": "Section A raw outside the tool schemas",
+  "unit": "tokens",
+  "fmt": ",",
+  "derived": {
+   "op": "diff",
+   "of": [
+    "A_total",
+    "p_tools"
+   ]
+  },
+  "value": 5895
+ },
+ "sts_A": {
+  "label": "slay-the-spire-advisor Section A over global",
+  "value": 4880,
+  "unit": "tokens",
+  "fmt": ",",
+  "run": "slay-the-spire-advisor",
+  "file": "context-audit.json",
+  "field": "projects[name=slay-the-spire-advisor].delta_raw.A"
+ }
+}

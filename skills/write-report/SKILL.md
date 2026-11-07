@@ -25,9 +25,14 @@ its options (beside a page, a table, a script), and a plan that chooses it carri
 
 ## Running
 
-Run it once the data directory is complete, from the project root:
+Run it once the data directory is complete, from the data directory itself:
 
-    claude --agent report-writer "<data dir> — <question> --out <dir>"
+    cd "<data dir>" && claude -p --agent report-writer ". — <question> --out <dir>"
+
+`<dir>` is absolute or relative to the data directory. Why from there: launched from a project root, the project's
+AGENTS.md/CLAUDE.md enters the writer's context, and on 2026-11-06 a base-context report opened on a session that
+AGENTS.md described instead of on the data. The writer treats such text as not data, and the data directory has none.
+Put `PLAYWRIGHT_DIR=…` in front when a project's notes say the cards need it.
 
 Read the reply's last line.
 

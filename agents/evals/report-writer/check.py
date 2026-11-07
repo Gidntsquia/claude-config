@@ -7,10 +7,13 @@
         card1 (quote + who + [note] + microcosm + "But" with two means and n on one screen), voice, voice_prose, prose_shape,
         no_summary_sections, ending (names the microcosm again), terms_once, style (golden r5/B's essence: thread, voice,
         turn, rhythm, headings, shared sentences), visuals (a block or a reasoned
-        "none" in NOTES.md ## Visuals for every middle section with 3+ figures), opening_ledger (ledger.jsonl: form and title
-        shape differ from the two entries before), focus group (outline_present, outline_match, outline_budget,
+        "none" in NOTES.md ## Visuals for every middle section with 3+ figures), opening_ledger (ledger.jsonl + NOTES.md ## Openings:
+        every form scored fit/no-fit, the pick fits, a repeat of the last form needs a reason that beats the runner-up, title
+        shape differs from the two entries before), focus group (outline_present, outline_match, outline_budget,
         unasked_once, focus_findings: outline.md in the report dir, its recap, rows, budgets and ## Left out; report headings
-        equal the outline rows; no non-"advances" focus finding left in checker/findings.json), ai_tells (every regex-checkable tell of docs/ai-tells.md), checker_line (last line: loops/raised/fixed/open/tokens/wall or "checker: off"), expected
+        equal the outline rows; no non-"advances" focus finding left in checker/findings.json; length_from_ask: NOTES.md ## Length
+        lists the quantities question.txt names, one middle row each, long at four or more; and the four slip checks
+        doubled_unit, split_sliver, machinery_aside, opening_subject), ai_tells (every regex-checkable tell of docs/ai-tells.md), checker_line (last line: loops/raised/fixed/open/tokens/wall or "checker: off"), expected
 
 <outdir> holds numbers.json, report.html and cards/measure.json (from render.py). --data is the directory that
 numbers.json's "file" paths are relative to (default: the fixture's data dir next to this script). Prints one line per
@@ -1786,8 +1789,11 @@ def ledger_path():
 
 
 def check_opening_ledger(outdir):
-    """R6/R7: this report's ledger line (build.py writes it) names one of the five forms; NOTES.md ## Openings names the
-    pick and two runners-up, each with a reason; the form and the title shape differ from both entries before it"""
+    """R6/R7, fit over novelty (2026-11-06): this report's ledger line (build.py writes it) names one of the five forms;
+    NOTES.md ## Openings scores every form ("fit: <form> — fit|no-fit — <detail>"), names the pick ("pick: <form> — why it
+    won") and two runners-up with a reason, and the pick is scored fit. The form may repeat the ledger's last line only
+    when the pick line says why it beat the runner-up (names the runner-up and does not call it a tie or "as well"); the
+    title shape still differs from both entries before it."""
     lp = ledger_path()
     rows = []
     if os.path.exists(lp):
@@ -1808,20 +1814,42 @@ def check_opening_ledger(outdir):
     if form not in FORMS:
         probs.append(f"ledger form {form!r}: NOTES.md ## Openings needs a 'pick: <form>' line, one of {', '.join(FORMS)}")
     op = notes_section(outdir, "Openings") or ""
-    ru = [l for l in op.splitlines() if re.match(r"^\W*runner[- ]?up\W*\s*[:=]?\s*\**`?(" + "|".join(FORMS) + r")\b", l.strip(), re.I)]
+    lines = [l.strip() for l in op.splitlines()]
+    alt = "|".join(re.escape(f) for f in FORMS)
+    ru = [l for l in lines if re.match(r"^\W*runner[- ]?up\W*\s*[:=]?\s*\**`?(" + alt + r")\b", l, re.I)]
     ru_ok = [l for l in ru if len(re.split(r"[—:-]\s", l, maxsplit=2)[-1].split()) >= 3]
     if len(ru_ok) < 2:
         probs.append(f"NOTES.md ## Openings names {len(ru_ok)} runners-up with a reason (needs two 'runner-up: <form> — why' lines)")
+    fit = {}
+    for l in lines:
+        m = re.match(r"^\W*fit\W*\s*[:=]\s*`?(" + alt + r")`?\s*[—:-]+\s*(no[- ]fit|fit)\b\s*[—:-]*\s*(.*)$", l, re.I)
+        if m:
+            fit[m.group(1).lower()] = (m.group(2).lower().replace(" ", "-"), m.group(3).strip())
+    miss = [f for f in FORMS if f not in fit]
+    if miss:
+        probs.append(f"## Openings scores {len(fit)} of five forms (no 'fit: <form> — fit|no-fit — detail' line for {', '.join(miss)})")
+    if form in fit and fit[form][0] != "fit":
+        probs.append(f"the pick {form!r} is scored {fit[form][0]} in ## Openings")
+    if form in fit and fit[form][0] == "fit" and len(fit[form][1].split()) < 3:
+        probs.append(f"the fit line for {form!r} names no detail from the data")
+    pick = next((l for l in lines if re.match(r"^\W*pick\W*\s*[:=]", l, re.I)), "")
+    reason = re.split(r"[—:]\s", pick, maxsplit=2)[-1] if pick else ""
+    if prev and form and prev[-1].get("form") == form:
+        ru_forms = [re.search(alt, l, re.I).group(0).lower() for l in ru if re.search(alt, l, re.I)]
+        names_ru = re.search(r"runner[- ]?up", reason, re.I) or any(f in reason.lower() for f in ru_forms)
+        tie = re.search(r"\b(as well|tie|tied|equally|just as)\b", reason, re.I)
+        if not pick or len(reason.split()) < 6 or not names_ru or tie:
+            probs.append(f"form {form!r} repeats the last ledger entry ({prev[-1].get('out')}) and the pick line "
+                         + ("is missing" if not pick else "does not say why it beat the runner-up" if not tie
+                            else "calls the runner-up as good a fit (a tie goes to the form not used last)"))
     for r in prev:
-        if form and r.get("form") == form:
-            probs.append(f"form {form!r} repeats the ledger entry for {r.get('out')} ({r.get('ts')})")
         if row.get("title_shape") and r.get("title_shape") == row.get("title_shape"):
             probs.append(f"title shape {row['title_shape']!r} repeats {r.get('out')}")
     if probs:
         bad("opening_ledger", "; ".join(probs))
     else:
-        ok("opening_ledger", f"form {form}, title shape {row.get('title_shape')!r}; last two: "
-           + (", ".join(f"{r.get('form')} / {r.get('title_shape')!r}" for r in prev) or "none"))
+        ok("opening_ledger", f"form {form} (fit: {', '.join(f for f in FORMS if fit.get(f, ('',))[0] == 'fit')}), title shape "
+           f"{row.get('title_shape')!r}; last two: " + (", ".join(f"{r.get('form')} / {r.get('title_shape')!r}" for r in prev) or "none"))
 
 
 # ---------- focus: outline.md and the checker's per-section focus findings (2026-11-06) ----------------------------------
@@ -2138,6 +2166,313 @@ def check_focus_findings(outdir):
            + ("" if built else "; not in the ledger, NOTES.md ## Focus not required"))
 
 
+# ---------- same data, same report: Length from the ask, four slip checks (2026-11-06) --------------------------------
+STOP = set("""a an the of in on at to for by with from and or but as is are was were be been it its this that these those
+my your our their his her i you we they me us them what which who how many much each every any all some no not into over
+under than then so very more most less least also just only own one per about up out off do does did done will would can
+could should may might must have has had want wanted i.e e.g etc terms take taken up""".split())
+WORD_NUM = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve".split())}
+
+
+def _built(outdir):
+    """True when build.py wrote a ledger line for this report dir (a full build by the current writer)"""
+    lp = ledger_path()
+    if not os.path.exists(lp):
+        return False
+    me = os.path.realpath(outdir)
+    return any(f'"out": "{me}"' in l or f'"out":"{me}"' in l for l in open(lp, encoding="utf-8"))
+
+
+def length_list(outdir):
+    """NOTES.md ## Length → (word short|long|None, [quantity lines], text). A quantity line is a '- ' or '1. ' list item."""
+    t = notes_section(outdir, "Length")
+    if t is None:
+        return None, [], None
+    m = re.match(r"\W*(short|long)\b", t.strip().lower())
+    items = [re.sub(r"^\s*(?:[-*]|\d+[.)])\s+", "", l).strip() for l in t.splitlines() if re.match(r"^\s*(?:[-*]|\d+[.)])\s+\S", l)]
+    return (m.group(1) if m else None), items, t
+
+
+def check_length_from_ask(outdir):
+    """R3: NOTES.md ## Length lists the quantities question.txt names (one list line each, >= 1), says the count, and its
+    word is long for four or more, short otherwise; outline.md has one middle row per listed quantity (a line marked
+    'cut' or 'folded' on a focus finding is not a row), and a {key} on a quantity line is in its row's settles-with, in order.
+    A report with no list that build.py never built (golden r5/B, written before this rule) is skipped and says so."""
+    word, items, text = length_list(outdir)
+    if not items and not _built(outdir):
+        ok("length_from_ask", "NOTES.md ## Length has no quantity list and the report is not in the ledger (written before"
+           " this rule), skipped")
+        return
+    probs = []
+    if text is None:
+        bad("length_from_ask", "NOTES.md has no ## Length")
+        return
+    if not items:
+        probs.append("## Length lists no quantities (one '- <quantity> — {key}' line per measurable thing question.txt names)")
+    n = len(items)
+    want = "long" if n >= 4 else "short"
+    if word is None:
+        probs.append("## Length does not start with short or long")
+    elif n and word != want:
+        probs.append(f"## Length says {word} for {n} quantities (four or more is long, fewer is short)")
+    prose = "\n".join(l for l in text.splitlines() if not re.match(r"^\s*(?:[-*]|\d+[.)])\s+\S", l))
+    said = {int(x) for x in re.findall(r"\b\d+\b", prose)} | {WORD_NUM[w] for w in re.findall(r"[a-z]+", prose.lower()) if w in WORD_NUM}
+    if n and n not in said:
+        probs.append(f"## Length does not say the count ({n})")
+    kept = [it for it in items if not re.search(r"\((?:cut|folded)\b", it, re.I)]
+    o = parse_outline(outdir)
+    if o is None:
+        probs.append("no outline.md")
+    else:
+        mid = o["rows"][1:-1]
+        if len(mid) != len(kept):
+            probs.append(f"outline.md has {len(mid)} middle rows, ## Length lists {len(kept)} quantities"
+                         + (f" ({n - len(kept)} cut)" if n != len(kept) else ""))
+        for i, (it, r) in enumerate(zip(kept, mid)):
+            ks = re.findall(r"\{([A-Za-z0-9_]+)\}", it)
+            if ks and not set(ks) & set(r["keys"]):
+                probs.append(f"quantity {i + 1} {it[:40]!r} names {ks}, row {r['heading'][:40]!r} settles with {r['keys']}")
+    if probs:
+        bad("length_from_ask", "; ".join(probs[:5]))
+    else:
+        ok("length_from_ask", f"{n} quantities listed, {word}, {len(kept)} middle rows")
+
+
+def _units_of(u):
+    u = (u or "").strip()
+    if not u:
+        return set()
+    out = {u.lower()}
+    if u.lower().endswith("s"):
+        out.add(u.lower()[:-1])
+    else:
+        out.add(u.lower() + "s")
+    return out
+
+
+def _initials(words):
+    return "".join(p[0] for w in words for p in re.split(r"-", w) if p).upper()
+
+
+def _sentence_of(text, pos):
+    """the sentence of text that holds character pos"""
+    start = 0
+    for m in SENT_RE.finditer(text):
+        if m.start() >= pos:
+            return text[start:m.start()].strip()
+        start = m.end()
+    return text[start:].strip()
+
+
+def check_doubled_unit(outdir, N):
+    """R5: a {key} printed as "value unit" is not followed by its unit word again ("{a_unused_n} listings" when the unit is
+    listings), and a unit abbreviation is not followed by its expansion ("{fe_rate} Fable-equivalent tokens (FE)", "FE
+    Fable-equivalent tokens"). Block lines and {key@} are read the same way."""
+    src = _load_src(outdir)
+    if src is None:
+        bad("doubled_unit", "no report.md")
+        return
+    probs = []
+    for para in re.split(r"\n\s*\n", src):
+        if para.lstrip().startswith(("::", "#", ">", "~ ")):
+            continue
+        p = " ".join(para.split())
+        for m in re.finditer(r"\{([A-Za-z0-9_]+)@?\}", p):
+            k = m.group(1)
+            unit = str((N.get(k) or {}).get("unit") or "")
+            if not unit:
+                continue
+            rest = p[m.end():]
+            nxt = re.match(r"\s+([A-Za-z][\w-]*)", rest)
+            if nxt and nxt.group(1).lower() in _units_of(unit):
+                probs.append(f"{{{k}}} (unit {unit!r}) is followed by {nxt.group(1)!r}: {_sentence_of(p, m.start())[:90]!r}")
+                continue
+            if re.fullmatch(r"[A-Z]{2,6}", unit):
+                ws = re.match(r"\s+((?:[A-Za-z][\w-]*\s+){0,4})\(" + re.escape(unit) + r"\)", rest)
+                words = re.findall(r"[A-Za-z][\w-]*", rest[:80])
+                if ws or (words and any(_initials(words[:j]) == unit for j in range(1, min(4, len(words)) + 1))):
+                    probs.append(f"{{{k}}} prints {unit!r} and the prose spells it out after: {_sentence_of(p, m.start())[:90]!r}")
+                    continue
+        bare = re.sub(r"\{[A-Za-z0-9_]+@?\}", "N", p)
+        for m in re.finditer(r"\b([A-Z]{2,6})\s+((?:[A-Za-z][\w-]*\s*){1,4})", bare):
+            ab, words = m.group(1), re.findall(r"[A-Za-z][\w-]*", m.group(2))
+            if any(_initials(words[:j]) == ab for j in range(1, len(words) + 1)) and not words[0].isupper():
+                probs.append(f"{ab!r} is followed by its expansion {' '.join(words)!r}: {_sentence_of(bare, m.start())[:90]!r}")
+    if probs:
+        bad("doubled_unit", "; ".join(dict.fromkeys(probs[:5])))
+    else:
+        ok("doubled_unit", "no {key} followed by its own unit word, no abbreviation followed by its expansion")
+
+
+def _section_prose_sentences(body):
+    out = []
+    for para in re.split(r"\n\s*\n", body):
+        ls = [l for l in para.splitlines() if l.strip() and not l.strip().startswith(("#", ">", "~ ", "::", "📚", "---"))]
+        if ls:
+            out += sentences(" ".join(ls))
+    return out
+
+
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def check_split_sliver(outdir, N):
+    """R6: a ::split segment under 3% of its total is named in a sentence of the same section, by its label or {key}, with
+    "small", "little", "sliver" or its own {key}; otherwise a reader sees a hairline and no word about it"""
+    src = _load_src(outdir)
+    if src is None:
+        bad("split_sliver", "no report.md")
+        return
+    probs, seen = [], 0
+    for head, body in report_sections(src):
+        sents = _section_prose_sentences(body)
+        for m in re.finditer(r"^::split\s+(.*)$", body, re.M):
+            parts = [x.strip() for x in m.group(1).split("|")]
+            total = _num((N.get(parts[0].strip("{}")) or {}).get("value")) if parts else None
+            keys = parts[1].replace("{", "").replace("}", "").split() if len(parts) > 1 else []
+            lab = next((x[7:].split() for x in parts if x.startswith("labels=")), [])
+            for i, k in enumerate(keys):
+                seen += 1
+                v = _num((N.get(k) or {}).get("value"))
+                if not total or v is None or v / total >= 0.03:
+                    continue
+                label = lab[i].replace("_", " ") if i < len(lab) else (N.get(k) or {}).get("label", k)
+                kp = re.compile(r"\{" + re.escape(k) + r"@?\}")
+                lp = re.compile(r"(?<!\w)" + re.escape(label) + r"(?!\w)", re.I)
+                named = [s for s in sents if kp.search(s) or (lp.search(re.sub(r"\{[A-Za-z0-9_]+@?\}", "N", s))
+                                                            and re.search(r"\b(small|little|sliver)\b", s, re.I))]
+                if not named:
+                    probs.append(f"{head[:40]!r}: segment {label!r} ({{{k}}}) is {100 * v / total:.1f}% of {parts[0]} and no "
+                                 f"sentence names it with small/little/sliver or its figure")
+    if probs:
+        bad("split_sliver", "; ".join(probs[:5]))
+    else:
+        ok("split_sliver", f"{seen} split segments, every one under 3% named in its section" if seen else "no ::split block")
+
+
+MACHINERY_RE = re.compile(r"\b(the (?:audit|script|study))\b(?:\s+(?!and\b|or\b)[\w’'-]+){0,2}?\s+"
+                          r"(counts?|counted|counting|borrow(?:s|ed)?|ran|runs?|measur(?:es|ed|e)|tall(?:ies|ied|y))\b", re.I)
+
+
+def check_machinery_aside(outdir):
+    """R7: no middle-section sentence (outside a block) has the study's method as its subject ("the audit counts", "the
+    script borrowed", "the study measured", "the study never tallied") unless it carries a {key} from that section's
+    outline settles-with; the opening card (scene and "But") and the ending are not middle sections"""
+    src, o = _load_src(outdir), parse_outline(outdir)
+    if src is None:
+        bad("machinery_aside", "no report.md")
+        return
+    rows = {" ".join(r["heading"].split()): r["keys"] for r in (o["rows"] if o else [])}
+    probs, n = [], 0
+    for head, body in middle_sections(src):
+        keys = set(rows.get(" ".join(head.split()), []))
+        for s in _section_prose_sentences(body):
+            m = MACHINERY_RE.search(s)
+            if not m:
+                continue
+            n += 1
+            have = set(re.findall(r"\{([A-Za-z0-9_]+)@?\}", s))
+            if (keys and not have & keys) or (not keys and not have):
+                probs.append(f"{head[:30]!r}: \"{s[:110]}\" (settles with {sorted(keys) or 'no outline row'})")
+    if probs:
+        bad("machinery_aside", "; ".join(probs[:4]))
+    else:
+        ok("machinery_aside", f"{n} method sentences in the middle, each carrying its section's settling figure" if n
+           else "no middle sentence about how the study counted")
+
+
+ID_RE = re.compile(r"\[\[(.+?)\]\]")
+
+
+def _looks_like_session(ident, runs):
+    s = ident.strip()
+    if s in runs:
+        return True
+    if re.fullmatch(r"[0-9a-f]{6,}(?:-[0-9a-f]+)*", s, re.I) and re.search(r"\d", s) and re.search(r"[a-f]", s, re.I):
+        return True
+    return bool(re.search(r"(?i)\b(session|run|machine|host|pc)\b|-pc\b|\.jsonl\b", s))
+
+
+def _noun_runs(text):
+    """runs of consecutive content words of a clause or title: 'the global base context of my Claude code' →
+    [['global','base','context'], ['claude','code']]"""
+    runs, cur = [], []
+    for w in re.findall(r"[A-Za-z0-9][\w'’-]*", text):
+        if w.lower() in STOP:
+            if cur:
+                runs.append(cur)
+            cur = []
+        else:
+            cur.append(w.lower())
+    if cur:
+        runs.append(cur)
+    return runs
+
+
+def _has_phrase(sent, words):
+    pat = r"(?<!\w)" + r"\s+".join(re.escape(w) + (r"s?" if w[-1:].isalpha() else "") for w in words) + r"(?!\w)"
+    return re.search(pat, sent, re.I) is not None
+
+
+def scene_sentence(src):
+    """the first sentence of the opening after the who line, past a one-line label (a short line with no {key})"""
+    head = report_sections(src)[0][1]
+    after = head.split("\n~ ", 1)[1].split("\n", 1)[1] if "\n~ " in head else head
+    paras = [p.strip() for p in re.split(r"\n\s*\n", after) if p.strip() and not p.strip().startswith(("::", ">"))]
+    for i, p in enumerate(paras):
+        ss = sentences(" ".join(p.split()))
+        if i == 0 and len(ss) == 1 and len(ss[0].split()) <= 9 and "{" not in ss[0] and len(paras) > 1:
+            continue   # the label line ("[[Number 4]] was next round's battles.")
+        return ss[0] if ss else ""
+    return ""
+
+
+def check_opening_subject(outdir, N):
+    """R8: the scene (first sentence after the who line and label) names the ask's noun (a two-word run, or a one-word run,
+    of content words from outline.md row 1's ask clause, or the title's subject word) and holds no [[identifier]] of a
+    session, run or machine that is not the run of a {key} in that same sentence. The noun part applies to reports the
+    current writer built (in the ledger, or NOTES.md ## Length lists quantities); golden r5/B predates it and is told so."""
+    src, o = _load_src(outdir), parse_outline(outdir)
+    if src is None:
+        bad("opening_subject", "no report.md")
+        return
+    s = scene_sentence(src)
+    if not s:
+        bad("opening_subject", "no scene sentence after the who line")
+        return
+    probs = []
+    runs = {str(e.get("run")).strip() for e in N.values() if e.get("run")}
+    keys = re.findall(r"\{([A-Za-z0-9_]+)@?\}", s)
+    key_runs = {str((N.get(k) or {}).get("run") or "").strip() for k in keys}
+    for ident in ID_RE.findall(s):
+        if _looks_like_session(ident, runs) and ident.strip() not in key_runs:
+            probs.append(f"[[{ident}]] names a session, run or machine that no {{key}} in the sentence belongs to")
+    for host in re.findall(r"\b[A-Z][\w]*-PC\b", s):
+        probs.append(f"names the machine {host!r}")
+    clause = o["rows"][0]["clause"] if o and o["rows"] else ""
+    title = report_sections(src)[0][0]
+    cands = []
+    for r in _noun_runs(clause):
+        cands.append(r[-2:] if len(r) >= 2 else r)
+    tr = _noun_runs(title)
+    if tr:
+        cands.append(tr[0][-1:])
+    has_noun = any(_has_phrase(s, c) for c in cands)
+    noun_rule = _built(outdir) or bool(length_list(outdir)[1])
+    if noun_rule and not has_noun:
+        probs.append(f"names none of the ask's nouns {[' '.join(c) for c in cands]}")
+    if probs:
+        bad("opening_subject", f"scene \"{s[:110]}\": " + "; ".join(probs[:4]))
+    else:
+        ok("opening_subject", f"scene names {next((' '.join(c) for c in cands if _has_phrase(s, c)), None)!r}"
+           + ("" if noun_rule else " (noun rule not applied: report predates it)" if not has_noun else "")
+           + ", no foreign session/run/machine identifier")
+
+
 def main():
     a = sys.argv[1:]
     if not a:
@@ -2196,6 +2531,11 @@ def main():
         check_outline_budget(outdir)
         check_unasked_once(outdir)
         check_focus_findings(outdir)
+        check_length_from_ask(outdir)
+        check_doubled_unit(outdir, N)
+        check_split_sliver(outdir, N)
+        check_machinery_aside(outdir)
+        check_opening_subject(outdir, N)
         check_checker_line_prose(page, outdir)
         check_expected(outdir, N, page, expected, traps)
         print("\n".join(out_lines))

@@ -1,0 +1,22 @@
+[
+ {"key": "asst_mcp", "claim": "The assistant-agent project adds little to the turn and {asst_B} on demand, most of it the schemas of its own MCP server",
+  "found": "The MCP tool schemas (3,977) are 44% of the 8,984 on-demand delta, not most of it. The delta is the assistant agent file 4,867 + the MCP tool schemas 3,977 + the MCP instructions/deferred names 140 = 8,984. The agent file is the largest piece; the MCP server as a whole is 4,117 (46%).",
+  "source": "context-audit.json → projects[name=assistant-agent].rows (section B: agent file assistant 4867; MCP server (tool schemas) assistant 3977; MCP server (instructions + deferred names) assistant 140), delta_raw.B 8984",
+  "severity": "medium"},
+ {"key": "ref_chars", "claim": "I take it as typical because its directory holds no project files, so what it carried at the start is the same base context every session on this machine carries",
+  "found": "The data contradicts this. The reference session's directory, /home/jaxon/files/slay-the-spire-advisor, is in projects[] with delta_raw.A = 4,880, all of it a project AGENTS.md (4,880 raw). So the microcosm session is not a no-project-files session, and its 103,524-character first request probably includes that AGENTS.md as well as the global base context. The billed ratio still holds as a ratio, but the reason given for calling the session typical is false. 'Every session on this machine' also ignores the project additions shown later, such as deadlock-street-brawl-helper at +13,466.",
+  "source": "context-audit.json → reference_session.path (-home-jaxon-files-slay-the-spire-advisor); projects[name=slay-the-spire-advisor].delta_raw.A = 4880, rows[kind=project CLAUDE.md, name=AGENTS.md] = 4880",
+  "severity": "medium"},
+ {"key": null, "claim": "You use Bash and Read in nearly every session",
+  "found": "No file supports this. The same paragraph says tool calls were never tallied, so this usage claim has no source in the study.",
+  "source": "README.md → sessions is counted only for skills/agents/MCP tools; context-audit.json → built-in tool schema rows have sessions = null",
+  "severity": "low"},
+ {"key": "A_measured", "claim": "recap",
+  "found": "The ending's figure is {A_measured} (30,657, 'the base context alone is 30,657 of every session's turns'), but the recap never mentions it. The recap says 'Every session starts with {A_total} raw tokens' (21,684) and says the ending only states that the base context is tallied, mostly text you never wrote, and mostly without a usage count. The ending gives a different size for the base context than the recap without reconciling the two. The state of the ask is the same in both (tallied, no cuts).",
+  "source": "outline.md → ## Recap; report.md → 🔁 Back to that first request; context-audit.json → global.reconciliation.section_a_at_measured_ratio",
+  "severity": "high"},
+ {"section": "🧮 What fills the base context every turn?", "focus": "advances", "found": "It settles {p_tools} (15,789 of 21,684) for 'every source tallied up', with each Section A source given in raw and FE.", "severity": "medium"},
+ {"section": "🔭 How much of it do the logs back?", "focus": "advances", "found": "It settles {a_used} 1,504 and {a_notmeasured} 19,847 for the 'justified' clause, and says that usage is not measured for the rest.", "severity": "medium"},
+ {"section": "⏱️ What waits until it is called?", "focus": "advances", "found": "It settles {B_total} 84,073 and {B_unused} 45,422 for the on-demand part (skills, agents, MCP) that the ask names, and says the total is a floor.", "severity": "medium"},
+ {"section": "🔀 What do the named projects add?", "focus": "advances", "found": "It settles {eval_A} and {asst_B} for the three projects the ask names. It adds one sentence on deadlock-street-brawl-helper, which ASK.md covers under 'frequently used projects'.", "severity": "medium"}
+]

@@ -1,0 +1,329 @@
+{
+ "mode": "phone",
+ "scale": 2,
+ "css_width_px": 390,
+ "phone_viewport_px": 844,
+ "cards": [
+  {
+   "index": 1,
+   "slug": "text-you-never-wrote-filled",
+   "css_height_px": 791,
+   "scroll_width_px": 390,
+   "png": "cards/01-text-you-never-wrote-filled.png",
+   "png_width_px": 780,
+   "png_height_px": 1582
+  },
+  {
+   "index": 2,
+   "slug": "what-fills-the-base-context",
+   "css_height_px": 775,
+   "scroll_width_px": 390,
+   "png": "cards/02-what-fills-the-base-context.png",
+   "png_width_px": 780,
+   "png_height_px": 1552
+  },
+  {
+   "index": 3,
+   "slug": "how-much-of-it-do-the-logs-b",
+   "css_height_px": 639,
+   "scroll_width_px": 390,
+   "png": "cards/03-how-much-of-it-do-the-logs-b.png",
+   "png_width_px": 780,
+   "png_height_px": 1278
+  },
+  {
+   "index": 4,
+   "slug": "what-waits-until-it-is-calle",
+   "css_height_px": 768,
+   "scroll_width_px": 390,
+   "png": "cards/04-what-waits-until-it-is-calle.png",
+   "png_width_px": 780,
+   "png_height_px": 1536
+  },
+  {
+   "index": 5,
+   "slug": "what-do-the-named-projects-a",
+   "css_height_px": 762,
+   "scroll_width_px": 390,
+   "png": "cards/05-what-do-the-named-projects-a.png",
+   "png_width_px": 780,
+   "png_height_px": 1526
+  },
+  {
+   "index": 6,
+   "slug": "back-to-that-first-request",
+   "css_height_px": 778,
+   "scroll_width_px": 390,
+   "png": "cards/06-back-to-that-first-request.png",
+   "png_width_px": 780,
+   "png_height_px": 1556
+  },
+  {
+   "index": 7,
+   "slug": "part-7",
+   "css_height_px": 184,
+   "scroll_width_px": 390,
+   "png": "cards/07-part-7.png",
+   "png_width_px": 780,
+   "png_height_px": 370
+  }
+ ],
+ "blocks": [
+  {
+   "card": "what-fills-the-base-context",
+   "kind": "table",
+   "css_height_px": 255,
+   "scroll_width_px": 374,
+   "right_px": 382
+  },
+  {
+   "card": "what-waits-until-it-is-calle",
+   "kind": "split",
+   "css_height_px": 155,
+   "scroll_width_px": 374,
+   "right_px": 382
+  },
+  {
+   "card": "what-waits-until-it-is-calle",
+   "kind": "split",
+   "css_height_px": 130,
+   "scroll_width_px": 374,
+   "right_px": 382
+  },
+  {
+   "card": "what-do-the-named-projects-a",
+   "kind": "table",
+   "css_height_px": 289,
+   "scroll_width_px": 374,
+   "right_px": 382
+  }
+ ],
+ "paragraphs": [
+  {
+   "card": "text-you-never-wrote-filled",
+   "box": "",
+   "text": "Jaxon, planner session 1e87453d in base-context-cleanup, 2026-11-04 15:57 ET",
+   "lines": 2
+  },
+  {
+   "card": "text-you-never-wrote-filled",
+   "box": "",
+   "text": "Base context means the always-loaded part.",
+   "lines": 1
+  },
+  {
+   "card": "text-you-never-wrote-filled",
+   "box": "",
+   "text": "The audit behind these numbers ran on Jaxon-PC at 05:16 ET on 5 November and bor",
+   "lines": 6
+  },
+  {
+   "card": "text-you-never-wrote-filled",
+   "box": "",
+   "text": "I take it as typical because that first turn carried the base context every sess",
+   "lines": 4
+  },
+  {
+   "card": "text-you-never-wrote-filled",
+   "box": "",
+   "text": "But the audit counts one token per four characters, and that one request (n = 1)",
+   "lines": 7
+  },
+  {
+   "card": "what-fills-the-base-context",
+   "box": "",
+   "text": "Every session on this machine starts with 21,684 tokens by the raw count, 542.1 ",
+   "lines": 5
+  },
+  {
+   "card": "what-fills-the-base-context",
+   "box": "",
+   "text": "The base context is mostly the schemas of the built-in tools, 15,789 tokens of i",
+   "lines": 4
+  },
+  {
+   "card": "what-fills-the-base-context",
+   "box": "",
+   "text": "After the first turn the base context is read from the cache, and the study pric",
+   "lines": 5
+  },
+  {
+   "card": "what-fills-the-base-context",
+   "box": "",
+   "text": "The table lists each source of the base context with its raw count and what it c",
+   "lines": 3
+  },
+  {
+   "card": "how-much-of-it-do-the-logs-b",
+   "box": "",
+   "text": "One tool fills most of the base context's first row.",
+   "lines": 2
+  },
+  {
+   "card": "how-much-of-it-do-the-logs-b",
+   "box": "",
+   "text": "The Artifact tool \"renders an HTML file as an Artifact: a web page hosted on cla",
+   "lines": 6
+  },
+  {
+   "card": "how-much-of-it-do-the-logs-b",
+   "box": "",
+   "text": "The last row never reaches the model, because hooks, settings and the statusline",
+   "lines": 4
+  },
+  {
+   "card": "how-much-of-it-do-the-logs-b",
+   "box": "",
+   "text": "The logs back 1,504 tokens of the base context, the skill and agent listings tha",
+   "lines": 4
+  },
+  {
+   "card": "how-much-of-it-do-the-logs-b",
+   "box": "",
+   "text": "The audit counts sessions only for skills and agents it can see invoked in a log",
+   "lines": 7
+  },
+  {
+   "card": "what-waits-until-it-is-calle",
+   "box": "",
+   "text": "The split sorts the base context by what the logs say about it.",
+   "lines": 2
+  },
+  {
+   "card": "what-waits-until-it-is-calle",
+   "box": "",
+   "text": "7 listings listings in the base context went unused, among them the four documen",
+   "lines": 7
+  },
+  {
+   "card": "what-waits-until-it-is-calle",
+   "box": "",
+   "text": "The base context keeps 84,073 tokens more off the turn until a skill, agent or M",
+   "lines": 5
+  },
+  {
+   "card": "what-waits-until-it-is-calle",
+   "box": "",
+   "text": "The split puts what was called in the four weeks beside what was not.",
+   "lines": 2
+  },
+  {
+   "card": "what-do-the-named-projects-a",
+   "box": "",
+   "text": "More of this on-demand context sat unused than was called, and the largest unuse",
+   "lines": 4
+  },
+  {
+   "card": "what-do-the-named-projects-a",
+   "box": "",
+   "text": "The total is a floor, since 12 rows built-in bodies (the Explore agent and the c",
+   "lines": 6
+  },
+  {
+   "card": "what-do-the-named-projects-a",
+   "box": "",
+   "text": "The base context grows in each of the three projects you named, and agent-eval-e",
+   "lines": 4
+  },
+  {
+   "card": "what-do-the-named-projects-a",
+   "box": "",
+   "text": "The table lists what each project adds to the base context of a session with no ",
+   "lines": 2
+  },
+  {
+   "card": "back-to-that-first-request",
+   "box": "",
+   "text": "Nearly all of agent-eval-experiment's addition is its AGENTS.md at 3,654 tokens,",
+   "lines": 3
+  },
+  {
+   "card": "back-to-that-first-request",
+   "box": "",
+   "text": "The assistant-agent project adds little to the base context and 8,984 tokens on ",
+   "lines": 7
+  },
+  {
+   "card": "back-to-that-first-request",
+   "box": "",
+   "text": "Among the other projects the study tallied for having three or more sessions, de",
+   "lines": 5
+  },
+  {
+   "card": "back-to-that-first-request",
+   "box": "",
+   "text": "That Slay the Spire session (44904a3d) was billed 36,621 tokens for its first re",
+   "lines": 7
+  },
+  {
+   "card": "back-to-that-first-request",
+   "box": "",
+   "text": "Most of the base context is Claude Code's own text. Only 1,504 tokens has a sess",
+   "lines": 7
+  },
+  {
+   "card": "part-7",
+   "box": "",
+   "text": "📚 context-audit.json (global and project tallies, reconciliation, pricing), con",
+   "lines": 4
+  },
+  {
+   "card": "part-7",
+   "box": "checked",
+   "text": "checker: 1 loop, 4 raised, 4 fixed, 0 open; checker tokens 577,639, wall 124 s",
+   "lines": 2
+  }
+ ],
+ "ellipsis": 0,
+ "page_scroll_width_px": 390,
+ "horizontal_scroll": false,
+ "overflow": [],
+ "first_screen": {
+  "problem": null,
+  "verdict": null,
+  "next_action": null,
+  "deciding": null,
+  "wrong_or_missing": null,
+  "decision_chart": null,
+  "decision_table": null,
+  "bottom_px": null,
+  "moved": []
+ },
+ "desktop_first_screen": {
+  "problem": null,
+  "verdict": null,
+  "next_action": null,
+  "deciding": null,
+  "wrong_or_missing": null,
+  "decision_chart": null,
+  "decision_table": null,
+  "bottom_px": null,
+  "viewport_px": 1250
+ },
+ "words": [
+  {
+   "section": "Text you never wrote filled the turn",
+   "words": 143
+  },
+  {
+   "section": "🧮 What fills the base context every turn?",
+   "words": 146
+  },
+  {
+   "section": "🔭 How much of it do the logs back?",
+   "words": 140
+  },
+  {
+   "section": "⏱️ What waits until it is called?",
+   "words": 115
+  },
+  {
+   "section": "🔀 What do the named projects add?",
+   "words": 129
+  },
+  {
+   "section": "🔁 Back to that first request",
+   "words": 109
+  }
+ ]
+}
