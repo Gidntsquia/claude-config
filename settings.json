@@ -18,7 +18,6 @@
       "ScheduleWakeup",
       "ReportFindings",
       "Agent(evaluator)",
-      "Agent(helper)",
       "Agent(planner)",
       "Agent(worker)",
       "Agent(report-writer-archived-2026-10-21)"
@@ -85,6 +84,63 @@
           {
             "type": "command",
             "command": "~/.claude/skills/run-agent/scripts/run-agent.sh --denied",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Monitor",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py",
             "timeout": 10
           }
         ]
