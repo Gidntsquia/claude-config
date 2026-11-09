@@ -61,6 +61,13 @@ USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--target split|win
 # Built-in subagents that `claude --agent` accepts (checked 2026-10-14; Bash and claude-code-guide are refused).
 BUILTINS=(claude general-purpose Explore Plan statusline-setup)
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# A worker's subagents are capped whatever the worker asks for (usage-guard R15, hooks/usage-guard/README.md): Sonnet,
+# three at a time, no subagents of subagents. Forced on every worker this script starts (now, scheduled, handed off),
+# for that claude process only; the shell left in the pane afterwards does not keep them. The same list is in runner.sh
+# and launch.py (the printed "Without run-agent:" line).
+WORKER_ENV="CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1"
+# shellcheck disable=SC2016
+WORKER_ENV_SH='w=(); [ "$3" = worker ] && w=(env '"$WORKER_ENV"');'
 STATE="${RUN_AGENT_HOME:-$HOME/.claude/run-agent}"
 
 # Test mode (RUN_AGENT_TEST=1, exported by test.sh). tm_guard <subcommand> <socket>: a tmux command that changes
@@ -307,7 +314,7 @@ fire_waiting() {
     [ -d "$cwd" ] || cwd="$PWD"
     mapfile -d '' -t cmd < <(python3 "$HERE/jobs.py" argv "$id")
     first="scheduled run #$id fired at $(python3 "$HERE/parse.py" --fmt "$(date +%s)") (was waiting: no pane): $shown"
-    wrap=(bash -c 'printf "%s\n" "$1"; RUN_AGENT_FROM="$3" "${@:4}"; exec "$2"' run-agent "$first" "${SHELL:-bash}" "$agent" "${cmd[@]}")
+    wrap=(bash -c 'printf "%s\n" "$1"; '"$WORKER_ENV_SH"' RUN_AGENT_FROM="$3" "${w[@]}" "${@:4}"; exec "$2"' run-agent "$first" "${SHELL:-bash}" "$agent" "${cmd[@]}")
     if open_target window "$TMUX_PANE" "$cwd" "$agent: $folder" "${wrap[@]}" >/dev/null 2>&1; then
       python3 "$HERE/jobs.py" done "$id" "fired in new window" "was waiting: no pane" >/dev/null
       echo "waiting job #$id started in a new window: $shown"
@@ -530,11 +537,11 @@ fi
 
 if [ -z "${TMUX:-}" ] || [ -z "${TMUX_PANE:-}" ]; then
   echo "not inside tmux; run:"
-  echo "$shown"
+  if [ "$agent" = worker ]; then echo "${shown/claude --agent worker/$WORKER_ENV claude --agent worker}"; else echo "$shown"; fi
   exit 1
 fi
 
-wrap=(bash -c 'printf "running: %s\n" "$1"; RUN_AGENT_FROM="$3" "${@:4}"; exec "$2"' run-agent "$shown" "${SHELL:-bash}" "$agent" "${cmd[@]}")
+wrap=(bash -c 'printf "running: %s\n" "$1"; '"$WORKER_ENV_SH"' RUN_AGENT_FROM="$3" "${w[@]}" "${@:4}"; exec "$2"' run-agent "$shown" "${SHELL:-bash}" "$agent" "${cmd[@]}")
 if [ -n "$target" ]; then
   new=$(open_target "$target" "$TMUX_PANE" "${dir:-$PWD}" "$agent: $folder" "${wrap[@]}") || { echo "tmux could not open a $target" >&2; exit 2; }
   where=$(tmux display -p -t "$new" '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || echo "$new")

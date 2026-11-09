@@ -100,7 +100,8 @@ main() {
   wrap=(bash -c 'printf "%s\n" "$1"; export SHELL="$2"; [ -n "$6" ] && export PATH="$6"; [ -n "$7" ] && export HOME="$7"
 bin="${5:-claude}"
 if ! command -v "$bin" >/dev/null 2>&1; then printf "%s: command not found\n" "$bin" >&2; echo 127 > "$4"; exec "$2"; fi
-RUN_AGENT_FROM="$3" "$bin" "${@:8}"; echo $? > "$4"; exec "$2"' run-agent "$first" "$env_shell" "$agent" \
+w=(); [ "$3" = worker ] && w=(env CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1)   # usage-guard R15, see run-agent.sh WORKER_ENV
+RUN_AGENT_FROM="$3" "${w[@]}" "$bin" "${@:8}"; echo $? > "$4"; exec "$2"' run-agent "$first" "$env_shell" "$agent" \
     "$state_dir/logs/$id.exit" "$claude_bin" "$env_path" "$env_home" "${cmd[@]:1}")
 
   # started <pane>: after tmux took the launch, wait up to 30 s for claude under that pane. Logs the outcome.

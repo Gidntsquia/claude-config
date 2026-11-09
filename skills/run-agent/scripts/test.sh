@@ -51,19 +51,20 @@ check() {
 # (a) existing dir, absolute and relative
 check "a: existing absolute dir" 1 \
   "cd '$T/sibling' && claude --agent planner \"x\" --name \"planner: sibling (fable)\"" planner x --cwd "$T/sibling"
+WE="CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1"   # usage-guard R15: the line to type for a worker carries the subagent caps
 check "a: existing relative dir with /, -C" 1 \
-  "cd '$T/sibling' && claude --agent worker \".\" --name \"worker: sibling (sonnet)\"" worker -C ../../sibling
+  "cd '$T/sibling' && $WE claude --agent worker \".\" --name \"worker: sibling (sonnet)\"" worker -C ../../sibling
 check "a: dir with a space, --cwd= form, model" 1 \
-  "cd '$T/my project' && claude --agent worker \"go\" --model opus --name \"worker: my project (opus)\"" \
+  "cd '$T/my project' && $WE claude --agent worker \"go\" --model opus --name \"worker: my project (opus)\"" \
   worker go "--cwd=$T/my project" -- --model opus
 check "a: ~ expands to \$HOME" 1 \
-  "cd '$HOME' && claude --agent worker \".\" --name \"worker: $(basename "$HOME") (sonnet)\"" worker --cwd '~'
+  "cd '$HOME' && $WE claude --agent worker \".\" --name \"worker: $(basename "$HOME") (sonnet)\"" worker --cwd '~'
 # (b) bare name: sibling of the git root, then a name under the cwd wins over the sibling
 check "b: bare name = sibling of the git root" 1 \
-  "cd '$T/sibling' && claude --agent worker \".\" --name \"worker: sibling (sonnet)\"" worker --cwd sibling
+  "cd '$T/sibling' && $WE claude --agent worker \".\" --name \"worker: sibling (sonnet)\"" worker --cwd sibling
 mkdir -p "$T/repo/sub/sibling"
 check "b: bare name under the cwd wins" 1 \
-  "cd '$T/repo/sub/sibling' && claude --agent worker \".\" --name \"worker: sibling (sonnet)\"" worker --cwd sibling
+  "cd '$T/repo/sub/sibling' && $WE claude --agent worker \".\" --name \"worker: sibling (sonnet)\"" worker --cwd sibling
 rmdir "$T/repo/sub/sibling"
 check "b: bare name found nowhere" 2 \
   "no such directory: nope-xyz (looked in $T/repo/sub, $T)" worker --cwd nope-xyz
@@ -74,7 +75,7 @@ touch "$T/afile"
 check "c: a file -> not a directory" 2 "not a directory: $T/afile" worker --cwd "$T/afile"
 [ ! -e "$T/missing" ] && [ ! -e "$HOME/no-such-run-agent-dir-$$" ] && ok "c: nothing created" || bad "c: nothing created"
 # (d) no dir: unchanged behaviour
-check "d: no dir, name from git root" 1 "claude --agent worker \".\" --name \"worker: repo (sonnet)\"" worker
+check "d: no dir, name from git root" 1 "$WE claude --agent worker \".\" --name \"worker: repo (sonnet)\"" worker
 check "d: no dir, model" 1 "claude --agent planner \"x\" --model opus --name \"planner: repo (opus)\"" planner x -- --model opus
 check "d: planner without a prompt -> no prompt argument" 1 "claude --agent planner --name \"planner: repo (fable)\"" planner
 check "d: planner without a prompt, with a dir" 1 \
@@ -83,7 +84,7 @@ LAST_USAGE="                         bare name found nowhere, or a path that is 
 check "d: extra word -> usage" 2 "$LAST_USAGE" worker . extra
 # (e) --name given
 check "e: --name wins over the dir name" 1 \
-  "cd '$T/sibling' && claude --agent worker \"x\" --name \"mine\"" worker x --cwd "$T/sibling" -- --name mine
+  "cd '$T/sibling' && $WE claude --agent worker \"x\" --name \"mine\"" worker x --cwd "$T/sibling" -- --name mine
 check "two dirs -> usage" 2 "$LAST_USAGE" worker --cwd a -C b
 # --resolve
 out=$("$S" --resolve "$T/repo/./sub/../sub/" 2>&1)
@@ -293,7 +294,8 @@ unset RUN_AGENT_NOW
 if command -v tmux >/dev/null; then
   cat > "$T/bin/claude" <<'EOF'
 #!/usr/bin/env bash
-{ echo "pwd=$PWD"; printf 'arg=%s\n' "$@"; } > "$RA_OUT"
+{ echo "pwd=$PWD"; printf 'arg=%s\n' "$@"
+  echo "subenv=${CLAUDE_CODE_SUBAGENT_MODEL:-}/${CLAUDE_CODE_SUBAGENT_MODEL_FORCE:-}/${CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS:-}/${CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH:-}"; } > "$RA_OUT"
 EOF
   chmod +x "$T/bin/claude"
   # The shell left in a respawned pane is $SHELL; a no-rc one keeps the fake claude first on PATH.
@@ -313,6 +315,17 @@ EOF
     || bad "tmux: --name argument" "$(cat "$RA_OUT" 2>/dev/null)"
   p=$(tmux -L "$SOCK" display -p -t t '#{pane_current_path}')
   [ "$p" = "$T/my project" ] && ok "tmux: pane_current_path is the dir" || bad "tmux: pane_current_path" "$p"
+  # usage-guard R15: a worker's claude gets the subagent caps in its environment; other agents and the shell left
+  # behind do not
+  grep -qx "subenv=///" "$RA_OUT" && ok "env caps: a planner launch carries no subagent caps" || bad "env caps: planner" "$(cat "$RA_OUT")"
+  : > "$RA_OUT"; tmux -L "$SOCK" send-keys -t t "'$S' worker '.' --cwd '$T/my project'" Enter
+  for _ in $(seq 1 40); do [ -s "$RA_OUT" ] && break; sleep 0.25; done; sleep 0.3
+  grep -qx "subenv=sonnet/1/3/1" "$RA_OUT" && ok "env caps: a worker launch forces sonnet subagents, 3 at a time, depth 1" || bad "env caps: worker" "$(cat "$RA_OUT")"
+  tmux -L "$SOCK" send-keys -t t "echo \"left=\${CLAUDE_CODE_SUBAGENT_MODEL:-none}\" > '$T/left.out'" Enter; sleep 0.5
+  grep -qx "left=none" "$T/left.out" && ok "env caps: the shell left in the pane does not keep them" || bad "env caps: shell after" "$(cat "$T/left.out" 2>/dev/null)"
+  out=$(env -u TMUX -u TMUX_PANE "$S" worker . 2>&1)
+  grep -q '^CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1 claude --agent worker' <<<"$out" \
+    && ok "env caps: the no-tmux line to type carries them" || bad "env caps: no-tmux line" "$out"
   dead=$(tmux -L "$SOCK" display -p -t t '#{pane_dead}')
   [ "$dead" = 0 ] && ok "tmux: shell left in the pane" || bad "tmux: shell left in the pane" "pane_dead=$dead"
 
@@ -589,6 +602,7 @@ EOF
   grep -q "^#$id  .*  (sonnet, default)  at " <<<"$(RUN_AGENT_HUMAN=1 "$S" --jobs)" && ok "env: --jobs shows (sonnet, default)" || bad "env: --jobs default" "$("$S" --jobs)"
   wait_for 25 grep -q "  #$id  fired  " "$LOG" && ok "env: job from a stripped env fired" || bad "env: fired" "$(tail -3 "$LOG"; cat "$RUN_AGENT_HOME/logs/$id.log" 2>/dev/null)"
   wait_for 5 grep -q "arg=worker: repo (sonnet)" "$RA_OUT" && ok "env: the recorded claude binary ran" || bad "env: claude ran" "$(cat "$RA_OUT")"
+  grep -qx "subenv=sonnet/1/3/1" "$RA_OUT" && ok "env caps: a scheduled worker gets them too" || bad "env caps: scheduled worker" "$(cat "$RA_OUT")"
   wait_for 3 TM display -p -t t:0 '#{pane_dead}' >/dev/null
   # (R13d) the recorded claude exits 127 (bad binary, missing model...): the runner sees it, logs the first error line,
   # leaves it on screen and marks the job failed; the failure is shown once to the next human --jobs
@@ -654,7 +668,7 @@ mapfile -t nl <<<"$out"
 out=$("$S" --next evaluator phone); grep -q '^Next, .*evaluator on your phone:$' <<<"$out" && ok "next: evaluator phone sentence" || bad "next: phone" "$out"
 out=$( (exec -a claude bash -c "'$S' --next worker .; true" _ --agent evaluator --model opus --effort high) )
 [ "$(wc -l <<<"$out")" = 3 ] && grep -q '^Next, after reading this eval, rerun the worker' <<<"$out" && grep -qx '/run-agent worker "."' <<<"$out" \
-  && grep -qx 'Without run-agent: claude --agent worker "."' <<<"$out" && ok "next worker: no model/effort even from an opus high session" || bad "next: worker flags" "$out"
+  && grep -qx 'Without run-agent: CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1 claude --agent worker "."' <<<"$out" && ok "next worker: no model/effort even from an opus high session" || bad "next: worker flags" "$out"
 out=$( (exec -a claude bash -c "'$S' --next evaluator .; true" _ --agent worker --model opus --effort high) )
 grep -qx '/run-agent evaluator "."' <<<"$out" && grep -qx 'Without run-agent: claude --agent evaluator "."' <<<"$out" \
   && ok "next evaluator: no model/effort even from an opus high session" || bad "next: evaluator flags" "$out"

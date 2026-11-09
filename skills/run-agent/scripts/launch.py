@@ -61,6 +61,10 @@ S_HOME = os.path.expanduser("~/.claude/skills/run-agent/scripts/run-agent.sh")
 NEXT_PROMPT = {"worker": ".", "evaluator": ".", "helper": "."}
 
 
+WORKER_ENV = ("CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 "
+              "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1")
+
+
 def s_path():
     try:
         if os.path.exists(S_HOME) and os.path.samefile(S_HOME, S_REAL):
@@ -785,6 +789,8 @@ def next_line(args):
             words.append(v); plain += [flag, v]
     print(next_sentence(agent, prompt, caller))
     print(" ".join(words))
+    if agent == "worker":  # usage-guard R15: the caps run-agent.sh forces (WORKER_ENV there), kept when it is bypassed
+        plain = WORKER_ENV.split() + plain
     print("Without run-agent: " + " ".join(plain))
     return 0
 
