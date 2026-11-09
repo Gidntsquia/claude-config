@@ -15,7 +15,8 @@ One markdown file per agent (`claude --agent <name>`); `USAGE.txt` has the hand-
   the ask with the `{key}` that settles it and a word budget, and a `## Left out` list (one sentence each at most).
 - `report-checker.md`: the writer's second set of eyes, a cold verdict then a read of every figure (Opus medium), plus
   a `focus` finding per middle section (advances, restates, tours, mechanism, data-shape) the writer must act on.
-- `report-writer/`: `build.py` (Markdown + `numbers.json` → page and phone cards; blocks `::bars`, `::table`, `::split`,
+- `report-writer/`: `preflight.py` (the writer's first command: silent when `build.py`, `check.py`, node and a playwright
+  with its browser are there, else one line `blocked: <what to run>`), `build.py` (Markdown + `numbers.json` → page and phone cards; blocks `::bars`, `::table`, `::split`,
   `::pair`; per-section prose `words` in `cards/measure.json`; appends each built report's opening form and title shape to the ledger), `cards.mjs`, `checker_usage.py`, `cases/focus` (golden r5/B plus one tour section with no outline row; `outline_match` must FAIL), `cases/slips` (the 2026-11-06 19:53 ET base-context report; the four slip checks must FAIL).
 - `evals/report-writer/`: `check.py` (the mechanical gate, `--prose` for the essay form, `style` for the golden's shape
   and voice, `visuals` for blocks in middle sections, `opening_ledger` against repeated openings, the `focus` group against `outline.md`: `outline_present`, `outline_match`,

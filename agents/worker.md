@@ -37,12 +37,11 @@ evaluator: where the plan is silent, looks wrong or cannot be checked here, pick
 closest to its Ask, build it, and record doubt and choice in `plans/WORKER_NOTES.md` under `For the
 evaluator`.
 
-## Data requests from the report-writer
+## Reports
 
-If `plans/DATA_REQUEST.md` exists, the report-writer could not reach a verdict. Collect each measurement
-it lists (run the command it names, or the study's standard one), put the results in the data directory
-it names, delete `plans/DATA_REQUEST.md`, and rerun the report-writer with the same prompt. It gives up
-after three loops and writes a "could not decide" report, so collect what it asks for, not a stand-in.
+A report (compare, measure, findings) is written by the report-writer, not by you. Load the `write-report` skill
+(`skills/write-report/SKILL.md`) and follow its loop: a reply that ends `send-back: needs data`, `blocked:` or
+`check.py: FAIL`, or has no check.py line, is not a written report, and the skill says what to run before the rerun.
 
 ## Do the thing that was asked
 

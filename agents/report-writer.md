@@ -35,10 +35,11 @@ clause in that section, next to that figure, and nowhere else.
 Paths you use (`CFG=${CLAUDE_CONFIG_DIR:-$HOME/.claude}`):
 
 - `$CFG/agents/report-writer/build.py` turns `report.md` + `numbers.json` into `report.html` and `cards/`.
-- `build.py` renders the cards with `cards.mjs`, which finds playwright itself (`$PLAYWRIGHT_DIR`, then
-  `node_modules/playwright` in the current folder, in each project under the projects folder, and the global npm
-  root). When it prints `playwright not found`, tell the user to run `npm i -g playwright && npx playwright install
-  chromium` and stop, since the cards cannot be drawn without it. Do not hunt for playwright yourself.
+- `$CFG/agents/report-writer/preflight.py` is your first command, before you read any data file: `python3 -I
+  $CFG/agents/report-writer/preflight.py`. Silent means `build.py`, `check.py`, node and a playwright with its browser
+  (found by `cards.mjs`'s own lookup: `$PLAYWRIGHT_DIR`, `./node_modules`, each project, the global npm root) are there.
+  When it prints `blocked: <what to run>`, or python3 itself is refused (`blocked: allow python3 in the session's
+  permissions`), reply with that one line and nothing else, and stop. Do not hunt for playwright yourself.
 - `$REPO` is the clone of claude-config: `repo` in `$CFG/claude-config.json`.
 - `$CFG/agents/evals/report-writer/check.py` is the mechanical gate. You run it and read its PASS/FAIL lines; you
   never open its source, and you open `build.py` only for its docstring (`python3 -I -c "import ast;print(ast.get_docstring(ast.parse(open('$CFG/agents/report-writer/build.py').read())))"`).
@@ -75,8 +76,8 @@ In the output directory:
   outlined, `| heading | clause | focus (checker) | action taken |`, a cut section included with "cut" or "folded into
   <heading>" as its action, "checker: off" in the focus column when the checker was skipped; then the outline's
   `## Recap` repeated verbatim as the last lines of NOTES.md, so a reader can judge whether it came true), `## Self-review` (a table of before, after, tell for every sentence you changed), and
-  `## Checker` (one row per finding: loop, key or claim, severity, right or wrong, what changed in the report or
-  why it was rejected; then the checker's tokens, seconds and loops, and "checker: off" when it was skipped).
+  `## Checker` (one row per finding: loop, key or claim, severity, right or wrong, what changed in the report, and a last
+  `status` cell that is `fixed` or `rejected: <reason>`; `checker_rows` fails on a `high` finding without one; then the checker's tokens, seconds and loops, and "checker: off" when it was skipped).
 
 ## How to read the data
 
@@ -424,6 +425,8 @@ path, no more.
    step 4 (cycle 3), and a look at `cards/01-*.png`. `focus_findings` passes once no section the checker did not mark
    `advances` is left in `report.md` or `outline.md` and each cut one has its `## Focus` row. With three cycles spent
    and a focus finding still open, the report ships with check.py's FAIL and the last line of your reply is
-   `open: focus_findings`. Then the first card: the title, the quote, the who line, the label, the opening and
+   that `check.py: FAIL (…)` line. Then the first card: the title, the quote, the who line, the label, the opening and
    the "But" paragraph must all sit on that first card, and the answer must open the second. Reply with the output directory, the length choice, the opening you picked, the sections the focus findings
-   cut, the check.py line and the checker line.
+   cut, the check.py line and the checker line. A run that ends in neither a written report nor a send-back (a tool error, a
+   missing data file, a build that will not run) ends with one last line and nothing after it: `blocked: <what to run or
+   fix>`, or the `check.py: FAIL (…)` line when the gate is what failed.
