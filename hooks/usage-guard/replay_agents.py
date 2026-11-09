@@ -23,7 +23,7 @@ from zoneinfo import ZoneInfo
 HERE = os.path.dirname(os.path.realpath(__file__))
 ET = ZoneInfo("America/New_York")
 FORCED = "sonnet"   # CLAUDE_CODE_SUBAGENT_MODEL, set with ..._FORCE=1 by run-agent for a worker
-DEFAULT = os.path.expanduser("~/.claude/projects/-home-jaxon-files-slay-the-spire-advisor")
+DEFAULT = (sorted(__import__("glob").glob(os.path.expanduser("~/.claude/projects/*-slay-the-spire-advisor"))) or [""])[0]
 
 
 def ts(s):

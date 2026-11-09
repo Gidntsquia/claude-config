@@ -533,6 +533,8 @@ class Scan:
     def code(self, text, path, depth):
         """Python / JS text: argv lists and command strings that start a headless claude"""
         out, body = [], "\n".join(l for l in text.split("\n") if not l.lstrip().startswith(("#", "//")))
+        # text held in triple-quoted strings is data (a patch being applied to another file), not code that runs
+        body = re.sub(r"""(\'\'\'|\"\"\").*?\1""", '""', body, flags=re.S)
         flags_here = [f for f in NEED if f not in body]
         guardflags = "CLAUDE_GUARD_FLAGS" in body
         hit = False
@@ -549,8 +551,8 @@ class Scan:
         if hit:
             out.append(Launch(flags_here, "script", script=path, guardflags=guardflags))
         # one more level: scripts this file starts
-        elif depth < MAX_DEPTH and re.search(r"subprocess|os\.system|Popen|spawn|exec", body):
-            for m in re.finditer(r"""["']([\w./-]+\.(?:sh|py))["']""", body):
+        elif depth < MAX_DEPTH:
+            for m in re.finditer(r"""(?:system|[pP]open|run|call|check_output|check_call|spawn\w*|exec\w*)\s*\([^)\n]{0,160}?["']([\w./-]+\.(?:sh|py))["']""", body):
                 p = self._resolve(m.group(1), os.path.dirname(path), {})
                 if p and p != path and all(p != q for q, _ in self.script_texts):
                     out += self.script(p, [], depth + 1, {})

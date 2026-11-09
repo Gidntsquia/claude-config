@@ -214,6 +214,10 @@ if [ -n "$CHECK" ]; then
   if [ "$OS" != windows ]; then
     if in_clone "$HOME/.local/bin/run-agent"; then pass "run-agent shell command (~/.local/bin/run-agent)"
     else fail "run-agent shell command missing (rerun install.sh)"; fi
+    if in_clone "$HOME/.local/bin/guard" && [ -f "$C/hooks/usage-guard/usage_guard.py" ]; then pass "usage-guard (~/.claude/hooks/usage-guard, ~/.local/bin/guard)"
+    else fail "usage-guard links missing (rerun install.sh)"; fi
+    if grep -qs 'usage-guard/usage_guard.py' "$C/settings.json"; then pass "usage-guard hooks in settings.json"
+    else fail "usage-guard hooks missing from ~/.claude/settings.json (rerun install.sh)"; fi
     # a typed /run-agent runs through this hook with no model turn (zero tokens); the skill is the fallback
     if "$PY" -c 'import json,sys; s=json.load(open(sys.argv[1])); hs=s.get("hooks",{}).get("UserPromptExpansion",[]); sys.exit(0 if any(h.get("matcher")=="run-agent" and any("run-agent.sh" in x.get("command","") and "--hook" in x.get("command","") and int(x.get("timeout",0))>=60 for x in h.get("hooks",[])) for h in hs) else 1)' "$C/settings.json" 2>/dev/null; then
       pass "/run-agent hook (UserPromptExpansion, matcher run-agent, timeout >= 60 s) in settings.json"
@@ -426,6 +430,10 @@ fi
 if [ "$OS" != windows ]; then
   mkdir -p "$HOME/.local/bin"
   link "$R/bin/run-agent" "$HOME/.local/bin/run-agent"
+  # usage-guard: the worker's launch limits (hooks in settings.json) and the user's `guard` command
+  mkdir -p "$C/hooks"
+  link "$R/hooks/usage-guard" "$C/hooks/usage-guard"
+  link "$R/hooks/usage-guard/guard" "$HOME/.local/bin/guard"
   # the PermissionDenied hook (settings.json) logs run-agent denials for one week; schedule its review once
   if grep -qs -- '--denied' "$C/settings.json"; then
     out=$(bash "$R/skills/run-agent/scripts/run-agent.sh" --install-denied 2>&1) && echo "  denied.log review: ${out##*$'\n'}" || echo "  denied.log review not scheduled: $out"

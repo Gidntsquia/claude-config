@@ -243,8 +243,9 @@ echo "hook time: ${ms} ms per call on the run.sh chain (test harness included)"
 
 echo "$pass passed, $fail failed"
 # ---- replay of the real commands ------------------------------------------------------------------------------------
-if [ -d "$REAL_HOME/.claude/projects/-home-jaxon-files-assistant-agent" ]; then
-  [ -f "$HERE/replay_bash.py" ] && python3 "$HERE/replay_bash.py" "$REAL_HOME/.claude/projects/-home-jaxon-files-assistant-agent" || fail=$((fail + 1))
+AA=$(ls -d "$REAL_HOME"/.claude/projects/*-files-assistant-agent 2>/dev/null | head -1)
+if [ -n "$AA" ] && [ -d "$AA" ]; then
+  [ -f "$HERE/replay_bash.py" ] && python3 "$HERE/replay_bash.py" "$AA" || fail=$((fail + 1))
 else
   echo "skip  replay of the Nov 5-7 commands (no logs on this machine)"
 fi
