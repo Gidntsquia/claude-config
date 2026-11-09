@@ -500,4 +500,26 @@ fi
 
 out+="$(esc "${prev_fg}")${SEP}$(rst)"
 
+# usage-guard (hooks/usage-guard): "guard 7/30 12.4M FE", plus "unlocked→21:00" while `guard allow` is in force.
+# Shown only once the project has a counted launch today; silent otherwise.
+guard_root=$(git -C "${project_dir:-$cwd}" rev-parse --show-toplevel 2>/dev/null) || guard_root="${project_dir:-$cwd}"
+guard_dir="$HOME/.cache/claude-guard/$(basename "$guard_root")"
+guard_day=$(TZ=America/New_York date +%F)
+guard_count=$(cat "$guard_dir/$guard_day.count" 2>/dev/null)
+if [ "${guard_count:-0}" -gt 0 ] 2>/dev/null; then
+  guard_seg="guard $guard_count/30"
+  guard_fe=$(cat "$guard_dir/$guard_day.fe" 2>/dev/null)
+  case "$guard_fe" in ''|0.0) ;; *) guard_seg+=" ${guard_fe}M FE" ;; esac
+  # the FE figure comes from a log scan too slow for a status line: refresh it in the background every 2 minutes
+  if [ -z "$(find "$guard_dir/$guard_day.fe" -newermt '-120 seconds' 2>/dev/null)" ] && [ -x "$HOME/.claude/hooks/usage-guard/guard" ]; then
+    touch "$guard_dir/$guard_day.fe" 2>/dev/null
+    ("$HOME/.claude/hooks/usage-guard/guard" fe-refresh "$guard_root" >/dev/null 2>&1 &)
+  fi
+  guard_exp=$(head -1 "$guard_dir/allow" 2>/dev/null)
+  if [ "${guard_exp:-0}" -gt "$(date +%s)" ] 2>/dev/null; then
+    guard_seg+=" unlocked→$(TZ=America/New_York date -d "@$guard_exp" +%H:%M)"
+  fi
+  out+=" $(esc '38;2;168;153;132')$guard_seg$(rst)"
+fi
+
 printf '%s\n' "$out"

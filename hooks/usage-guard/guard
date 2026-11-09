@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# guard: the user's command for usage-guard (allow / revoke / status / log / usage). See README.md next to it.
+here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+exec python3 "$here/usage_guard.py" cli "$@"
