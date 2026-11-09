@@ -2064,75 +2064,90 @@
  },
  {
   "weekStart": "2026-11-01",
-  "label": "Nov 1–6, 2026",
+  "label": "Nov 1–8, 2026",
   "url": "https://claude.ai/artifact/LwbBb75VHqEFBgWtu4ydzq",
-  "projectCount": 14,
-  "totalCost": 529.57,
+  "projectCount": 17,
+  "totalCost": 855.59,
   "slices": [
    {
-    "name": "Assistant Agent",
-    "pct": 25.52,
-    "color": "#2e9e6b"
+    "name": "Assistant Agent · Jaxon",
+    "pct": 54.59,
+    "color": "#dd2c85"
    },
    {
-    "name": "Worker Building",
-    "pct": 14.15,
-    "color": "#43a047"
+    "name": "Worker Building · Jaxon",
+    "pct": 12.0,
+    "color": "#f0690f"
    },
    {
-    "name": "Run-Agent Improver",
-    "pct": 10.29,
-    "color": "#a13e85"
+    "name": "Run-Agent Improver · Jaxon",
+    "pct": 8.73,
+    "color": "#e59a06"
    },
    {
-    "name": "Base Context Cleanup",
-    "pct": 5.45,
-    "color": "#b8860b"
+    "name": "Base Context Cleanup · Jaxon",
+    "pct": 5.25,
+    "color": "#b931ae"
    },
    {
-    "name": "Spire Advisor",
-    "pct": 3.25,
-    "color": "#e8710a"
+    "name": "Spire Advisor · Jaxon",
+    "pct": 2.75,
+    "color": "#a33114"
    },
    {
-    "name": "Pokémon Go GBL Team Generator",
-    "pct": 2.57,
+    "name": "Planner Building · Jaxon",
+    "pct": 2.52,
+    "color": "#76651e"
+   },
+   {
+    "name": "Pokémon Go GBL Team Generator · Jaxon",
+    "pct": 2.2,
+    "color": "#d7cd09"
+   },
+   {
+    "name": "Deadlock Street Brawl Helper · Jaxon",
+    "pct": 1.21,
     "color": "#e5484d"
    },
    {
-    "name": "Deadlock Street Brawl Helper",
-    "pct": 1.42,
-    "color": "#e8710a"
+    "name": "Badminton Simulator · Jaxon",
+    "pct": 0.55,
+    "color": "#f7806e"
    },
    {
-    "name": "Badminton Simulator",
-    "pct": 0.65,
-    "color": "#ff8a65"
+    "name": "claude-config · Jaxon",
+    "pct": 0.46,
+    "color": "#a71b3e"
    },
    {
-    "name": "claude-config",
-    "pct": 0.54,
-    "color": "#2f80ed"
+    "name": "terminal-pet · Jaxon",
+    "pct": 0.21,
+    "color": "#f8b859"
    },
    {
-    "name": "terminal-pet",
-    "pct": 0.25,
-    "color": "#7c5cff"
+    "name": "Curling Simulator · Jaxon",
+    "pct": 0.09,
+    "color": "#ea86cc"
    },
    {
-    "name": "Curling Simulator",
-    "pct": 0.11,
-    "color": "#2bb4c9"
+    "name": "Agent Eval Experiment · Jaxon",
+    "pct": 0.01,
+    "color": "#844e1f"
    },
    {
-    "name": "Misc",
-    "pct": 8.8,
-    "color": "#9aa3ad"
+    "name": "Misc · Jaxon",
+    "pct": 7.78,
+    "color": "#b9a295"
    },
    {
-    "name": "Unused",
-    "pct": 27.0,
-    "color": "#666f7d"
+    "name": "GCC-Wireless · Jet",
+    "pct": 1.55,
+    "color": "#27a566"
+   },
+   {
+    "name": "Misc · Jet",
+    "pct": 0.12,
+    "color": "#94a3b8"
    }
   ],
   "days": [
@@ -2143,41 +2158,47 @@
      {
       "project": "Run-Agent Improver",
       "person": "Jaxon",
-      "color": "#a13e85",
-      "pct": 2.19
+      "color": "#e59a06",
+      "pct": 1.86
      },
      {
       "project": "Misc",
       "person": "Jaxon",
-      "color": "#9aa3ad",
-      "pct": 1.93
+      "color": "#b9a295",
+      "pct": 1.6
      },
      {
       "project": "Pokémon Go GBL Team Generator",
       "person": "Jaxon",
-      "color": "#e5484d",
-      "pct": 0.52
+      "color": "#d7cd09",
+      "pct": 0.44
      },
      {
       "project": "Worker Building",
       "person": "Jaxon",
-      "color": "#43a047",
-      "pct": 0.31
+      "color": "#f0690f",
+      "pct": 0.27
      },
      {
       "project": "terminal-pet",
       "person": "Jaxon",
-      "color": "#7c5cff",
-      "pct": 0.1
+      "color": "#f8b859",
+      "pct": 0.09
      },
      {
       "project": "Spire Advisor",
       "person": "Jaxon",
-      "color": "#e8710a",
-      "pct": 0.07
+      "color": "#a33114",
+      "pct": 0.06
+     },
+     {
+      "project": "Planner Building",
+      "person": "Jaxon",
+      "color": "#76651e",
+      "pct": 0.04
      }
     ],
-    "total_pct": 5.12
+    "total_pct": 4.34
    },
    {
     "date": "2026-11-02",
@@ -2186,47 +2207,47 @@
      {
       "project": "Worker Building",
       "person": "Jaxon",
-      "color": "#43a047",
-      "pct": 2.93
+      "color": "#f0690f",
+      "pct": 2.49
      },
      {
       "project": "Run-Agent Improver",
       "person": "Jaxon",
-      "color": "#a13e85",
-      "pct": 2.51
+      "color": "#e59a06",
+      "pct": 2.13
      },
      {
       "project": "Pokémon Go GBL Team Generator",
       "person": "Jaxon",
-      "color": "#e5484d",
-      "pct": 1.96
+      "color": "#d7cd09",
+      "pct": 1.66
      },
      {
       "project": "Spire Advisor",
       "person": "Jaxon",
-      "color": "#e8710a",
-      "pct": 1.49
+      "color": "#a33114",
+      "pct": 1.26
      },
      {
       "project": "terminal-pet",
       "person": "Jaxon",
-      "color": "#7c5cff",
-      "pct": 0.15
+      "color": "#f8b859",
+      "pct": 0.13
      },
      {
       "project": "Misc",
       "person": "Jaxon",
-      "color": "#9aa3ad",
-      "pct": 0.13
+      "color": "#b9a295",
+      "pct": 0.11
      },
      {
       "project": "Curling Simulator",
       "person": "Jaxon",
-      "color": "#2bb4c9",
-      "pct": 0.11
+      "color": "#ea86cc",
+      "pct": 0.09
      }
     ],
-    "total_pct": 9.27
+    "total_pct": 7.86
    },
    {
     "date": "2026-11-03",
@@ -2235,47 +2256,47 @@
      {
       "project": "Run-Agent Improver",
       "person": "Jaxon",
-      "color": "#a13e85",
-      "pct": 5.59
+      "color": "#e59a06",
+      "pct": 4.74
      },
      {
       "project": "Worker Building",
       "person": "Jaxon",
-      "color": "#43a047",
-      "pct": 5.21
+      "color": "#f0690f",
+      "pct": 4.42
      },
      {
       "project": "Spire Advisor",
       "person": "Jaxon",
-      "color": "#e8710a",
-      "pct": 1.7
+      "color": "#a33114",
+      "pct": 1.44
      },
      {
       "project": "Deadlock Street Brawl Helper",
       "person": "Jaxon",
-      "color": "#e8710a",
-      "pct": 1.15
+      "color": "#e5484d",
+      "pct": 0.97
      },
      {
       "project": "Misc",
       "person": "Jaxon",
-      "color": "#9aa3ad",
-      "pct": 0.25
+      "color": "#b9a295",
+      "pct": 0.21
      },
      {
       "project": "Pokémon Go GBL Team Generator",
       "person": "Jaxon",
-      "color": "#e5484d",
-      "pct": 0.08
+      "color": "#d7cd09",
+      "pct": 0.07
      },
      {
       "project": "claude-config",
       "person": "Jaxon",
-      "color": "#2f80ed",
+      "color": "#a71b3e",
       "pct": 0.04
      }
     ],
-    "total_pct": 14.01
+    "total_pct": 11.88
    },
    {
     "date": "2026-11-04",
@@ -2284,41 +2305,59 @@
      {
       "project": "Assistant Agent",
       "person": "Jaxon",
-      "color": "#2e9e6b",
-      "pct": 7.67
+      "color": "#dd2c85",
+      "pct": 6.51
      },
      {
       "project": "Worker Building",
       "person": "Jaxon",
-      "color": "#43a047",
-      "pct": 5.69
+      "color": "#f0690f",
+      "pct": 4.82
      },
      {
       "project": "Base Context Cleanup",
       "person": "Jaxon",
-      "color": "#b8860b",
-      "pct": 0.88
+      "color": "#b931ae",
+      "pct": 0.75
      },
      {
-      "project": "Misc",
+      "project": "Planner Building",
       "person": "Jaxon",
-      "color": "#9aa3ad",
-      "pct": 0.88
+      "color": "#76651e",
+      "pct": 0.7
      },
      {
       "project": "Badminton Simulator",
       "person": "Jaxon",
-      "color": "#ff8a65",
-      "pct": 0.49
+      "color": "#f7806e",
+      "pct": 0.41
      },
      {
       "project": "Deadlock Street Brawl Helper",
       "person": "Jaxon",
-      "color": "#e8710a",
-      "pct": 0.28
+      "color": "#e5484d",
+      "pct": 0.23
+     },
+     {
+      "project": "GCC-Wireless",
+      "person": "Jet",
+      "color": "#27a566",
+      "pct": 0.2
+     },
+     {
+      "project": "Misc",
+      "person": "Jet",
+      "color": "#94a3b8",
+      "pct": 0.12
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#b9a295",
+      "pct": 0.05
      }
     ],
-    "total_pct": 15.89
+    "total_pct": 13.79
    },
    {
     "date": "2026-11-05",
@@ -2327,35 +2366,47 @@
      {
       "project": "Assistant Agent",
       "person": "Jaxon",
-      "color": "#2e9e6b",
-      "pct": 13.19
-     },
-     {
-      "project": "Misc",
-      "person": "Jaxon",
-      "color": "#9aa3ad",
-      "pct": 1.7
+      "color": "#dd2c85",
+      "pct": 11.19
      },
      {
       "project": "Base Context Cleanup",
       "person": "Jaxon",
-      "color": "#b8860b",
-      "pct": 1.58
+      "color": "#b931ae",
+      "pct": 1.34
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#b9a295",
+      "pct": 1.18
+     },
+     {
+      "project": "GCC-Wireless",
+      "person": "Jet",
+      "color": "#27a566",
+      "pct": 0.96
      },
      {
       "project": "claude-config",
       "person": "Jaxon",
-      "color": "#2f80ed",
-      "pct": 0.5
+      "color": "#a71b3e",
+      "pct": 0.42
+     },
+     {
+      "project": "Planner Building",
+      "person": "Jaxon",
+      "color": "#76651e",
+      "pct": 0.26
      },
      {
       "project": "Badminton Simulator",
       "person": "Jaxon",
-      "color": "#ff8a65",
-      "pct": 0.16
+      "color": "#f7806e",
+      "pct": 0.14
      }
     ],
-    "total_pct": 17.14
+    "total_pct": 15.49
    },
    {
     "date": "2026-11-06",
@@ -2364,41 +2415,85 @@
      {
       "project": "Assistant Agent",
       "person": "Jaxon",
-      "color": "#2e9e6b",
-      "pct": 4.65
+      "color": "#dd2c85",
+      "pct": 7.7
      },
      {
       "project": "Misc",
       "person": "Jaxon",
-      "color": "#9aa3ad",
-      "pct": 3.91
+      "color": "#b9a295",
+      "pct": 3.58
      },
      {
       "project": "Base Context Cleanup",
       "person": "Jaxon",
-      "color": "#b8860b",
-      "pct": 2.99
+      "color": "#b931ae",
+      "pct": 3.16
+     },
+     {
+      "project": "GCC-Wireless",
+      "person": "Jet",
+      "color": "#27a566",
+      "pct": 0.23
      },
      {
       "project": "Pokémon Go GBL Team Generator",
       "person": "Jaxon",
-      "color": "#e5484d",
-      "pct": 0.02
+      "color": "#d7cd09",
+      "pct": 0.03
      }
     ],
-    "total_pct": 11.57
+    "total_pct": 14.7
    },
    {
     "date": "2026-11-07",
     "label": "Sat",
-    "segments": [],
-    "total_pct": 0.0
+    "segments": [
+     {
+      "project": "Assistant Agent",
+      "person": "Jaxon",
+      "color": "#dd2c85",
+      "pct": 29.05
+     }
+    ],
+    "total_pct": 29.05
    },
    {
     "date": "2026-11-08",
     "label": "Sun",
-    "segments": [],
-    "total_pct": 0.0
+    "segments": [
+     {
+      "project": "Planner Building",
+      "person": "Jaxon",
+      "color": "#76651e",
+      "pct": 1.52
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#b9a295",
+      "pct": 1.05
+     },
+     {
+      "project": "GCC-Wireless",
+      "person": "Jet",
+      "color": "#27a566",
+      "pct": 0.17
+     },
+     {
+      "project": "Assistant Agent",
+      "person": "Jaxon",
+      "color": "#dd2c85",
+      "pct": 0.14
+     },
+     {
+      "project": "Agent Eval Experiment",
+      "person": "Jaxon",
+      "color": "#844e1f",
+      "pct": 0.01
+     }
+    ],
+    "total_pct": 2.89
    }
   ]
  }
