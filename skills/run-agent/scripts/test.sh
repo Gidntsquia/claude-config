@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Rule 1: this script exports RUN_AGENT_TEST=1, which blinds the scripts' parent-claude lookup and makes them refuse any tmux server or job store outside this test's own.
+# Rule 2: no case may inherit the caller's TMUX; TMUX and TMUX_PANE are unset once below, and a case that needs tmux sets them to a pane on its own private server.
 # test.sh: self-test for run-agent.sh. Runs the script with TMUX unset from a temp git repo (printed command +
 # exit codes), the --parse suite (every argument string from the 2026-10-22 log review, time strings, typos;
 # exact JSON output with a frozen clock and a fake usage API), then inside a private tmux server
@@ -19,8 +21,10 @@ bad() { fail=$((fail+1)); stamp; echo "FAIL $1"; [ -n "${2:-}" ] && printf '    
 
 T=$(mktemp -d); T=$(cd "$T" && pwd -P)
 SOCK="run-agent-test-$$"
-cleanup() { tmux -L "$SOCK" kill-server 2>/dev/null; for s in "$T/split.sock" "$T/group.sock"; do [ -S "$s" ] && tmux -S "$s" kill-server 2>/dev/null; done; rm -rf "$T"; }
+cleanup() { tmux -L "$SOCK" kill-server 2>/dev/null; tmux -L "ra-other-$$" kill-server 2>/dev/null; for s in "$T/split.sock" "$T/group.sock"; do [ -S "$s" ] && tmux -S "$s" kill-server 2>/dev/null; done; rm -rf "$T"; }
 trap cleanup EXIT
+unset TMUX TMUX_PANE
+export RUN_AGENT_TEST=1 RUN_AGENT_TEST_DIR="$T" RUN_AGENT_HOME="$T/home"
 
 # Layout: $T/repo (git repo, cwd for the tests) with repo/sub; siblings $T/sibling and "$T/my project".
 mkdir -p "$T/repo/sub" "$T/sibling" "$T/my project" "$T/bin" "$T/agents"
@@ -380,6 +384,8 @@ EOF
   out=$(TMUX= "$S" worker '.' --at 0 --at-text 'after window' --window --need-tmux 2>&1); rc=$?
   [ "$rc" = 1 ] && [ "$(head -1 <<<"$out")" = "not scheduled — not in tmux" ] && ok "sched: --need-tmux outside tmux -> exit 1" || bad "sched: --need-tmux" "rc=$rc $out"
   [ "$(tail -1 <<<"$out")" = "Relaunch: not scheduled — not in tmux; run /run-agent worker after window to schedule it by hand" ] && ok "sched: --need-tmux Relaunch line (no tmux)" || bad "sched: --need-tmux Relaunch line (no tmux)" "$out"
+  # the cases from here to the non-git handoff schedule "in tmux": that is this test's own pane, never the caller's
+  export TMUX="$(TM display -p '#{socket_path}'),0,0" TMUX_PANE="$(TM display -p -t t '#{pane_id}')"
   # (4c) --need-tmux with the API down: the cached reset stands in, scheduled, Relaunch line present
   out=$(RUN_AGENT_USAGE_FILE="$T/none.json" "$S" worker '.' --at 0 --at-text 'after window' --window --need-tmux 2>&1); rc=$?
   [ "$rc" = 0 ] && grep -q "^Relaunch: .* ET (job #[0-9]*)$" <<<"$out" && ok "sched: --need-tmux with the API down -> scheduled from the cached reset" || bad "sched: --need-tmux (API down)" "rc=$rc $out"
@@ -433,6 +439,7 @@ EOF
   [ "$rc" = 0 ] && [ "$(sed -n 2p <<<"$out")" = "Commit: no git" ] && grep -q "^Next: z$" "$T/nogit/plans/WORKER_NOTES.md" \
     && ok "handoff: non-git dir -> Commit: no git" || bad "handoff: non-git dir" "rc=$rc $out"
   "$S" --cancel >/dev/null 2>&1
+  unset TMUX TMUX_PANE
 
   # (5) dry run: prints, schedules nothing
   R=$(( $(date +%s) + 3600 )); usage_at "$R"
@@ -847,7 +854,75 @@ EOF
   [ "$(tmux -S "$TG" list-panes -t "$w" | wc -l)" = 4 ] && [ "$(tmux -S "$TG" list-panes -t gp:0 -F '#{pane_id}')" = "$caller" ] \
     && ok "group: Yes fills the confirm's own window with four panes" || bad "group: --here" "$(tmux -S "$TG" list-panes -t "$w")"
   tmux -S "$TG" kill-server 2>/dev/null
+
+  # ---------------------------------------------------------------- test-mode guard (9 Nov 2026: test.sh, run from a
+  # worker's pane, respawned that pane: the hook took TMUX/TMUX_PANE back from the parent claude process)
+  # The canary: a pane on the private server whose foreground process has argv[0] `claude` (so /proc shows a claude
+  # parent holding that pane's real TMUX/TMUX_PANE and no RUN_AGENT_TEST, like a live session). As its children it
+  # runs the four hook inputs with env -u TMUX -u TMUX_PANE, the bare `worker` one last. $2 = 1: with the flag, as
+  # this script runs them. $2 = 0: without it, which is how the pane was lost.
+  cat > "$T/canary.sh" <<EOF
+#!/usr/bin/env bash
+out="\$1"; flag="\$2"; cd '$T/repo/sub'
+if [ "\$flag" = 1 ]; then export RUN_AGENT_TEST=1 RUN_AGENT_TEST_DIR='$T'; fi
+printf '{"command_name":"run-agent","command_args":"worker \\\\"x\\\\" in $T/sibling dry","prompt":"/run-agent worker"}' | env -u TMUX -u TMUX_PANE '$S' --hook > "\$out.1" 2>&1
+printf '{"command_args":"jobs"}' | env -u TMUX -u TMUX_PANE '$S' --hook > "\$out.2" 2>&1
+printf '{"command_args":"planner \\\\"x\\\\" in $T/sibling split dry"}' | env -u TMUX -u TMUX_PANE -u RUN_AGENT_HUMAN -u RUN_AGENT_FROM '$S' --hook > "\$out.3" 2>&1
+printf '{"command_args":"worker"}' | env -u TMUX -u TMUX_PANE '$S' --hook > "\$out.4" 2>&1
+touch "\$out.done"; sleep 300
+EOF
+  canary() {  # canary <name> <flag>: sets C_BEFORE, C_AFTER (pane pid, empty = pane gone), C_DEAD; outputs in $T/<name>.N
+    local name="$1" flag="$2" i
+    env TMUX= tmux -L "$SOCK" -f /dev/null new-session -d -x 200 -y 60 -s "$name" -c "$T/repo/sub" \
+      "env -u RUN_AGENT_TEST -u RUN_AGENT_TEST_DIR -u RUN_AGENT_FROM -u RUN_AGENT_HUMAN PATH='$T/bin:$PATH' RA_OUT='$T/$name.claude' RUN_AGENT_HOME='$RUN_AGENT_HOME' RUN_AGENT_AGENTS_DIR='$T/agents' RUN_AGENT_USAGE_FILE='${RUN_AGENT_USAGE_FILE:-}' SHELL='$T/bin/sh-norc' bash -c 'exec -a claude bash \"\$@\"' _ '$T/canary.sh' '$T/$name' $flag"
+    sleep 0.5
+    C_BEFORE=$(tmux -L "$SOCK" display -p -t "$name" '#{pane_pid}' 2>/dev/null)
+    for i in $(seq 1 80); do
+      [ -e "$T/$name.done" ] && break
+      [ "$(tmux -L "$SOCK" display -p -t "$name" '#{pane_pid}' 2>/dev/null)" != "$C_BEFORE" ] && break
+      sleep 0.25
+    done
+    sleep 0.5
+    C_AFTER=$(tmux -L "$SOCK" display -p -t "$name" '#{pane_pid}' 2>/dev/null)
+    C_DEAD=$(tmux -L "$SOCK" display -p -t "$name" '#{pane_dead}' 2>/dev/null)
+  }
+  hook_reason() { python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['reason'])" "$1" 2>/dev/null; }
+  canary canary1 1
+  [ -n "$C_BEFORE" ] && [ "$(basename "$(tr '\0' '\n' < "/proc/$C_BEFORE/cmdline" | head -1)")" = claude ] && [ "$C_AFTER" = "$C_BEFORE" ] && [ "$C_DEAD" = 0 ] \
+    && [ -e "$T/canary1.done" ] && [[ "$(hook_reason "$T/canary1.4")" == "not inside tmux"* ]] && [[ "$(hook_reason "$T/canary1.1")" == "command: claude --agent worker"* ]] \
+    && [ "$(hook_reason "$T/canary1.2")" = "no scheduled runs" ] && [[ "$(hook_reason "$T/canary1.3")" == "command: claude --agent planner"* ]] \
+    && ok "canary: test run inside a claude tmux pane leaves it alone" \
+    || bad "canary: test run inside a claude tmux pane leaves it alone" "pane pid $C_BEFORE -> ${C_AFTER:-gone}, dead=$C_DEAD; $(cat "$T"/canary1.[1-4] 2>&1)"
+  canary canary0 0
+  [ -n "$C_BEFORE" ] && [ "$C_AFTER" != "$C_BEFORE" ] && [ ! -e "$T/canary0.done" ] \
+    && ok "canary: without the flag the pane is replaced (guard is what protects)" \
+    || bad "canary: without the flag the pane is replaced (guard is what protects)" "pane pid $C_BEFORE -> ${C_AFTER:-gone}, dead=$C_DEAD; the unguarded run did not replace the canary: $(cat "$T"/canary0.[1-4] 2>&1)"
+  tmux -L "$SOCK" kill-session -t canary1 2>/dev/null; tmux -L "$SOCK" kill-session -t canary0 2>/dev/null
+  # refusal: TMUX names a throwaway server that is not the test's (socket name not run-agent-test-*, outside $T)
+  env TMUX= tmux -L "ra-other-$$" -f /dev/null new-session -d -s o "bash --norc --noprofile"; sleep 0.3
+  osock=$(tmux -L "ra-other-$$" display -p '#{socket_path}'); opane=$(tmux -L "ra-other-$$" display -p -t o '#{pane_id}'); opid=$(tmux -L "ra-other-$$" display -p -t o '#{pane_pid}')
+  out=$(TMUX="$osock,0,0" TMUX_PANE="$opane" "$S" --relaunch worker 2>&1); rc=$?
+  [ "$rc" = 2 ] && [ "$(tail -n1 <<<"$out")" = "test mode: refusing tmux respawn-pane on $osock" ] && [ "$(tmux -L "ra-other-$$" display -p -t o '#{pane_pid}')" = "$opid" ] \
+    && ok "guard: --relaunch worker on a server that is not the test's -> refused, exit 2, pane untouched" || bad "guard: tmux refusal" "rc=$rc $out"
+  out=$(TMUX="$osock,0,0" TMUX_PANE="$opane" "$S" --relaunch "planner \"x\" in $T/sibling split" 2>&1); rc=$?
+  [ "$rc" = 2 ] && grep -qxF "test mode: refusing tmux new-window on $osock" <<<"$out" && [ "$(tmux -L "ra-other-$$" list-windows -t o | wc -l)" = 1 ] \
+    && ok "guard: split on a server that is not the test's -> no window opened, exit 2" || bad "guard: new-window refusal" "rc=$rc $out"
+  out=$(TMUX="/tmp/tmux-$(id -u)/default,1,0" TMUX_PANE="%0" "$S" --relaunch worker 2>&1); rc=$?
+  [ "$rc" = 2 ] && [ "$(tail -n1 <<<"$out")" = "test mode: refusing tmux respawn-pane on /tmp/tmux-$(id -u)/default" ] && ok "guard: the default server's socket is refused" || bad "guard: default socket" "rc=$rc $out"
+  tmux -L "ra-other-$$" kill-server 2>/dev/null
 fi
+# job store: without RUN_AGENT_HOME (a fake HOME, so nothing real is near) every store action is refused, no file made
+mkdir -p "$T/fh3"
+for a in "--jobs" "--health" "--cancel" "--revive" "--clean" "worker . --at $(( $(date +%s) + 600 ))"; do
+  # shellcheck disable=SC2086
+  out=$(env -u RUN_AGENT_HOME HOME="$T/fh3" "$S" $a 2>&1); rc=$?
+  [ "$rc" = 2 ] && [ "$(tail -n1 <<<"$out")" = "test mode: refusing the real job store" ] && [ -z "$(ls -A "$T/fh3")" ] \
+    && ok "guard: job store, RUN_AGENT_HOME unset: '${a%% --at*}' refused, exit 2, no file" || bad "guard: job store ${a%% --at*}" "rc=$rc $out $(ls -A "$T/fh3")"
+done
+out=$(RUN_AGENT_HOME="$T/fh3/.claude/run-agent" HOME="$T/fh3" "$S" --jobs 2>&1); rc=$?
+[ "$rc" = 2 ] && [ "$out" = "test mode: refusing the real job store" ] && [ -z "$(ls -A "$T/fh3")" ] && ok "guard: job store, RUN_AGENT_HOME under ~/.claude is refused too" || bad "guard: store under ~/.claude" "rc=$rc $out"
+out=$(python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import launch; print(launch.claude_environ(), launch.claude_argv())" "$(dirname "$S")")
+[ "$out" = "{} []" ] && ok "guard: with the flag claude_environ() is {} and claude_argv() finds no parent" || bad "guard: blind lookup" "$out"
 
 echo "$pass passed, $fail failed"
 [ "$fail" = 0 ]

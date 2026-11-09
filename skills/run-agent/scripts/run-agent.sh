@@ -63,6 +63,29 @@ BUILTINS=(claude general-purpose Explore Plan statusline-setup)
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE="${RUN_AGENT_HOME:-$HOME/.claude/run-agent}"
 
+# Test mode (RUN_AGENT_TEST=1, exported by test.sh). tm_guard <subcommand> <socket>: a tmux command that changes
+# panes runs only on the test's own servers (socket named run-agent-test-*, or under $RUN_AGENT_TEST_DIR); on any
+# other socket, the default server included, it is not run: one line on stderr, exit 2. Without the flag: no-op.
+tm_guard() {
+  [ "${RUN_AGENT_TEST:-}" = 1 ] || return 0
+  local s="$2" d="${RUN_AGENT_TEST_DIR:-}"
+  if [ -n "$s" ]; then
+    case "${s##*/}" in run-agent-test-*) return 0 ;; esac
+    [ -n "$d" ] && case "$(realpath -m -- "$s")" in "$(realpath -m -- "$d")"/*) return 0 ;; esac
+  fi
+  echo "test mode: refusing tmux $1 on ${s:-default server}" >&2
+  exit 2
+}
+# store_guard: in test mode the job store must be a scratch one: RUN_AGENT_HOME set and outside ~/.claude.
+store_guard() {
+  [ "${RUN_AGENT_TEST:-}" = 1 ] || return 0
+  if [ -n "${RUN_AGENT_HOME:-}" ]; then
+    case "$(realpath -m -- "$RUN_AGENT_HOME")/" in "$(realpath -m -- "$HOME/.claude")"/*) ;; *) return 0 ;; esac
+  fi
+  echo "test mode: refusing the real job store" >&2
+  exit 2
+}
+
 # Collapse `.`/`..` and repeated slashes in an absolute path, textually (no symlink lookups).
 normalize() {
   local IFS=/ part out=()
@@ -120,7 +143,8 @@ list_agents() {
 open_target() {
   local tgt="$1" pane="$2" d="$3" wname="$4" best="" area=0 w h a id flag new
   shift 4
-  local TM=(tmux); [ -n "${RA_SOCKET:-}" ] && TM=(tmux -S "$RA_SOCKET")
+  local TM=(tmux) sock="${RA_SOCKET:-}"; [ -n "$sock" ] && TM=(tmux -S "$sock")
+  [ -n "$sock" ] || sock="${TMUX:-}"; sock="${sock%%,*}"
   case "$tgt" in
     into:*)
       pane="${tgt#into:}"
@@ -130,10 +154,12 @@ open_target() {
       [ -n "$best" ] || return 1
       read -r id w h <<<"$best"
       if [ "$w" -ge $((h * 2)) ]; then flag=-h; else flag=-v; fi
+      tm_guard split-window "$sock"
       new=$("${TM[@]}" split-window "$flag" -t "$id" -c "$d" -P -F '#{pane_id}' "$@") || return 1
       "${TM[@]}" select-layout -t "$pane" tiled >/dev/null 2>&1 || true
       echo "$new" ;;
     *) w=$("${TM[@]}" display -p -t "$pane" '#{session_id}:#{window_id}') || return 1
+       tm_guard new-window "$sock"
        "${TM[@]}" new-window -a -t "$w" -n "$wname" -c "$d" -P -F '#{pane_id}' "$@" ;;
   esac
 }
@@ -144,7 +170,7 @@ open_target() {
 # flock keeps two revives from starting two runners for one job.
 revive() {
   local line id state socket spid cur TM stale
-  mkdir -p "$STATE"
+  store_guard; mkdir -p "$STATE"
   if command -v flock >/dev/null 2>&1; then exec 9>"$STATE/revive.lock"; flock -n 9 || return 0; fi
   mapfile -t stale < <(python3 "$HERE/jobs.py" stale)
   for line in ${stale[@]+"${stale[@]}"}; do
@@ -167,7 +193,7 @@ revive() {
 # anything under skills/run-agent while jobs sleep changes nothing until they fire. $0 is "runner.sh" so jobs.py's
 # alive() recognises it; its output goes to logs/<id>.log (empty unless it errored). Records the pid.
 start_runner() {
-  mkdir -p "$STATE/logs"
+  store_guard; mkdir -p "$STATE/logs"
   setsid nohup bash -c 'id=$1; at=$2; r=$3
 while :; do t=$(( at - $(date +%s) )); [ "$t" -le 0 ] && break; sleep "$t"; done
 exec bash "$r" "$id"' runner.sh "$1" "$2" "$HERE/runner.sh" >> "$STATE/logs/$1.log" 2>&1 < /dev/null 9>&- &
@@ -180,13 +206,17 @@ exec bash "$r" "$id"' runner.sh "$1" "$2" "$HERE/runner.sh" >> "$STATE/logs/$1.l
 from_agent() {
   [ -n "${RUN_AGENT_HUMAN:-}" ] && return 0   # the hook: a typed /run-agent is the human's, even in an agent session
   if [ -n "${RUN_AGENT_FROM:-}" ]; then echo "$RUN_AGENT_FROM"; return; fi
+  # test mode: a `claude` parent counts only when the test started it (its own environment carries the flag),
+  # so no result depends on which session ran test.sh
   python3 - <<'PY' 2>/dev/null
 import os
+test = os.environ.get("RUN_AGENT_TEST") == "1"
 pid = os.getppid()
 while pid > 1:
     try:
         argv = [a.decode(errors="replace") for a in open(f"/proc/{pid}/cmdline", "rb").read().split(b"\0") if a]
-        if argv and os.path.basename(argv[0]) == "claude":
+        if argv and os.path.basename(argv[0]) == "claude" and (
+                not test or b"RUN_AGENT_TEST=1" in open(f"/proc/{pid}/environ", "rb").read().split(b"\0")):
             if "--agent" in argv[:-1]:
                 print(argv[argv.index("--agent") + 1])
             break
@@ -222,7 +252,7 @@ show_failures() { python3 "$HERE/jobs.py" failures $([ -z "$(from_agent)" ] && e
 # sees this hook). Review and removal are the one-week helper job that --install-denied schedules.
 denied() {
   local py
-  mkdir -p "$STATE"
+  store_guard; mkdir -p "$STATE"
   py=$(cat <<'PY'
 import json, os, sys, time
 try:
@@ -248,7 +278,7 @@ PY
 # still fires into a new tmux session. Prints the scheduled line (or "already scheduled").
 install_denied() {
   local at d jobs
-  mkdir -p "$STATE"
+  store_guard; mkdir -p "$STATE"
   if [ -f "$STATE/denied-until" ]; then
     d=$(sed -n 's/^denied-until: //p' "$STATE/denied-until" | head -n1)
     at=$(date -d "$d 09:00" +%s 2>/dev/null || date -j -f '%Y-%m-%d %H:%M' "$d 09:00" +%s 2>/dev/null || echo "")
@@ -295,15 +325,15 @@ case "${1:-}" in
   --step|--next|--hook) mode="${1#--}"; shift; exec python3 "$HERE/launch.py" "$mode" "$@" ;;
   --from-agent) from_agent; exit 0 ;;
   --reset-shown) r=$(python3 "$HERE/parse.py" --reset 2>/dev/null) && python3 "$HERE/parse.py" --fmt "$r"; exit 0 ;;
-  --fire-waiting) fire_waiting; exit 0 ;;
+  --fire-waiting) store_guard; fire_waiting; exit 0 ;;
   --open) shift; open_target "$@"; exit $? ;;
-  --jobs) fire_waiting; exec python3 "$HERE/jobs.py" list ;;
-  --clean) exec python3 "$HERE/jobs.py" clean ;;
-  --failures) shift; exec python3 "$HERE/jobs.py" failures "$@" ;;
+  --jobs) store_guard; fire_waiting; exec python3 "$HERE/jobs.py" list ;;
+  --clean) store_guard; exec python3 "$HERE/jobs.py" clean ;;
+  --failures) store_guard; shift; exec python3 "$HERE/jobs.py" failures "$@" ;;
   --denied) denied; exit 0 ;;
   --install-denied) install_denied; exit $? ;;
-  --health) exec python3 "$HERE/jobs.py" health ;;
-  --cancel) shift; exec python3 "$HERE/jobs.py" cancel "$@" ;;
+  --health) store_guard; exec python3 "$HERE/jobs.py" health ;;
+  --cancel) store_guard; shift; exec python3 "$HERE/jobs.py" cancel "$@" ;;
   --revive) revive; exit 0 ;;
   --dry-run) shift; dry=1 ;;
   --handoff) shift; handoff=1 ;;
@@ -461,6 +491,7 @@ if [ "$dry" = 1 ]; then
 fi
 
 if [ -n "$at" ]; then
+  store_guard
   HINT="; run /run-agent worker after window to schedule it by hand"
   if [ "$need_tmux" = 1 ] && [ -z "${TMUX:-}" ]; then
     echo "not scheduled — not in tmux" >&2
@@ -510,6 +541,7 @@ if [ -n "$target" ]; then
   echo "opened $where ($new): $shown"
   exit 0
 fi
+tm_guard respawn-pane "${TMUX%%,*}"
 echo "running: $shown"
 # Only this pane is touched. The wrapper runs claude with its arguments passed verbatim (no shell
 # re-evaluation), then keeps an interactive shell in the pane so it does not close.

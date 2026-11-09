@@ -19,8 +19,32 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 J="$HERE/jobs.py"; P="$HERE/parse.py"
 
+# Test mode (RUN_AGENT_TEST=1, exported by test.sh; same two functions as run-agent.sh). tm_guard <subcommand> <socket>: a tmux command that changes
+# panes runs only on the test's own servers (socket named run-agent-test-*, or under $RUN_AGENT_TEST_DIR); on any
+# other socket, the default server included, it is not run: one line on stderr, exit 2. Without the flag: no-op.
+tm_guard() {
+  [ "${RUN_AGENT_TEST:-}" = 1 ] || return 0
+  local s="$2" d="${RUN_AGENT_TEST_DIR:-}"
+  if [ -n "$s" ]; then
+    case "${s##*/}" in run-agent-test-*) return 0 ;; esac
+    [ -n "$d" ] && case "$(realpath -m -- "$s")" in "$(realpath -m -- "$d")"/*) return 0 ;; esac
+  fi
+  echo "test mode: refusing tmux $1 on ${s:-default server}" >&2
+  exit 2
+}
+# store_guard: in test mode the job store must be a scratch one: RUN_AGENT_HOME set and outside ~/.claude.
+store_guard() {
+  [ "${RUN_AGENT_TEST:-}" = 1 ] || return 0
+  if [ -n "${RUN_AGENT_HOME:-}" ]; then
+    case "$(realpath -m -- "$RUN_AGENT_HOME")/" in "$(realpath -m -- "$HOME/.claude")"/*) ;; *) return 0 ;; esac
+  fi
+  echo "test mode: refusing the real job store" >&2
+  exit 2
+}
+
 main() {
   local id="$1"
+  store_guard
   python3 "$J" setpid "$id" "$$"
 
   now() { date +%s; }
@@ -70,6 +94,7 @@ main() {
   mapfile -d '' -t cmd < <(python3 "$J" argv "$id")
   first="scheduled run #$id fired at $(fmt "$(now)"): $shown"
   TM=(tmux); [ -n "$socket" ] && TM=(tmux -S "$socket")
+  local gsock="$socket"; [ -n "$gsock" ] || gsock="${TMUX:-}"; gsock="${gsock%%,*}"   # the server tmux will reach
   # $1 banner, $2 shell, $3 agent, $4 exit marker, $5 claude binary ("" = `claude` from PATH), $6 PATH, $7 HOME,
   # then the recorded claude arguments. The marker file carries claude's exit status (127 = not found).
   wrap=(bash -c 'printf "%s\n" "$1"; export SHELL="$2"; [ -n "$6" ] && export PATH="$6"; [ -n "$7" ] && export HOME="$7"
@@ -127,7 +152,7 @@ PY
       if newp=$(RA_SOCKET="$socket" bash "$HERE/run-agent.sh" --open window "$pane" "$cwd" "$agent: $folder" "${wrap[@]}"); then
         started "$newp" "in new window"; exit $?
       fi
-    elif "${TM[@]}" respawn-pane -k -t "$pane" -c "$cwd" "${wrap[@]}"; then
+    elif tm_guard respawn-pane "$gsock"; "${TM[@]}" respawn-pane -k -t "$pane" -c "$cwd" "${wrap[@]}"; then
       started "$pane" ""; exit $?
     fi
   fi
@@ -139,10 +164,12 @@ PY
   sname="$agent: $folder"
   if [ -n "$session" ] && "${TM[@]}" has-session -t "=$session" 2>/dev/null; then
     local newp
+    tm_guard new-window "$gsock"
     if newp=$("${TM[@]}" new-window -t "=$session" -n "$sname" -c "$cwd" -P -F '#{pane_id}' "${wrap[@]}"); then started "$newp" "in new window"; exit $?; fi
   fi
   # tmux disallows ':' and '.' in session names
   sname="${sname//:/}"; sname="${sname//./_}"
+  tm_guard new-session "$gsock"
   if newp=$("${TM[@]}" new-session -d -s "$sname" -c "$cwd" -P -F '#{pane_id}' "${wrap[@]}"); then started "$newp" "in new session"; exit $?; fi
   log failed "tmux could not start the command"
   exit 1

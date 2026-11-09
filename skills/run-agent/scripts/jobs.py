@@ -34,6 +34,11 @@ import time
 from datetime import datetime
 
 HOME = os.environ.get("RUN_AGENT_HOME") or os.path.join(os.path.expanduser("~"), ".claude", "run-agent")
+# test mode (RUN_AGENT_TEST=1, exported by test.sh): only a scratch store, RUN_AGENT_HOME set and outside ~/.claude
+if os.environ.get("RUN_AGENT_TEST") == "1" and (not os.environ.get("RUN_AGENT_HOME") or (
+        os.path.realpath(HOME) + os.sep).startswith(os.path.realpath(os.path.expanduser("~/.claude")) + os.sep)):
+    print("test mode: refusing the real job store", file=sys.stderr)
+    sys.exit(2)
 JOBS = os.path.join(HOME, "jobs")
 DONE = os.path.join(HOME, "done")
 LOG = os.path.join(HOME, "jobs.log")

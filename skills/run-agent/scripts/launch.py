@@ -43,6 +43,20 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S_REAL = os.path.join(HERE, "run-agent.sh")
+TEST = os.environ.get("RUN_AGENT_TEST") == "1"  # set by test.sh: see tmux_guard and claude_environ
+
+
+def tmux_guard(sub):
+    """test mode: a tmux command that changes panes runs only on the test's own servers, else exit 2"""
+    if not TEST:
+        return
+    sock = (os.environ.get("TMUX") or "").split(",")[0]
+    d = os.environ.get("RUN_AGENT_TEST_DIR") or ""
+    if sock and (os.path.basename(sock).startswith("run-agent-test-")
+                 or (d and os.path.realpath(sock).startswith(os.path.realpath(d) + os.sep))):
+        return
+    print(f"test mode: refusing tmux {sub} on {sock or 'default server'}", file=sys.stderr)
+    sys.exit(2)
 S_HOME = os.path.expanduser("~/.claude/skills/run-agent/scripts/run-agent.sh")
 NEXT_PROMPT = {"worker": ".", "evaluator": ".", "helper": "."}
 
@@ -296,6 +310,7 @@ def run_group(raw, here):
             r = subprocess.run([S_REAL, *run_args(d, here=True), "--target", "into:" + me])
             if r.returncode:
                 return r.returncode
+        tmux_guard("rename-window")
         subprocess.run(["tmux", "rename-window", "-t", me, f"{len(ds)} agents"], capture_output=True)
         return subprocess.run([S_REAL, *run_args(ds[0], here=True)]).returncode
     r = subprocess.run([S_REAL, *run_args(ds[0], here=True), "--target", "window"], capture_output=True, text=True)
@@ -308,6 +323,7 @@ def run_group(raw, here):
         r = subprocess.run([S_REAL, *run_args(d, here=True), "--target", "into:" + first])
         if r.returncode:
             return r.returncode
+    tmux_guard("rename-window")
     subprocess.run(["tmux", "rename-window", "-t", first, f"{len(ds)} agents"], capture_output=True)
     return 0
 
@@ -576,6 +592,7 @@ def relaunch(raw):
                                capture_output=True, text=True).stdout.strip() or new
         print(f"opened new window {where} ({new}): confirm there to start {d['command']}")
         return 0
+    tmux_guard("respawn-pane")
     print(f"this pane now asks to confirm: {d['command'] if d else raw}")
     sys.stdout.flush()
     r = subprocess.run(["tmux", "respawn-pane", "-k", "-t", os.environ["TMUX_PANE"], "-c", cwd, *wrap])
@@ -594,6 +611,7 @@ def ask_line(prompt):
     if os.environ.get("TMUX"):
         fd, f = tempfile.mkstemp(); os.close(fd)
         script = 'read -r -p "$1" a; printf %s "$a" > "$2"'
+        tmux_guard("display-popup")
         subprocess.run(["tmux", "display-popup", "-E", "-w", "90%", "-h", "5", "-T", " run-agent ",
                         "bash -c " + shlex.quote(script) + " run-agent " + shlex.quote(prompt) + " " + shlex.quote(f)])
         try:
@@ -672,8 +690,18 @@ def cli(words):
 
 
 # ----------------------------------------------------------------- next-step line
+def test_made(pid):
+    """test mode: a `claude` parent counts only when the test started it (its own environment carries the flag)"""
+    try:
+        return b"RUN_AGENT_TEST=1" in open(f"/proc/{pid}/environ", "rb").read().split(b"\0")
+    except OSError:
+        return False
+
+
 def claude_environ():
     """the environment of the nearest parent claude process (Linux /proc), {} when unknown"""
+    if TEST:  # test.sh: never learn the pane of the session that runs the tests (9 Nov 2026: it was respawned)
+        return {}
     pid = os.getppid()
     while pid > 1:
         try:
@@ -693,11 +721,13 @@ def claude_argv():
         try:
             argv = open(f"/proc/{pid}/cmdline", "rb").read().split(b"\0")
             argv = [a.decode(errors="replace") for a in argv if a]
-            if argv and os.path.basename(argv[0]) == "claude":
+            if argv and os.path.basename(argv[0]) == "claude" and (not TEST or test_made(pid)):
                 return argv
             pid = int(open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[1])
         except (OSError, ValueError, IndexError):
             break
+    if TEST:
+        return []
     try:  # macOS: no /proc
         p = os.getppid()
         while p > 1:
