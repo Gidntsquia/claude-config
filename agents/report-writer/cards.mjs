@@ -12,6 +12,7 @@ import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 
 const [outdir, mode = 'desktop', page_name = 'report.html'] = process.argv.slice(2);
+const FIND = outdir === '--find';  // preflight.py: print the playwright this run would use, or one line saying what to install
 if (!outdir) { console.error('usage: node cards.mjs <outdir> desktop|phone'); process.exit(2); }
 const SCALE = +(process.env.CARD_SCALE ?? 2);
 // Where playwright may be: $PLAYWRIGHT_DIR, ./node_modules, any project in the projects folder chosen at install
@@ -37,9 +38,20 @@ const hasBrowser = (d) => {
   }
   return false;
 };
+// older playwrights have no chromium-headless-shell entry and launch the full chromium build
+const hasAnyBrowser = (d) => hasBrowser(d) || [`${d}/../playwright-core/browsers.json`, `${d}/node_modules/playwright-core/browsers.json`].some((b) => {
+  try {
+    const c = JSON.parse(readFileSync(b, 'utf8')).browsers;
+    return !c.some((x) => x.name === 'chromium-headless-shell') && existsSync(`${browsersDir}/chromium-${c.find((x) => x.name === 'chromium').revision}`);
+  } catch { return false; }
+});
 const present = candidates.filter((d) => existsSync(d));
 const pwDir = (process.env.PLAYWRIGHT_DIR && existsSync(process.env.PLAYWRIGHT_DIR)) ? process.env.PLAYWRIGHT_DIR : (present.find(hasBrowser) || present[0]);
 if (!pwDir) { console.error(`cards.mjs: playwright not found (looked in $PLAYWRIGHT_DIR, ./node_modules, ${projectsDir || 'the projects folder'}/*/node_modules, npm root -g); install it: npm i -g playwright && npx playwright install chromium`); process.exit(1); }
+if (FIND) {
+  if (!hasAnyBrowser(pwDir)) { console.error(`cards.mjs: the Chromium build that ${pwDir} launches is not downloaded; install it: node "${pwDir}/cli.js" install chromium`); process.exit(1); }
+  console.log(pwDir); process.exit(0);
+}
 const { chromium } = createRequire(import.meta.url)(pwDir);
 
 const dir = resolve(outdir, 'cards');

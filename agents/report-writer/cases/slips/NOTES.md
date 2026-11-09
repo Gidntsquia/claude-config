@@ -64,12 +64,12 @@ Picked 2: it names the clock time, the machine and what the audit was doing, and
 
 ## Checker
 
-| loop | key or claim | severity | right or wrong | what changed |
-|---|---|---|---|---|
-| 1 | asst_mcp, "most of it the schemas" | medium | right | already "nearly half" after self-review |
-| 1 | ref_chars, "holds no project files" | medium | right | opening now names the project AGENTS.md ({sts_A}) |
-| 1 | "You use Bash and Read in nearly every session" | low | right | already cut in self-review |
-| 1 | recap / A_measured | high | right | recap rewritten to give both rulers, ending names {A_total} beside {A_measured}; state words unchanged, no second read |
+| loop | key or claim | severity | right or wrong | what changed | status |
+|---|---|---|---|---|---|
+| 1 | asst_mcp, "most of it the schemas" | medium | right | already "nearly half" after self-review | fixed |
+| 1 | ref_chars, "holds no project files" | medium | right | opening now names the project AGENTS.md ({sts_A}) | fixed |
+| 1 | "You use Bash and Read in nearly every session" | low | right | already cut in self-review | fixed |
+| 1 | recap / A_measured | high | right | recap rewritten to give both rulers, ending names {A_total} beside {A_measured}; state words unchanged, no second read | fixed |
 
 checker: loops=1 raised=4 fixed=4 open=0 tokens=577639 seconds=124
 

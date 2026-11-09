@@ -54,6 +54,9 @@ Checks: numbers_match_sources  every numbers.json entry equals the value in the 
         modes_match            (--other <report.html>) the decision table is identical, cell by cell, in the other mode's page
         checked_line           the last line names the numbers.json count and the check result
         checker_line           the last line reports the checker (loops, raised, fixed, open) and checker/findings.json exists
+        checker_rows           every claim finding in checker/findings.json has a NOTES.md ## Checker row; a `high` one whose
+                                row has no cell starting "fixed" or "rejected: <reason>" (or no row) fails; open medium/low
+                                rows are counted on the line
 """
 import json, os, re, sys, html as H
 
@@ -2090,6 +2093,44 @@ def check_unasked_once(outdir):
         ok("unasked_once", ", ".join(seen) if seen else "## Left out is empty")
 
 
+def check_checker_rows(outdir):
+    """a finding is closed when its NOTES.md ## Checker row has a cell starting "fixed" or "rejected: <reason>";
+    an open `high` finding fails. Focus entries (they carry "focus") are focus_findings' job."""
+    fp = os.path.join(outdir, "checker", "findings.json")
+    if not os.path.exists(fp):
+        return
+    try:
+        F = json.load(open(fp, encoding="utf-8"))
+    except ValueError:
+        return  # checker_line reports it
+    F = [f for f in F if isinstance(f, dict) and "focus" not in f] if isinstance(F, list) else []
+    if not F:
+        ok("checker_rows", "no claim findings")
+        return
+    sec = notes_section(outdir, "Checker") or ""
+    rows = [[c.strip() for c in ln.strip().strip("|").split("|")] for ln in sec.splitlines()
+            if ln.strip().startswith("|") and not re.match(r"^\|[\s:|-]+\|?$", ln.strip())][1:]
+    norm = lambda t: re.sub(r"[^a-z0-9]+", " ", str(t).lower()).strip()
+    closed = lambda r: any(re.match(r"fixed\b", c, re.I) or re.match(r"rejected:\s*\S", c, re.I) for c in r)
+    high, soft = [], 0
+    for f in F:
+        key, claim = f.get("key"), norm(f.get("claim", ""))
+        name = str(key) if key not in (None, "", "None") else str(f.get("claim", ""))[:40]
+        mine = [r for r in rows if len(r) > 1 and ((key not in (None, "", "None") and f" {norm(key)} " in f" {norm(r[1])} ")
+                                                 or (claim and (claim[:30] in norm(r[1]) or (len(norm(r[1])) > 8 and norm(r[1]) in claim))))]
+        if any(closed(r) for r in mine):
+            continue
+        why = "row has no 'fixed' / 'rejected: <reason>' cell" if mine else "no ## Checker row"
+        if str(f.get("severity", "")).lower() == "high":
+            high.append(f"{name!r}: {why}")
+        else:
+            soft += 1
+    if high:
+        bad("checker_rows", f"{len(high)} high finding(s) open: " + "; ".join(high[:4]))
+    else:
+        ok("checker_rows", f"{len(F)} claim findings, 0 high open, {soft} medium/low without a closing cell")
+
+
 def check_focus_findings(outdir):
     """R4/R7-R9: no checker/findings.json entry has a "focus" other than "advances" for a section still in report.md or
     outline.md; a section cut on such a finding has its action in NOTES.md ## Focus; a "recap" finding has a ## Checker
@@ -2538,6 +2579,7 @@ def main():
         check_machinery_aside(outdir)
         check_opening_subject(outdir, N)
         check_checker_line_prose(page, outdir)
+        check_checker_rows(outdir)
         check_expected(outdir, N, page, expected, traps)
         print("\n".join(out_lines))
         if fails:
@@ -2562,6 +2604,7 @@ def main():
     check_modes_match(page, other)
     check_checked_line(page, N)
     check_checker_line(page, outdir)
+    check_checker_rows(outdir)
     print("\n".join(out_lines))
     if fails:
         print(f"check.py: FAIL ({len(fails)} failing: {', '.join(dict.fromkeys(fails))})")
