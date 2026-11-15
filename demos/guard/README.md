@@ -9,6 +9,11 @@ bash demos/guard/demo1.sh    plan says `run.sh -j 4` over a claude -p suite (inn
                              blocked and reruns at -j 2.  Measured 9 Nov: 5 turns, $0.08.
 bash demos/guard/demo2.sh    plan says 6 Opus subagents at once, then one again; the 4th-6th and the repeat are
                              blocked, all six run as helper on Haiku.  Measured 9 Nov: $0.18, 18K FE tokens.
+bash demos/guard/r15.sh      the env run-agent gives a worker, and a subagent asked for on Opus running on Sonnet.
+bash demos/guard/report_writer.sh
+                             14 Nov amendment: a worker's `report-writer` subagent stays report-writer on Opus, a
+                             `general-purpose` one asked for on Opus runs as helper on Sonnet. The toy repo carries a
+                             one-word stand-in for report-writer, so it costs cents.
 ```
 
 Run them from your own terminal or from any session; a count of 2 and 6 launches is added to the toy projects only.

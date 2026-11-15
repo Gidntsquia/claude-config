@@ -11,6 +11,9 @@ set -uo pipefail
 # test.sh usually runs inside a worker/evaluator session (`claude --agent …`), which run-agent.sh would take for an
 # agent caller; the tests are the human's unless a case sets RUN_AGENT_FROM itself (env -u RUN_AGENT_HUMAN).
 export RUN_AGENT_HUMAN=1; unset RUN_AGENT_FROM
+# Run from a worker session, the caller's own subagent caps (usage-guard R15) would leak into every fake claude and
+# make a planner launch look capped; the cases below set what they test.
+unset CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_SUBAGENT_MODEL_FORCE CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH
 
 S="$(cd "$(dirname "$0")" && pwd)/run-agent.sh"
 pass=0; fail=0
