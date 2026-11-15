@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # demo2.sh: live demo of the subagent limits, cheap. A toy plan tells the worker to start 6 Opus subagents at once,
 # one per text file, then to start the first one again. The worker runs on Sonnet (at most $1 and 12 turns) with the
-# environment run-agent gives every worker, except that subagents are forced to Haiku for this demo.
+# environment run-agent gives every worker, except that the subagent model is Haiku for this demo (the guard hook sets it on each call).
 # Prints a short transcript, each subagent's model, the guard's log lines and `guard usage today`.
 # usage: bash demo2.sh [dir]     (dir defaults to a new temp dir; it is left in place so you can read it)
 set -u
@@ -22,7 +22,7 @@ Do nothing else: no commits, no notes file, no report, and do not read the files
 F
 echo "Toy repo for the guard demo: six one-line files in texts/." > "$T/AGENTS.md"
 ( cd "$T" && git init -q && git add . && git -c user.name=demo -c user.email=demo@example.invalid commit -qm toy )
-cd "$T" && env CLAUDE_CODE_SUBAGENT_MODEL=haiku CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 \
+cd "$T" && env CLAUDE_CODE_SUBAGENT_MODEL=haiku CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 \
   CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1 "$REAL" -p --agent worker --model sonnet --max-budget-usd 1 --max-turns 12 \
   --output-format stream-json --verbose "Build what plans/PLAN.md specifies." > "$D/stream.jsonl" 2> "$D/stderr.txt"
 echo "== transcript ($D/stream.jsonl) =="; python3 "$HERE/show.py" "$D/stream.jsonl"

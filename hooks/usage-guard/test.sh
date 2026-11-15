@@ -12,7 +12,7 @@ VERBOSE=0; [ "${1:-}" = "-v" ] && VERBOSE=1
 export HOME="$T/home"; mkdir -p "$HOME/.claude/agents" "$T/bin"
 printf '#!/bin/sh\necho "$@" >> "%s/claude-called"\nexit 99\n' "$T" > "$T/bin/claude"; chmod +x "$T/bin/claude"
 export PATH="$T/bin:$PATH"
-unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT
+unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_SUBAGENT_MODEL   # the last one picks the model the hook sets
 HOOK="$HERE/usage_guard.py"; GUARD="$HERE/guard"
 S="$HOME/.cache/claude-guard"
 P="$T/assistant-agent"; mkdir -p "$P/tests/agent-replay/scenes" "$P/.git"
@@ -181,13 +181,14 @@ count_a() { cat "$AS/$DAY.count" 2>/dev/null || echo 0; }
 agent "description=Transcribe VOD aaa" "prompt=Transcribe VOD aaa into the CSV" "subagent_type=general-purpose" "model=opus"
 allows "first subagent"; is "a subagent counts 1" "$(count_a)" 1
 has "type rewritten to helper" "$OUT" '"subagent_type": "helper"'; has "decision is allow" "$OUT" '"permissionDecision": "allow"'
-[[ "$OUT" != *'"model"'* ]] && ok "opus model dropped from the input" || bad "opus model dropped from the input" "$OUT"
+has "opus model replaced by sonnet in the input" "$OUT" '"model": "sonnet"'
 has "prompt kept in updatedInput" "$OUT" '"prompt": "Transcribe VOD aaa into the CSV"'
 has "log names the forced model" "$(tail -1 "$S/log")" "model=opus requested, forced sonnet"
 has "log names the rewrite" "$(tail -1 "$S/log")" "subagent_type general-purpose rewritten to helper"
 agent "description=Summarize file b" "prompt=Summarize b.txt" "subagent_type=helper" "model=haiku"; allows "second subagent (helper, haiku)"
 is "helper + haiku passes untouched" "$OUT" ""
 agent "description=Summarize file c" "prompt=Summarize c.txt" "subagent_type=helper"; allows "third subagent"
+has "helper without a model gets sonnet on the call" "$OUT" '"model": "sonnet"'
 agent "description=Summarize file d" "prompt=Summarize d.txt" "subagent_type=helper"
 blocks "fourth subagent while three run (R16)" "3 subagents running (max 3); wait for one to finish"
 is "blocked subagent does not count" "$(count_a)" 3
@@ -213,6 +214,30 @@ agent "description=Fresh task g" "prompt=Summarize g.txt" "subagent_type=helper"
 for i in 1 2 3 4; do agent "description=Unlocked $i" "prompt=Unlocked task $i" "subagent_type=helper"; done; allows "unlocked: fourth concurrent and over the cap"
 agent "description=Transcribe VOD aaa" "prompt=again" "subagent_type=helper"; allows "unlocked: duplicate passes"
 (cd "$A" && "$GUARD" revoke >/dev/null)
+
+# ---- amendment 14 Nov: report-writer stays report-writer, on opus ---------------------------------------------------
+A="$T/study"; mkdir -p "$A/.git"; AS="$S/study"
+agent "description=Write the report" "prompt=. — which arm is cheaper" "subagent_type=report-writer"
+allows "report-writer subagent"; is "report-writer counts 1 in the pool" "$(count_a)" 1
+has "report-writer type kept" "$OUT" '"subagent_type": "report-writer"'; has "report-writer model set to opus" "$OUT" '"model": "opus"'
+has "log says kept on opus" "$(tail -1 "$S/log")" "| study | ALLOW | 1/30 | Agent[report-writer] Write the report | report-writer kept on opus"
+agent "description=Second report" "prompt=p2" "subagent_type=report-writer" "model=opus"; allows "report-writer asked on opus"
+is "report-writer + opus passes untouched" "$OUT" ""
+agent "description=Third report" "prompt=p3" "subagent_type=report-writer" "model=sonnet"; has "report-writer asked on sonnet still gets opus" "$OUT" '"model": "opus"'
+agent "description=Fourth report" "prompt=p4" "subagent_type=report-writer"; blocks "report-writer is held to 3 at once" "3 subagents running"
+rm -f "$AS/live/"*
+agent "description=Lookalike" "prompt=p5" "subagent_type=report-writer-2" "model=opus"
+has "a lookalike type goes to helper" "$OUT" '"subagent_type": "helper"'; has "and to sonnet" "$OUT" '"model": "sonnet"'
+agent "description=write the  REPORT" "prompt=again" "subagent_type=report-writer"; blocks "repeat report-writer task" "was already dispatched today"
+rm -f "$AS/live/"*; echo 30 > "$AS/$DAY.count"
+agent "description=Report past the cap" "prompt=p6" "subagent_type=report-writer"; blocks "report-writer past the daily cap" "30/30 launches used today for study; this adds 1"
+before=$(loglines)
+for at in evaluator planner -; do
+  SESSION="other-$at" AT="$at" agent "description=x" "prompt=y" "subagent_type=report-writer" "model=sonnet"
+  [ "$RC" = 0 ] && [ -z "$OUT" ] && ok "agent_type $at: report-writer call untouched" || bad "agent_type $at: report-writer call untouched" "[$RC] $OUT"
+done
+is "non-worker report-writer calls write no log line" "$(loglines)" "$before"
+A="$T/spire"; AS="$S/spire"
 
 # ---- R8 / R18: status line ------------------------------------------------------------------------------------------
 SL="$HERE/../../statusline.sh"

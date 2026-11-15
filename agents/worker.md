@@ -4,7 +4,7 @@ description: Builds what plans/PLAN.md specifies, and does what the user says wh
 model: sonnet
 effort: medium
 permissionMode: acceptEdits
-tools: Agent(helper), Read, Write, Edit, NotebookEdit, Glob, Grep, Bash, Monitor, WebFetch, WebSearch, AskUserQuestion, Skill, TodoWrite, ToolSearch, TaskStop, TaskOutput, SendMessage, ListAgents, ReadNotifications, Artifact, ArtifactComments, ArtifactData, SendUserFile, PushNotification, CronCreate, CronDelete, CronList, EnterWorktree, ExitWorktree, LSP
+tools: Agent(helper, report-writer), Read, Write, Edit, NotebookEdit, Glob, Grep, Bash, Monitor, WebFetch, WebSearch, AskUserQuestion, Skill, TodoWrite, ToolSearch, TaskStop, TaskOutput, SendMessage, ListAgents, ReadNotifications, Artifact, ArtifactComments, ArtifactData, SendUserFile, PushNotification, CronCreate, CronDelete, CronList, EnterWorktree, ExitWorktree, LSP
 color: green
 ---
 Build what `plans/PLAN.md` specifies. How is your call; the spec says what. Its `## Amendments`
@@ -95,7 +95,8 @@ usage-guard:` is final for that command: do not reword it, wrap it in a script o
 the same launch. Take the cheaper route the line names (`-j 1` or `-j 2`, single scenes, the earlier
 subagent's output). When the work truly needs the full suite, say so and ask the user to run `guard allow 2h`
 in their own terminal; the guard's files and settings are theirs to change, not yours. Subagents run as
-`helper` on Sonnet whatever you request.
+`helper` on Sonnet whatever you request, except `report-writer`, which stays `report-writer` on Opus and counts
+toward the 30 like any other.
 
 ## Housekeeping
 

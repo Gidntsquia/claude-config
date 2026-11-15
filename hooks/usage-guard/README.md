@@ -30,11 +30,19 @@ For a script that builds the claude command itself, the worker can pass the flag
 the script reads that variable (`CLAUDE_GUARD_FLAGS="--max-budget-usd 0.50 --max-turns 15" bash run.sh -j 2 a01`),
 or edit the script.
 
-Subagents also count toward the 30. Every subagent a worker starts is rewritten to the `helper` type (Sonnet, 40
-turns, low effort) and an expensive `model` request is dropped; the log line says
-`model=opus requested, forced sonnet`. `run-agent` starts every worker with
-`CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3
-CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1`, so Claude Code enforces the same limits itself.
+Subagents also count toward the 30. Every subagent a worker starts is rewritten to the `helper` type (40 turns,
+low effort) and the hook sets its model on the call itself: Sonnet, or Haiku when the worker asked for Haiku. An
+expensive request is logged as `model=opus requested, forced sonnet`. A model set on the call outranks the agent
+file, so a `helper.md` a project supplies cannot raise it.
+
+One type is left as it is: `report-writer`. A worker's `report-writer` subagent keeps its type and runs on Opus
+(logged as `report-writer kept on opus`). It still counts 1 toward the 30, and the at-once and repeat rules apply.
+
+`run-agent` starts every worker with `CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3
+CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1`. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` is not set: under it Claude Code
+ignores a model set on the call, and a `report-writer` subagent ran on Sonnet (checked on 2.1.325, 14 Nov). The
+hook does the forcing instead. With depth 1 a `report-writer` subagent cannot start its own checker subagent; the
+headless route (`claude -p --agent report-writer … --max-budget-usd N --max-turns N`) can.
 
 ## Your commands
 
@@ -92,7 +100,7 @@ To turn the guard off, delete those entries from `~/.claude/settings.json` (and 
 ## Tests
 
 ```
-bash hooks/usage-guard/test.sh           150 cases in a temp HOME with a fake claude, then the Bash replay below
+bash hooks/usage-guard/test.sh           168 cases in a temp HOME with a fake claude, then the Bash replay below
 python3 hooks/usage-guard/replay_bash.py <log dir> [--all] [-v]
                                          real Bash commands from a project's logs through the hook; by default
                                          the assistant-agent commands since Nov 4 (51 of 51 full-suite -j 4 runs blocked)

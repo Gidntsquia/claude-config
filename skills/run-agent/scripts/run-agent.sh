@@ -65,7 +65,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # three at a time, no subagents of subagents. Forced on every worker this script starts (now, scheduled, handed off),
 # for that claude process only; the shell left in the pane afterwards does not keep them. The same list is in runner.sh
 # and launch.py (the printed "Without run-agent:" line).
-WORKER_ENV="CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1"
+# CLAUDE_CODE_SUBAGENT_MODEL_FORCE is left out on purpose: under it a model set on the Agent call is ignored, and the
+# guard hook sets one on every worker subagent call (sonnet; opus for report-writer).
+WORKER_ENV="CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1"
 # shellcheck disable=SC2016
 WORKER_ENV_SH='w=(); [ "$3" = worker ] && w=(env '"$WORKER_ENV"');'
 STATE="${RUN_AGENT_HOME:-$HOME/.claude/run-agent}"

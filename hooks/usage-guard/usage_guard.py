@@ -6,6 +6,7 @@ Hook mode (stdin = Claude Code hook JSON), registered in settings.json:
                             --max-turns, the 31st launch of the day in a project, and any command touching guard state
   PreToolUse Agent          blocks a 4th running subagent, a task already dispatched today, the 31st launch of the
                             day; rewrites subagent_type to `helper` and drops an expensive `model`
+                            (report-writer is the exception: kept, on opus)
   PreToolUse Edit|Write|NotebookEdit   blocks edits of guard state, the hook, settings.json and worker.md
   SubagentStart / SubagentStop         keep <project>/live/<agent_id>
 It acts only in a session started as `claude --agent worker` (hook input agent_type == "worker") and in that
@@ -28,6 +29,7 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 MAX_HEADLESS, MAX_SUBAGENTS, DAILY = 2, 3, 30
 SUGGEST = "--max-budget-usd 0.50 --max-turns 15"
 CHEAP_MODELS = ("sonnet", "haiku")
+KEEP = {"report-writer": "opus"}   # subagent types a worker may start as they are, with the model each runs on
 STALE_LIVE, STALE_PENDING = 2 * 3600, 90
 TAMPER = re.compile(r"\.cache/claude-guard|claude-guard/|\bguard\s+(allow|revoke)\b|usage_guard\.py|usage-guard/guard\b")
 R6 = "blocked by usage-guard: guard state is edited by the user only"
@@ -359,16 +361,27 @@ def agent_hook(data):
             os.utime(pend, (NOW, NOW))
         notes, changed = [], False
         st = ti.get("subagent_type") or ""
-        if st != "helper":
+        model = ti.get("model")
+        if st in KEEP:
+            # the one type that is not sent to helper: it keeps its own model, passed per call because that is the
+            # only thing that outranks the worker's forced subagent model
+            notes.append(f"{st} kept on {KEEP[st]}")
+            if model != KEEP[st]:
+                ti["model"] = KEEP[st]
+                changed = True
+        elif st != "helper":
             notes.append(f"subagent_type {st or '(default)'} rewritten to helper")
             ti["subagent_type"] = "helper"
             changed = True
-        model = ti.get("model")
-        if model and not any(c in str(model).lower() for c in CHEAP_MODELS):
-            forced = os.environ.get("CLAUDE_CODE_SUBAGENT_MODEL") or "sonnet"
-            notes.append(f"model={model} requested, forced {forced}")
-            del ti["model"]
-            changed = True
+        if st not in KEEP:
+            # every other subagent gets its model from here, on each call: a per-call model outranks the agent file,
+            # so a `helper.md` a project supplies with a bigger model changes nothing
+            forced = (os.environ.get("CLAUDE_CODE_SUBAGENT_MODEL") or "").lower()
+            forced = forced if forced in CHEAP_MODELS else "sonnet"
+            if str(model or "").lower() not in CHEAP_MODELS:
+                notes.append(f"model={model} requested, forced {forced}" if model else f"model set to {forced}")
+                ti["model"] = forced
+                changed = True
         if unlocked:
             notes.append(f"unlocked until {clock(unlocked)}")
         log(slug, "ALLOW", count, what, "; ".join(notes) or "subagent launch")

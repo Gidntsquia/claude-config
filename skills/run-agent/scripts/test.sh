@@ -54,7 +54,7 @@ check() {
 # (a) existing dir, absolute and relative
 check "a: existing absolute dir" 1 \
   "cd '$T/sibling' && claude --agent planner \"x\" --name \"planner: sibling (fable)\"" planner x --cwd "$T/sibling"
-WE="CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1"   # usage-guard R15: the line to type for a worker carries the subagent caps
+WE="CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1"   # usage-guard R15: the line to type for a worker carries the subagent caps
 check "a: existing relative dir with /, -C" 1 \
   "cd '$T/sibling' && $WE claude --agent worker \".\" --name \"worker: sibling (sonnet)\"" worker -C ../../sibling
 check "a: dir with a space, --cwd= form, model" 1 \
@@ -323,11 +323,11 @@ EOF
   grep -qx "subenv=///" "$RA_OUT" && ok "env caps: a planner launch carries no subagent caps" || bad "env caps: planner" "$(cat "$RA_OUT")"
   : > "$RA_OUT"; tmux -L "$SOCK" send-keys -t t "'$S' worker '.' --cwd '$T/my project'" Enter
   for _ in $(seq 1 40); do [ -s "$RA_OUT" ] && break; sleep 0.25; done; sleep 0.3
-  grep -qx "subenv=sonnet/1/3/1" "$RA_OUT" && ok "env caps: a worker launch forces sonnet subagents, 3 at a time, depth 1" || bad "env caps: worker" "$(cat "$RA_OUT")"
+  grep -qx "subenv=sonnet//3/1" "$RA_OUT" && ok "env caps: a worker launch carries sonnet subagents, 3 at a time, depth 1, and no MODEL_FORCE" || bad "env caps: worker" "$(cat "$RA_OUT")"
   tmux -L "$SOCK" send-keys -t t "echo \"left=\${CLAUDE_CODE_SUBAGENT_MODEL:-none}\" > '$T/left.out'" Enter; sleep 0.5
   grep -qx "left=none" "$T/left.out" && ok "env caps: the shell left in the pane does not keep them" || bad "env caps: shell after" "$(cat "$T/left.out" 2>/dev/null)"
   out=$(env -u TMUX -u TMUX_PANE "$S" worker . 2>&1)
-  grep -q '^CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1 claude --agent worker' <<<"$out" \
+  grep -q '^CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1 claude --agent worker' <<<"$out" \
     && ok "env caps: the no-tmux line to type carries them" || bad "env caps: no-tmux line" "$out"
   dead=$(tmux -L "$SOCK" display -p -t t '#{pane_dead}')
   [ "$dead" = 0 ] && ok "tmux: shell left in the pane" || bad "tmux: shell left in the pane" "pane_dead=$dead"
@@ -605,7 +605,7 @@ EOF
   grep -q "^#$id  .*  (sonnet, default)  at " <<<"$(RUN_AGENT_HUMAN=1 "$S" --jobs)" && ok "env: --jobs shows (sonnet, default)" || bad "env: --jobs default" "$("$S" --jobs)"
   wait_for 25 grep -q "  #$id  fired  " "$LOG" && ok "env: job from a stripped env fired" || bad "env: fired" "$(tail -3 "$LOG"; cat "$RUN_AGENT_HOME/logs/$id.log" 2>/dev/null)"
   wait_for 5 grep -q "arg=worker: repo (sonnet)" "$RA_OUT" && ok "env: the recorded claude binary ran" || bad "env: claude ran" "$(cat "$RA_OUT")"
-  grep -qx "subenv=sonnet/1/3/1" "$RA_OUT" && ok "env caps: a scheduled worker gets them too" || bad "env caps: scheduled worker" "$(cat "$RA_OUT")"
+  grep -qx "subenv=sonnet//3/1" "$RA_OUT" && ok "env caps: a scheduled worker gets them too" || bad "env caps: scheduled worker" "$(cat "$RA_OUT")"
   wait_for 3 TM display -p -t t:0 '#{pane_dead}' >/dev/null
   # (R13d) the recorded claude exits 127 (bad binary, missing model...): the runner sees it, logs the first error line,
   # leaves it on screen and marks the job failed; the failure is shown once to the next human --jobs
@@ -671,7 +671,7 @@ mapfile -t nl <<<"$out"
 out=$("$S" --next evaluator phone); grep -q '^Next, .*evaluator on your phone:$' <<<"$out" && ok "next: evaluator phone sentence" || bad "next: phone" "$out"
 out=$( (exec -a claude bash -c "'$S' --next worker .; true" _ --agent evaluator --model opus --effort high) )
 [ "$(wc -l <<<"$out")" = 3 ] && grep -q '^Next, after reading this eval, rerun the worker' <<<"$out" && grep -qx '/run-agent worker "."' <<<"$out" \
-  && grep -qx 'Without run-agent: CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1 claude --agent worker "."' <<<"$out" && ok "next worker: no model/effort even from an opus high session" || bad "next: worker flags" "$out"
+  && grep -qx 'Without run-agent: CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1 claude --agent worker "."' <<<"$out" && ok "next worker: no model/effort even from an opus high session" || bad "next: worker flags" "$out"
 out=$( (exec -a claude bash -c "'$S' --next evaluator .; true" _ --agent worker --model opus --effort high) )
 grep -qx '/run-agent evaluator "."' <<<"$out" && grep -qx 'Without run-agent: claude --agent evaluator "."' <<<"$out" \
   && ok "next evaluator: no model/effort even from an opus high session" || bad "next: evaluator flags" "$out"

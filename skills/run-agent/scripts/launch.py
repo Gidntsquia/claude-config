@@ -61,7 +61,7 @@ S_HOME = os.path.expanduser("~/.claude/skills/run-agent/scripts/run-agent.sh")
 NEXT_PROMPT = {"worker": ".", "evaluator": ".", "helper": "."}
 
 
-WORKER_ENV = ("CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 "
+WORKER_ENV = ("CLAUDE_CODE_SUBAGENT_MODEL=sonnet "
               "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3 CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1")
 
 
