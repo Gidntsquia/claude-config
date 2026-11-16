@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """apply_agents.py <agents dir> [--check]: plan R13 on the five agent files (evaluator, planner, planner-fix10,
 planner-fix32, worker): the `tools:` line gains `mcp__run-agent__*`; each "the lines `…run-agent.sh --next <agent>
-"<prompt>"` prints" becomes a call of the `mcp__run-agent__next` tool (the Bash form stays named as the fallback);
+"<prompt>"` prints" becomes a call of the `mcp__run-agent__next` tool (the standalone Bash call stays named as the fallback for when the tool is not listed yet);
 worker.md's schedule line becomes the `mcp__run-agent__schedule` tool. Nothing else in the files changes; a second run
 changes nothing. --check prints what would change and writes nothing."""
 import os, re, sys
@@ -10,14 +10,14 @@ FILES = ["evaluator.md", "planner.md", "planner-fix10.md", "planner-fix32.md", "
 S = "~/.claude/skills/run-agent/scripts/run-agent.sh"
 NEXT = re.compile(r'`' + re.escape(S) + r' --next (\w+) "([^"`]*?)"`', re.S)
 SCHED_OLD = ('run `' + S + ' worker "<this session\'s prompt>"\n--at <that epoch + 5 min> -- --model <model> --effort <effort>`')
-SCHED_NEW = ('call the `mcp__run-agent__schedule` tool (agent `worker`, prompt = this session\'s prompt, at = `in <those minutes + 5> min`, model and effort; Bash fallback: `'
+SCHED_NEW = ('call the `mcp__run-agent__schedule` tool (agent `worker`, prompt = this session\'s prompt, at = `in <those minutes + 5> min`, model and effort; when the tool is not listed yet, the Bash fallback, run as a standalone command: `'
              + S + ' worker "<this session\'s prompt>"\n--at <that epoch + 5 min> -- --model <model> --effort <effort>`)')
 
 
 def next_call(m):
     agent, prompt = m.group(1), " ".join(m.group(2).split())
-    return (f'the `mcp__run-agent__next` tool (agent `{agent}`, prompt `{prompt}`; Bash fallback: '
-            f'`{S} --next {agent} "{m.group(2)}"`)')
+    return (f'the `mcp__run-agent__next` tool (agent `{agent}`, prompt `{prompt}`; when the tool is not listed yet, '
+            f'the Bash fallback, run as a standalone command: `{S} --next {agent} "{m.group(2)}"`)')
 
 
 def convert(text, name):

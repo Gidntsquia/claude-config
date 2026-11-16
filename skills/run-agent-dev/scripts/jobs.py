@@ -33,26 +33,6 @@ import sys
 import time
 from datetime import datetime
 
-# Dev-copy lock (plan 2026-11-15, R2-R3; see run-agent.sh): a copy whose real path contains `run-agent-dev` is always
-# in test mode, and dev_lock() refuses an acting mode unless TMUX's socket ends /run-agent-dev-test.
-DEV_COPY = "run-agent-dev" in os.path.realpath(__file__)
-if DEV_COPY:
-    os.environ["RUN_AGENT_TEST"] = "1"
-
-
-def dev_lock():
-    if not DEV_COPY:
-        return
-    sock = (os.environ.get("TMUX") or "").split(",")[0]
-    d = os.environ.get("RUN_AGENT_TEST_DIR") or ""
-    if sock.endswith("/run-agent-dev-test"):
-        return
-    if d and os.path.isdir(d) and (not sock or os.path.basename(sock).startswith("run-agent-dev-test-")
-                                   or os.path.realpath(sock).startswith(os.path.realpath(d) + os.sep)):
-        return  # test.sh: no tmux, or its own sockets
-    print("refused: not the run-agent-dev-test socket", file=sys.stderr)
-    sys.exit(3)
-
 HOME = os.environ.get("RUN_AGENT_HOME") or os.path.join(os.path.expanduser("~"), ".claude", "run-agent-dev")
 # test mode (RUN_AGENT_TEST=1, exported by test.sh): only a scratch store, RUN_AGENT_HOME set and outside ~/.claude
 if os.environ.get("RUN_AGENT_TEST") == "1" and (not os.environ.get("RUN_AGENT_HOME") or (
@@ -347,7 +327,6 @@ def main():
         if big:
             print(big)
     elif cmd == "cancel":
-        dev_lock()
         ids = pending()
         if args:
             jid = int(args[0].lstrip("#"))

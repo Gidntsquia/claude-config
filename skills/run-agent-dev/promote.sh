@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# promote.sh [--dry]: plan 2026-11-15 R17. Run after lock-test.txt, results.csv, the chain captures and matrix.csv pass.
-#   1. copies the dev MCP server to skills/run-agent/mcp/ (server.py, mcp.json pointing at the installed path);
-#      in that path the dev-copy lock is off by itself (it keys on `run-agent-dev` in the file's real path)
+# promote.sh [--dry]: plans 2026-11-15 R17 and 2026-11-16 R7. This one command promotes everything.
+#   1. copies the dev MCP server to skills/run-agent/mcp/ (server.py, mcp.json pointing at the installed path)
 #   2. registers it for every session: claude mcp add --transport stdio --scope user run-agent -- <server.py>
 #   3. settings (the repo's settings.json and the installed ~/.claude/settings.json): permissions.allow gains
 #      `mcp__run-agent__*` (the six Bash rules stay); autoMode.allow = "$defaults" + the run-agent sentence
 #   4. the five agent files: apply_agents.py (tools: line + the run-agent lines)
 #   5. skills/run-agent/SKILL.md gains the "MCP tools" paragraph of the dev SKILL.md
+#   6. the installed agent files in ~/.claude/agents (regular files, not links into the clone): apply_agents.py there
+#      too, only when its --check reports a line to change
 # It never touches the scripts in skills/run-agent/scripts/. A second run changes nothing. --dry prints the steps only.
 set -euo pipefail
 HERE="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
@@ -63,5 +64,11 @@ say "5. SKILL.md"
 if grep -q 'mcp__run-agent__next' "$PROD/SKILL.md"; then say "   already names the tools"
 elif [ -n "$DRY" ]; then say "   would append the MCP tools paragraph"
 else sed -n '/^MCP tools (server `run-agent`/,$p' "$HERE/SKILL.md" | { printf '\n'; cat; } >> "$PROD/SKILL.md"; say "   appended"; fi
+
+say "6. installed agent files -> $C/agents"
+if [ ! -d "$C/agents" ]; then say "   missing: $C/agents"
+elif chk="$(python3 "$HERE/apply_agents.py" "$C/agents" --check)" && ! grep -qv 'lines changed none$' <<<"$chk"; then say "   already applied"
+elif [ -n "$DRY" ]; then say "would run: python3 $HERE/apply_agents.py $C/agents"; sed 's/^/   /' <<<"$chk"
+else python3 "$HERE/apply_agents.py" "$C/agents" | sed 's/^/   /'; fi
 
 say "done. check: claude mcp list"

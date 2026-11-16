@@ -44,26 +44,6 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 S_REAL = os.path.join(HERE, "run-agent.sh")
 
-# Dev-copy lock (plan 2026-11-15, R2-R3; see run-agent.sh): a copy whose real path contains `run-agent-dev` is always
-# in test mode, and dev_lock() refuses an acting mode unless TMUX's socket ends /run-agent-dev-test.
-DEV_COPY = "run-agent-dev" in os.path.realpath(__file__)
-if DEV_COPY:
-    os.environ["RUN_AGENT_TEST"] = "1"
-
-
-def dev_lock():
-    if not DEV_COPY:
-        return
-    sock = (os.environ.get("TMUX") or "").split(",")[0]
-    d = os.environ.get("RUN_AGENT_TEST_DIR") or ""
-    if sock.endswith("/run-agent-dev-test"):
-        return
-    if d and os.path.isdir(d) and (not sock or os.path.basename(sock).startswith("run-agent-dev-test-")
-                                   or os.path.realpath(sock).startswith(os.path.realpath(d) + os.sep)):
-        return  # test.sh: no tmux, or its own sockets
-    print("refused: not the run-agent-dev-test socket", file=sys.stderr)
-    sys.exit(3)
-
 TEST = os.environ.get("RUN_AGENT_TEST") == "1"  # set by test.sh: see tmux_guard and claude_environ
 
 
@@ -842,7 +822,6 @@ def main():
     if len(sys.argv) < 2:
         print(__doc__); return 2
     mode, rest = sys.argv[1], sys.argv[2:]
-    dev_lock()  # every mode here acts or prints a handoff: relaunch, step, hook, cli, group, next
     if mode == "relaunch":
         return relaunch(" ".join(rest))
     if mode == "step":

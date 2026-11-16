@@ -2,14 +2,14 @@
 """replay.py <replay dir> <out dir> <label> <agent> <item>...   (item = cmd-N | mcp-N | a file path with one command)
 One headless haiku session (`claude -p --agent <agent> --permission-mode auto`) is told to make each item's calls
 exactly as recorded; its stream-json goes to <out dir>/<label>.jsonl and the item list to <label>.items. Afterwards
-every job the session left in the (scratch) store is cancelled. Run only inside `tmux -L run-agent-dev-test`: this
-dev copy refuses to act anywhere else (plan R3-R4). results.py turns the streams into results.csv."""
+every job the session left in the (scratch) store is cancelled. Run only inside `tmux -L run-agent-dev-test` (asserted below):
+a replayed call may replace the pane it runs in. results.py turns the streams into results.csv."""
 import json, os, re, subprocess, sys
 
 rdir, out, label, agent, items = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5:]
 HERE = os.path.dirname(os.path.realpath(__file__))
 S = os.path.join(os.path.dirname(HERE), "scripts", "run-agent.sh")
-assert (os.environ.get("TMUX") or "").split(",")[0].endswith("/run-agent-dev-test"), "not the run-agent-dev-test socket"
+assert (os.environ.get("TMUX") or "").split(",")[0].endswith("/run-agent-dev-test"), "run replay.py inside tmux -L run-agent-dev-test"
 os.makedirs(out, exist_ok=True)
 steps = []
 for k, it in enumerate(items, 1):

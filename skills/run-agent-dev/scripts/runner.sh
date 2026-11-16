@@ -18,8 +18,6 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 J="$HERE/jobs.py"; P="$HERE/parse.py"
-# Dev-copy lock (see run-agent.sh): a copy whose real path contains run-agent-dev is always in test mode.
-case "$(readlink -f "$0")" in *run-agent-dev*) export RUN_AGENT_TEST=1 ;; esac
 
 # Test mode (RUN_AGENT_TEST=1, exported by test.sh; same two functions as run-agent.sh). tm_guard <subcommand> <socket>: a tmux command that changes
 # panes runs only on the test's own servers (socket named run-agent-dev-test-*, or under $RUN_AGENT_TEST_DIR); on any

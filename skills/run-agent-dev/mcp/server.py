@@ -26,14 +26,6 @@ import time
 from mcp.server.fastmcp import FastMCP
 
 HERE = os.path.dirname(os.path.realpath(__file__))
-# Dev-copy lock (plan 2026-11-15, R2-R3): on 15 Nov 2026 a worker called the dev `next` tool with run=True from a
-# stdio client with TMUX unset; _env() refilled TMUX from the parent claude and the worker's own pane was respawned.
-# In a copy whose real path contains `run-agent-dev`, test mode is always on (claude_environ() returns {}, _env()
-# copies nothing from a parent) and every tool but `jobs` refuses unless TMUX's socket ends /run-agent-dev-test.
-DEV_COPY = "run-agent-dev" in os.path.realpath(__file__)
-if DEV_COPY:
-    os.environ["RUN_AGENT_TEST"] = "1"
-REFUSED = "refused: not the run-agent-dev-test socket"
 SCRIPTS = os.path.join(os.path.dirname(HERE), "scripts")
 sys.path.insert(0, SCRIPTS)
 import jobs as jobs_mod  # noqa: E402  (the dev copy's store: RUN_AGENT_HOME or ~/.claude/run-agent-dev)
@@ -49,8 +41,6 @@ mcp = FastMCP("run-agent", instructions="Schedule, list, cancel and hand off `cl
 def _env() -> dict:
     """the server's environment plus the parent claude's pane (TMUX, TMUX_PANE) and agent (RUN_AGENT_FROM)"""
     env = dict(os.environ)
-    if DEV_COPY:
-        return env
     ce = claude_environ()
     for k in ("TMUX", "TMUX_PANE", "PATH", "SHELL", "HOME"):
         if ce.get(k) and not env.get(k):
@@ -61,18 +51,11 @@ def _env() -> dict:
     return env
 
 
-def _locked() -> bool:
-    """dev copy only: True when the server's own TMUX is not the private test server"""
-    return DEV_COPY and not (os.environ.get("TMUX") or "").split(",")[0].endswith("/run-agent-dev-test")
-
-
 def _cwd() -> str:
     return os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
 
 
 def _run(args: list[str], stdin: str | None = None) -> str:
-    if _locked() and args[0] != "--jobs":
-        return REFUSED
     r = subprocess.run([S, *args], capture_output=True, text=True, env=_env(), cwd=_cwd(), input=stdin)
     out = ((r.stdout or "") + (r.stderr or "")).rstrip("\n")
     return out or ("done" if r.returncode == 0 else f"exit {r.returncode}")
@@ -158,8 +141,6 @@ def next(agent: str, prompt: str = "", run: bool = False) -> str:
     ["<prompt>"]` prints (a sentence, the `/run-agent` line, a `Without run-agent: claude ...` line) for the agent to
     print as they are. agent = worker | evaluator | planner | helper. run=True also starts that agent 2 s later in
     the calling tmux pane (this session is replaced); leave it False unless the user asked for the handoff to run."""
-    if _locked():
-        return REFUSED
     args = ["--next", agent] + ([prompt] if prompt else [])
     out = _run(args)
     if not run:
@@ -168,8 +149,6 @@ def next(agent: str, prompt: str = "", run: bool = False) -> str:
     if not line:
         return out + "\nnot started: no /run-agent line"
     env = _env()
-    if _locked():
-        return REFUSED
     if not (env.get("TMUX") and env.get("TMUX_PANE")):
         return out + "\nnot started: the calling session is not inside tmux"
     # detached and delayed so this result reaches the session before its pane is replaced

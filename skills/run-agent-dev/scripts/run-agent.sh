@@ -70,24 +70,6 @@ WORKER_ENV="CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1
 WORKER_ENV_SH='w=(); [ "$3" = worker ] && w=(env '"$WORKER_ENV"');'
 STATE="${RUN_AGENT_HOME:-$HOME/.claude/run-agent-dev}"
 
-# Dev-copy lock (plan 2026-11-15, R2-R3; on 15 Nov 2026 a worker's dev `next` call respawned the worker's own pane).
-# In a copy whose real path contains `run-agent-dev`, test mode is always on (the parent claude is never read, pane
-# commands run only on test sockets, only a scratch job store), and dev_lock refuses every acting mode unless TMUX's
-# socket ends /run-agent-dev-test. test.sh (RUN_AGENT_TEST_DIR set) may also run with no TMUX or on its own sockets.
-DEV_COPY=""
-case "$(readlink -f "${BASH_SOURCE[0]}")" in *run-agent-dev*) DEV_COPY=1; export RUN_AGENT_TEST=1 ;; esac
-dev_lock() {
-  [ -n "$DEV_COPY" ] || return 0
-  local s="${TMUX:-}" d="${RUN_AGENT_TEST_DIR:-}"; s="${s%%,*}"
-  case "$s" in */run-agent-dev-test) return 0 ;; esac
-  if [ -n "$d" ] && [ -d "$d" ]; then
-    [ -z "$s" ] && return 0
-    case "${s##*/}" in run-agent-dev-test-*) return 0 ;; esac
-    case "$(realpath -m -- "$s")" in "$(realpath -m -- "$d")"/*) return 0 ;; esac
-  fi
-  echo "refused: not the run-agent-dev-test socket" >&2
-  exit 3
-}
 
 # Test mode (RUN_AGENT_TEST=1, exported by test.sh). tm_guard <subcommand> <socket>: a tmux command that changes
 # panes runs only on the test's own servers (socket named run-agent-dev-test-*, or under $RUN_AGENT_TEST_DIR); on any
@@ -347,22 +329,22 @@ case "${1:-}" in
   --resolve) [ $# -eq 2 ] || { echo "$USAGE" >&2; exit 2; }
     resolve "$2"; printf '%s\t%s\n' "$RESOLVED" "$RES_STATE"; exit 0 ;;
   --parse) shift; exec python3 "$HERE/parse.py" "$@" ;;
-  --relaunch|--cli|--group) dev_lock "$1"; fire_waiting; mode="${1#--}"; shift; show_failures; exec python3 "$HERE/launch.py" "$mode" "$@" ;;
-  --step|--next|--hook) dev_lock "$1"; mode="${1#--}"; shift; exec python3 "$HERE/launch.py" "$mode" "$@" ;;
+  --relaunch|--cli|--group) fire_waiting; mode="${1#--}"; shift; show_failures; exec python3 "$HERE/launch.py" "$mode" "$@" ;;
+  --step|--next|--hook) mode="${1#--}"; shift; exec python3 "$HERE/launch.py" "$mode" "$@" ;;
   --from-agent) from_agent; exit 0 ;;
   --reset-shown) r=$(python3 "$HERE/parse.py" --reset 2>/dev/null) && python3 "$HERE/parse.py" --fmt "$r"; exit 0 ;;
-  --fire-waiting) dev_lock "$1"; store_guard; fire_waiting; exit 0 ;;
-  --open) dev_lock "$1"; shift; open_target "$@"; exit $? ;;
+  --fire-waiting) store_guard; fire_waiting; exit 0 ;;
+  --open) shift; open_target "$@"; exit $? ;;
   --jobs) store_guard; fire_waiting; exec python3 "$HERE/jobs.py" list ;;
   --clean) store_guard; exec python3 "$HERE/jobs.py" clean ;;
   --failures) store_guard; shift; exec python3 "$HERE/jobs.py" failures "$@" ;;
   --denied) denied; exit 0 ;;
   --install-denied) install_denied; exit $? ;;
   --health) store_guard; exec python3 "$HERE/jobs.py" health ;;
-  --cancel) dev_lock "$1"; store_guard; shift; exec python3 "$HERE/jobs.py" cancel "$@" ;;
-  --revive) dev_lock "$1"; revive; exit 0 ;;
+  --cancel) store_guard; shift; exec python3 "$HERE/jobs.py" cancel "$@" ;;
+  --revive) revive; exit 0 ;;
   --dry-run) shift; dry=1 ;;
-  --handoff) dev_lock "$1"; shift; handoff=1 ;;
+  --handoff) shift; handoff=1 ;;
   ""|--*) echo "$USAGE" >&2; exit 2 ;;
 esac
 dry="${dry:-0}"; handoff="${handoff:-0}"
@@ -398,7 +380,6 @@ while [ $# -gt 0 ]; do
   esac
 done
 flags=("$@")
-[ "$dry" = 1 ] || dev_lock run   # a run now or a schedule (--at)
 
 # An agent session (worker/evaluator/planner) never opens a tmux window: split/window are ignored, its run replaces
 # its own pane, and its scheduled job is marked from_agent (the runner then never opens a window or session either).
