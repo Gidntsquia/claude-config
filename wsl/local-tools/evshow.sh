@@ -30,7 +30,7 @@ grep -qi microsoft /proc/version 2>/dev/null || { echo "evshow.sh: WSL only (thi
 set -u
 . "$HOME/.claude/local-tools/evsession.sh"
 . "$HOME/.claude/local-tools/winenv.sh"
-W="$HOME/.claude/local-tools/win.sh"
+W="${EVSHOW_WIN:-$HOME/.claude/local-tools/win.sh}"   # EVSHOW_WIN=<script> stands in for win.sh (tests)
 PY="$HOME/.claude/local-tools/evshow_watch.py"
 CAP="$HOME/.claude/local-tools/screen-capture.sh"
 et() { TZ=America/New_York date +%T.%N | cut -c1-12; }
@@ -60,6 +60,7 @@ fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired
   exec 9>"$D/lock"; flock -n 9 || { exec 9>&-; return 0; }
   [ -e "$D/done" ] && { exec 9>&-; return 0; }
   local mode title old out rc t0 t1 capw capl
+  et > "$D/started"   # `wait` reads this: a show that has started but not finished is waited for, not reported as "nothing fired"
   mode=$(cat "$D/mode"); title=$(cat "$D/title"); old=$(cat "$D/old" 2>/dev/null || echo 0)
   if [ -e "$D/gatepid" ]; then kill -- -"$(cat "$D/gatepid")" 2>/dev/null; pkill -P "$(cat "$D/gatepid")" 2>/dev/null; rm -f "$D/gatepid"; fi
   capl="$WIN_HOME/evshow-shown-$SID8-$(date +%s).png"; capw="$WIN_HOME_W\\$(basename "$capl")"
@@ -91,7 +92,7 @@ fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired
 arm() {  # arm first|next <title> <oldHWND>; sets per-item state and starts the watcher on this session's transcript
   local mode=$1 title=$2 old=$3
   "$0" disarm >/dev/null 2>&1
-  rm -f "$D"/{log,done,lock,mode,title,old,answer,pid,question-ts,gates,gatepid}
+  rm -f "$D"/{log,done,lock,started,mode,title,old,answer,pid,question-ts,gates,gatepid}
   if [ "$mode" = first ] || [ ! -s "$D/transcript" ]; then
     local tr; tr=$(ev_pick_transcript); [ -n "$tr" ] || { echo "no transcript found in $(ev_transcripts_dir)"; exit 1; }
     echo "$tr" > "$D/transcript"
@@ -138,6 +139,14 @@ case "${1:-}" in
       if [ $n -ge 15 ] && [ ! -e "$D/done" ]; then fire "wait-fallback (watcher did not fire by $t)" "$(cat "$D/answer" 2>/dev/null)"; fi
     done
     echo "wait-called $t (session $(basename "$D"))"; cat "$D/log" 2>/dev/null
+    # a show that started but is still running (Windows was slow to start the helper: 78 s seen once) is waited for, up to 100 s in all;
+    # reopening the item now would leave two windows and the first would still show itself later
+    if [ ! -e "$D/done" ] && [ -e "$D/started" ]; then
+      echo "wait: show started $(cat "$D/started") is still running after ${to}s (Windows is slow to start the helper); waiting up to ${EVSHOW_SLOW_S:-100}s in all"
+      while [ ! -e "$D/done" ] && [ $n -lt $((${EVSHOW_SLOW_S:-100}*10)) ]; do sleep 0.1; n=$((n+1)); done
+      [ -e "$D/done" ] || { echo "not shown: show started $(cat "$D/started") did not finish within ${EVSHOW_SLOW_S:-100}s (Windows did not run the helper)"; exit 1; }
+      tail -n +2 "$D/log" 2>/dev/null
+    fi
     [ -e "$D/done" ] || { echo "not shown: nothing fired within ${to}s"; exit 1; }
     rc=$(cat "$D/done")
     if grep -q '^shown: ' "$D/log"; then
