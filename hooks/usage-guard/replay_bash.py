@@ -99,10 +99,12 @@ def main():
         if p.returncode == 2:
             blocked += 1
             suites_blocked += bool(n)
-            m = re.search(r"usage-guard: (\d+ parallel|\d+/\d+ (?:headless )?launches|guard state|.*lacks)", p.stderr)
+            m = re.search(r"usage-guard: (\d+ parallel|\d+/\d+ (?:headless )?launches|guard state|this takes|.*lacks)", p.stderr)
             kind = {"p": "R3 parallel", "l": "R5 daily cap", "g": "R6 guard state"}.get((m.group(1).split()[-1][0] if m else "?"), "R4 flags")
             if m and "lacks" in m.group(1):
                 kind = "R4 flags"
+            if m and m.group(1) == "this takes":
+                kind = "R11 big run, asked once"
             why[kind] = why.get(kind, 0) + 1
         elif p.returncode == 0:
             allowed += 1

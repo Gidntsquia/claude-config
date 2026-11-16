@@ -1,0 +1,69 @@
+{
+ "about": "The 8 assistant-agent worker commands of 2026-11-15 (session logs 4d9ac8e4, 38d76db6) whose guard log lines, cut at 120 characters, looked like edits, commits and a cat counted as launches. In full, each ends in a real run.sh call; launches = scenes named, or the whole suite (29 that day). The home folder name in the /tmp path and the session id in the commit trailers are replaced; nothing else is changed.",
+ "commands": [
+  {
+   "time_et": "12:02:47 AM",
+   "logged_as": 19,
+   "command": "cat \"/tmp/claude-1000/-home-user-files-assistant-agent/4d9ac8e4-aec9-4496-81ce-881bbbd7bce3/tasks/blekvqu52.output\" | cut -c1-200; bash tests/agent-replay/run.sh -j 1 a01_status_running_count a03_ghost_text_count a06_close_keeps_2x2 a05_compact_no_gaps a07_two_planners a08_menu_not_typed_text d02_close_evaluator_open_planner d03_caveat_retile_is_an_order d04_evaluator_replaces_waiting_worker g01_get_finished_carries_on g02_stuck_after_two_restarts p07_one_order_one_window p09_pane_holds_something_else p12_duplicate_job_cancelled p16_start_the_worker_reuses_model p17_reschedule_looks_up_the_reset r09_misread_repair r10_standing_order_restart r24_phone_mode > \"/tmp/claude-1000/-home-user-files-assistant-agent/4d9ac8e4-aec9-4496-81ce-881bbbd7bce3/scratchpad/pass2.txt\" 2>&1",
+   "data_part": "cat \"/tmp/claude-1000/-home-user-files-assistant-agent/4d9ac8e4-aec9-4496-81ce-881bbbd7bce3/tasks/blekvqu52.output\" | cut -c1-200",
+   "launch_part": "bash tests/agent-replay/run.sh -j 1 a01_status_running_count a03_ghost_text_count a06_close_keeps_2x2 a05_compact_no_gaps a07_two_planners a08_menu_not_typed_text d02_close_evaluator_open_planner d03_caveat_retile_is_an_order d04_evaluator_replaces_waiting_worker g01_get_finished_carries_on g02_stuck_after_two_restarts p07_one_order_one_window p09_pane_holds_something_else p12_duplicate_job_cancelled p16_start_the_worker_reuses_model p17_reschedule_looks_up_the_reset r09_misread_repair r10_standing_order_restart r24_phone_mode",
+   "launches": 19
+  },
+  {
+   "time_et": "4:26:33 PM",
+   "logged_as": 1,
+   "command": "python3 - <<'E'\np='.claude/agents/assistant.md'\ns=open(p).read()\na='''`assistant_layout(action=\"retile\")`, the 2x2 shape\n  over every session, done at once.'''\nb='''`assistant_layout(action=\"retile\")`, the 2x2 shape\n  over every session in that one call. Its `say` is the reply, and your own pane and window are left out of both.'''\nassert a in s\nopen(p,'w').write(s.replace(a,b))\nE\nbash tests/agent-style-check.sh | tail -1 && bash tests/agent-replay/run.sh -j 1 d03_caveat_retile_is_an_order 2>&1 | tail -3; cat tests/agent-replay/out/d03_caveat_retile_is_an_order/turn1.md | sed -n 1,12p | cut -c1-400",
+   "data_part": "python3 - <<'E'\np='.claude/agents/assistant.md'\ns=open(p).read()\na='''`assistant_layout(action=\"retile\")`, the 2x2 shape\n  over every session, done at once.'''\nb='''`assistant_layout(action=\"retile\")`, the 2x2 shape\n  over every session in that one call. Its `say` is the reply, and your own pane and window are left out of both.'''\nassert a in s\nopen(p,'w').write(s.replace(a,b))\nE\nbash tests/agent-style-check.sh | tail -1 ",
+   "launch_part": "bash tests/agent-replay/run.sh -j 1 d03_caveat_retile_is_an_order",
+   "launches": 1
+  },
+  {
+   "time_et": "4:26:56 PM",
+   "logged_as": 29,
+   "command": "git add .claude/agents/assistant.md && git commit -q -m \"agent: retile is one call, its say is the reply, own pane and window left out\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_XXXX\" && bash tests/agent-replay/run.sh -j 2 2>&1 | tail -40",
+   "data_part": "git add .claude/agents/assistant.md && git commit -q -m \"agent: retile is one call, its say is the reply, own pane and window left out\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_XXXX\" ",
+   "launch_part": "bash tests/agent-replay/run.sh -j 2",
+   "launches": "suite"
+  },
+  {
+   "time_et": "4:34:23 PM",
+   "logged_as": 3,
+   "command": "python3 - <<'E'\np='.claude/agents/assistant.md'\ns=open(p).read()\ndef rep(a,b):\n    global s\n    assert a in s, a\n    s=s.replace(a,b)\nrep('''you write is shown to the user as the reply, so plan in your thinking, write no sentence until the last tool call has\nreturned, and then write the outcome once.''','''you write is shown to the user as the reply, a note to yourself between calls included, so plan in your thinking, write\nno sentence until the last tool call has returned, and then write the outcome once.''')\nrep('''repair it in three clauses: what you did, what it cost, what you did now to fix\nit (''','''repair it in three clauses: what you did, that it was reversed or cannot be\ntaken back, what you did now to fix it (''')\nopen(p,'w').write(s)\nE\nbash tests/agent-style-check.sh | grep -v PASS; bash tests/agent-replay/run.sh -j 2 p07_one_order_one_window r09_misread_repair r24_phone_mode 2>&1 | tail -5 | cut -c1-500",
+   "data_part": "python3 - <<'E'\np='.claude/agents/assistant.md'\ns=open(p).read()\ndef rep(a,b):\n    global s\n    assert a in s, a\n    s=s.replace(a,b)\nrep('''you write is shown to the user as the reply, so plan in your thinking, write no sentence until the last tool call has\nreturned, and then write the outcome once.''','''you write is shown to the user as the reply, a note to yourself between calls included, so plan in your thinking, write\nno sentence until the last tool call has returned, and then write the outcome once.''')\nrep('''repair it in three clauses: what you did, what it cost, what you did now to fix\nit (''','''repair it in three clauses: what you did, that it was reversed or cannot be\ntaken back, what you did now to fix it (''')\nopen(p,'w').write(s)\nE\nbash tests/agent-style-check.sh | grep -v PASS",
+   "launch_part": "bash tests/agent-replay/run.sh -j 2 p07_one_order_one_window r09_misread_repair r24_phone_mode",
+   "launches": 3
+  },
+  {
+   "time_et": "4:35:35 PM",
+   "logged_as": 29,
+   "command": "git add .claude/agents/assistant.md && git commit -q -m \"agent: a note between calls is reply text; repair says reversed or cannot be taken back\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_XXXX\" && bash tests/agent-replay/run.sh -j 2 2>&1 | tail -40 | cut -c1-500",
+   "data_part": "git add .claude/agents/assistant.md && git commit -q -m \"agent: a note between calls is reply text; repair says reversed or cannot be taken back\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_XXXX\" ",
+   "launch_part": "bash tests/agent-replay/run.sh -j 2",
+   "launches": "suite"
+  },
+  {
+   "time_et": "4:44:44 PM",
+   "logged_as": 29,
+   "command": "git add .claude/agents/assistant.md mcp/server.py && git commit -q -m \"agent: reply capped at 30 words, standing order gets one word, no resume note after a close; server: reply rule leads the panes result\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_XXXX\" && bash tests/agent-replay/run.sh -j 2 2>&1 | tail -8 | cut -c1-500",
+   "data_part": "git add .claude/agents/assistant.md mcp/server.py && git commit -q -m \"agent: reply capped at 30 words, standing order gets one word, no resume note after a close; server: reply rule leads the panes result\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_XXXX\" ",
+   "launch_part": "bash tests/agent-replay/run.sh -j 2",
+   "launches": "suite"
+  },
+  {
+   "time_et": "4:53:43 PM",
+   "logged_as": 1,
+   "command": "python3 - <<'EOF'\np='tests/agent-replay/scenes/r24_phone_mode.py'; s=open(p).read()\nold=s[s.index('    bash = [c for c'):s.index('    f += forbid(ctx.replies[0], OFFERS)')]\nnew='''    guard = os.path.expanduser(\"~/.claude/local-tools/game-guard.sh\")\n    if os.path.exists(guard) and subprocess.run([guard], capture_output=True).returncode == 0:\n        # the game is running on this machine: the agent file says the picture is skipped and the reply says so\n        if not re.search(r\"(?i)game|deadlock\", ctx.replies[0]):\n            f.append(\"game guard is on and the reply does not say the picture was skipped for it\")\n        f += forbid(ctx.replies[0], OFFERS)\n        return f\n'''+old\ns=s.replace(old,new)\ns=s.replace('read with the Read tool.\"\"\"','read with the Read tool.\\nWhile game-guard.sh exits 0 (the user is in a game) the picture is skipped and the reply has to say so.\"\"\"')\nopen(p,'w').write(s)\nEOF\nhead -12 tests/agent-replay/scenes/_lib.py | grep -n import; bash tests/agent-replay/run.sh -j 1 r24_phone_mode 2>&1 | tail -2 | cut -c1-400; grep -h -A2 \"^# reply\" tests/agent-replay/out/r24_phone_mode/turn1.md",
+   "data_part": "python3 - <<'EOF'\np='tests/agent-replay/scenes/r24_phone_mode.py'; s=open(p).read()\nold=s[s.index('    bash = [c for c'):s.index('    f += forbid(ctx.replies[0], OFFERS)')]\nnew='''    guard = os.path.expanduser(\"~/.claude/local-tools/game-guard.sh\")\n    if os.path.exists(guard) and subprocess.run([guard], capture_output=True).returncode == 0:\n        # the game is running on this machine: the agent file says the picture is skipped and the reply says so\n        if not re.search(r\"(?i)game|deadlock\", ctx.replies[0]):\n            f.append(\"game guard is on and the reply does not say the picture was skipped for it\")\n        f += forbid(ctx.replies[0], OFFERS)\n        return f\n'''+old\ns=s.replace(old,new)\ns=s.replace('read with the Read tool.\"\"\"','read with the Read tool.\\nWhile game-guard.sh exits 0 (the user is in a game) the picture is skipped and the reply has to say so.\"\"\"')\nopen(p,'w').write(s)\nEOF\nhead -12 tests/agent-replay/scenes/_lib.py | grep -n import",
+   "launch_part": "bash tests/agent-replay/run.sh -j 1 r24_phone_mode",
+   "launches": 1
+  },
+  {
+   "time_et": "4:54:16 PM",
+   "logged_as": 29,
+   "command": "git add tests/agent-replay/scenes/r24_phone_mode.py && git commit -q -m \"replay: r24 follows the game guard; while a game runs the picture is skipped and the reply must say so\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_XXXX\" && bash tests/agent-replay/run.sh -j 2 2>&1 | tail -8 | cut -c1-500",
+   "data_part": "git add tests/agent-replay/scenes/r24_phone_mode.py && git commit -q -m \"replay: r24 follows the game guard; while a game runs the picture is skipped and the reply must say so\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_XXXX\" ",
+   "launch_part": "bash tests/agent-replay/run.sh -j 2",
+   "launches": "suite"
+  }
+ ]
+}

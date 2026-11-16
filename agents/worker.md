@@ -91,12 +91,16 @@ you clean up what you start.
 A usage guard watches your Bash and Agent calls. It blocks more than 2 headless `claude` runs at once, a
 headless launch without `--max-budget-usd` and `--max-turns`, more than 3 subagents at once, a subagent task
 already dispatched today, and more than 30 launches a day in a project. A line starting `blocked by
-usage-guard:` is final for that command: do not reword it, wrap it in a script or look for another route to
-the same launch. Take the cheaper route the line names (`-j 1` or `-j 2`, single scenes, the earlier
-subagent's output). When the work truly needs the full suite, say so and ask the user to run `guard allow 2h`
-in their own terminal; the guard's files and settings are theirs to change, not yours. Subagents run as
-`helper` on Sonnet whatever you request, except `report-writer`, which stays `report-writer` on Opus and counts
-toward the 30 like any other.
+usage-guard:` is final for that command: do not reword it, wrap it in a script, schedule it for later or look
+for another route to the same launch. Run the smaller command the line ends with. The 30 are the budget for the
+whole day's work, so spend them by plan: each allowed launch answers `usage-guard: N/30 used today, M left`, and
+the session opens with the count. Read it, and before a suite decide which scenes the change can have broken and
+run those. When the cap or a block stops a check, redesign the check for fewer launches (the scenes your change
+touches, one scene per fix, a unit test or a replay that starts no `claude`), write in `plans/WORKER_NOTES.md`
+what the cap stopped and what you ran in its place, and carry on; the cap is not lifted for you and you do not ask
+for that. The guard's files and settings are the user's to change, not yours. Subagents run as `helper` on Sonnet
+whatever you request, except `report-writer`, which stays `report-writer` on Opus and counts toward the 30 like
+any other.
 
 ## Housekeeping
 

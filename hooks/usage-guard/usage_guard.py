@@ -8,13 +8,18 @@ Hook mode (stdin = Claude Code hook JSON), registered in settings.json:
                             day; rewrites subagent_type to `helper` and drops an expensive `model`
                             (report-writer is the exception: kept, on opus)
   PreToolUse Edit|Write|NotebookEdit   blocks edits of guard state, the hook, settings.json and worker.md
+  PostToolUse Bash|Monitor  raises the count when a command started more headless sessions than were counted
+  SessionStart              tells a worker how many of today's launches are already used
   SubagentStart / SubagentStop         keep <project>/live/<agent_id>
+An allowed launch answers with the count (`usage-guard: 12/30 used today, 18 left`) as additionalContext; a block
+ends with a smaller command that fits. A command that would take over half of what is left is turned back once.
 It acts only in a session started as `claude --agent worker` (hook input agent_type == "worker") and in that
 session's subagents; every other session exits 0 with no output. A block is exit 2 with one line on stderr.
 
 CLI mode: `usage_guard.py cli ...` (installed as `guard`): allow / revoke / status / log / usage.
 Test-only arguments (the settings.json command passes none): --now <epoch>, --live <n>.
-State: ~/.cache/claude-guard/{log, sessions/, <project>/{<date>.count, <date>.dispatched, allow, live/}}.
+State: ~/.cache/claude-guard/{log, sessions/, <project>/{<date>.count, <date>.dispatched, allow, live/, runs/,
+confirm/, <date>.usage.json}}.
 """
 import json
 import os
@@ -31,7 +36,10 @@ SUGGEST = "--max-budget-usd 0.50 --max-turns 15"
 CHEAP_MODELS = ("sonnet", "haiku")
 KEEP = {"report-writer": "opus"}   # subagent types a worker may start as they are, with the model each runs on
 STALE_LIVE, STALE_PENDING = 2 * 3600, 90
-TAMPER = re.compile(r"\.cache/claude-guard|claude-guard/|\bguard\s+(allow|revoke)\b|usage_guard\.py|usage-guard/guard\b")
+MARKS = (25, 20)          # counts at which the worker is told to plan what is left
+BIG, CONFIRM = 3, 600     # a command of BIG+ launches taking over half the slots left runs only when sent twice in CONFIRM s
+NO_CLAUDE = "use checks that start no claude"
+TAMPER = re.compile(r"\.cache/claude-guard|claude-guard/|\bguard\s+(allow|revoke|recount)\b|usage_guard\.py|usage-guard/guard\b")
 R6 = "blocked by usage-guard: guard state is edited by the user only"
 NOW = None
 LIVE = None
@@ -112,16 +120,20 @@ def allow_until(slug):
     return exp if exp > now() else None
 
 
-def log(slug, verdict, count, what, reason):
+def log(slug, verdict, count, what, reason, part=None):
+    """part: the piece of a long command that launches; shown after the cut so the line says what was counted"""
     os.makedirs(G, exist_ok=True)
-    what = " ".join((what or "").split())[:120]
+    what = " ".join((what or "").split())
+    part = " ".join((part or "").split())
+    if len(what) > 120:
+        what = what[:120] if not part or part[:60] in what[:120] else what[:50] + " … " + part[:120]
     line = f"{et().strftime('%Y-%m-%d %I:%M:%S %p ET')} | {slug} | {verdict} | {count}/{DAILY} | {what} | {reason}\n"
     with open(os.path.join(G, "log"), "a") as f:
         f.write(line)
 
 
-def block(slug, what, reason, count=None):
-    log(slug, "BLOCK", read_count(slug) if count is None else count, what, reason)
+def block(slug, what, reason, count=None, part=None):
+    log(slug, "BLOCK", read_count(slug) if count is None else count, what, reason, part)
     sys.stderr.write(reason + "\n")
     sys.exit(2)
 
@@ -249,6 +261,58 @@ def tamper(result, cwd):
     return False
 
 
+# ---- what the worker is told --------------------------------------------------------------------------------------
+def count_note(before, after):
+    left = max(DAILY - after, 0)
+    if any(before < m <= after for m in MARKS):
+        return f"usage-guard: {after}/{DAILY} used, {left} left today: plan the remaining checks to fit"
+    return f"usage-guard: {after}/{DAILY} used today, {left} left"
+
+
+def _q(w):
+    import shlex
+    m = re.fullmatch(r"(\w+)=(.*)", w, re.S)
+    if m and not re.fullmatch(r"[\w@%+=:,./-]*", m.group(2)):
+        return m.group(1) + '="' + m.group(2).replace('"', '\\"') + '"'
+    return w if w.startswith("<") else shlex.quote(w)
+
+
+def top_text(L):
+    return " ".join(_q(w.text) for w in L.top.words) if L is not None and L.top is not None else ""
+
+
+def biggest(r):
+    return max(r.launches, key=lambda L: (L.top is not None, L.total()), default=None)
+
+
+def smaller(r, jobs, first=None):
+    """the command that launches, rewritten to fit: `-j <jobs>`, and with `first` only that many of its scenes.
+    None when the launch is not a script call that takes -j."""
+    import shellscan
+    L = biggest(r)
+    if L is None or L.top is None or not L.script:
+        return None
+    words = [w.text for w in L.top.words]
+    k = next((i for i, w in enumerate(words) if not re.fullmatch(r"\w+=.*", w, re.S) and not w.startswith("-")
+              and ("/" in w or w.endswith((".sh", ".py")))), None)
+    if k is None:
+        return None
+    jn, rest = shellscan._jobs(words[k + 1:], {})
+    if jn is None and not L.takes_j:
+        return None
+    flags = [a for a in rest if a.startswith("-")]
+    names = [a for a in rest if not a.startswith("-")]
+    if first is not None:
+        names = (names or L.items or [f"<{first} scene name{'s' if first != 1 else ''}>"])[:first]
+    return " ".join(_q(w) for w in words[:k + 1] + ["-j", str(jobs)] + flags + names)
+
+
+def say(note, extra=None):
+    out = {"hookEventName": "PreToolUse", "additionalContext": note}
+    out.update(extra or {})
+    print(json.dumps({"hookSpecificOutput": out}))
+
+
 # ---- hooks --------------------------------------------------------------------------------------------------------
 def bash_hook(data):
     ti = data.get("tool_input") or {}
@@ -264,31 +328,129 @@ def bash_hook(data):
         block(slug, cmd, R6)
     if not r.launches:
         return 0
+    part = top_text(biggest(r))
     with Lock(slug):
         unlocked = allow_until(slug)
         count = read_count(slug)
         live = live_headless()
         total = r.conc + live
+        left = max(DAILY - count, 0)
         if total > MAX_HEADLESS and not unlocked:
             extra = f" ({live} already running)" if live else ""
-            block(slug, cmd, f"blocked by usage-guard: {total} parallel headless claude runs (max {MAX_HEADLESS}){extra}. "
-                             "Run -j 2 or one scene; ask the user to run `guard allow` for a full suite.", count)
+            room = MAX_HEADLESS - live
+            fit = smaller(r, max(room, 1))
+            if room <= 0:
+                tip = f"Wait for {'it' if live == 1 else 'one'} to finish, then run: {fit}" if fit else "Wait for one to finish, then start one launch at a time."
+            else:
+                tip = f"Run: {fit}" if fit else f"Start at most {room} at a time: one launch per command, or -P {room} / -j {room}."
+            block(slug, cmd, f"blocked by usage-guard: {total} parallel headless claude runs (max {MAX_HEADLESS}){extra}. {tip}", count, part)
         if count + r.total > DAILY and not unlocked:
-            left = max(DAILY - count, 0)
+            fit = smaller(r, 1, left) if left else None
+            tip = NO_CLAUDE if not left else (f"Run: {fit}" if fit else f"start at most {left} more, one at a time")
             block(slug, cmd, f"blocked by usage-guard: {count}/{DAILY} headless launches used today for {slug}; this adds "
-                             f"{r.total}. Run at most {left} more today (single scenes), or ask the user to run "
-                             "`guard allow`.", count)
+                             f"{r.total}. {left} left today: {tip}", count, part)
         if r.missing:
             miss = " and ".join(r.missing)
             if r.in_script:
                 where = os.path.relpath(r.in_script, project_root(cwd)) if r.in_script.startswith(project_root(cwd)) else r.in_script
                 block(slug, cmd, f"blocked by usage-guard: the headless claude launch in {where} lacks {miss}. Run it with "
                                  f"CLAUDE_GUARD_FLAGS=\"{SUGGEST}\" if the script passes that variable to claude, or edit "
-                                 f"the script to pass {SUGGEST}.", count)
-            block(slug, cmd, f"blocked by usage-guard: headless claude launch lacks {miss}. Add {SUGGEST}.", count)
-        count = add_count(slug, r.total)
+                                 f"the script to pass {SUGGEST}.", count, part)
+            block(slug, cmd, f"blocked by usage-guard: headless claude launch lacks {miss}. Add {SUGGEST}.", count, part)
+        if r.total >= BIG and 2 * r.total > left and not unlocked:
+            # a big bite of what is left: turned back once, nothing counted; the same command again within 10 minutes runs
+            cdir = os.path.join(pdir(slug), "confirm")
+            os.makedirs(cdir, exist_ok=True)
+            mark = os.path.join(cdir, digest(cmd))
+            try:
+                asked = float(open(mark).read().strip())
+            except (OSError, ValueError):
+                asked = None
+            if asked is None or not 0 <= now() - asked <= CONFIRM:
+                with open(mark, "w") as f:
+                    f.write(f"{now()}\n")
+                block(slug, cmd, f"blocked by usage-guard: this takes {r.total} of your {left} left today. Pick fewer "
+                                 "scenes, or send the same command again to confirm.", count, part)
+            os.unlink(mark)
+        before, count = count, add_count(slug, r.total)
         why = f"{r.total} launch{'es' if r.total != 1 else ''}, {r.conc} at once" + (f", unlocked until {clock(unlocked)}" if unlocked else "")
-        log(slug, "ALLOW", count, cmd, why)
+        log(slug, "ALLOW", count, cmd, why, part)
+        tid = _safe(data.get("tool_use_id") or "")
+        if tid and not ti.get("run_in_background"):
+            rdir = os.path.join(pdir(slug), "runs")
+            os.makedirs(rdir, exist_ok=True)
+            with open(os.path.join(rdir, tid), "w") as f:
+                json.dump({"t": now(), "n": r.total, "cmd": part or cmd[:200]}, f)
+    say(count_note(before, count))
+    return 0
+
+
+def headless_started(root, since, own):
+    """headless (`claude -p`) session files of this project whose first record is at or after `since`"""
+    from datetime import datetime
+    base = os.path.join(HOME, ".claude", "projects")
+    want = re.sub(r"[^A-Za-z0-9]", "-", root)
+    n = 0
+    try:
+        dirs = [d for d in os.listdir(base) if d == want or d.startswith(want + "-")]
+    except OSError:
+        return 0
+    for d in dirs:
+        try:
+            entries = list(os.scandir(os.path.join(base, d)))
+        except OSError:
+            continue
+        for e in entries:
+            if not e.name.endswith(".jsonl") or e.name[:-6] == own:
+                continue
+            try:
+                if e.stat().st_mtime < since:
+                    continue
+                with open(e.path, errors="ignore") as f:
+                    head = f.read(16384)
+            except OSError:
+                continue
+            if '"entrypoint":"sdk-cli"' not in head:
+                continue
+            m = re.search(r'"timestamp":"([^"]+)"', head)
+            try:
+                first = datetime.fromisoformat(m.group(1).replace("Z", "+00:00")).timestamp() if m else 0
+            except ValueError:
+                first = 0
+            if first >= since - 1:
+                n += 1
+    return n
+
+
+def post_hook(data):
+    """after an allowed launch command: if it started more headless sessions than were counted, count the rest"""
+    cwd = data.get("cwd") or os.getcwd()
+    slug, tid = slug_of(cwd), _safe(data.get("tool_use_id") or "")
+    path = os.path.join(G, slug, "runs", tid)
+    if not tid or not os.path.exists(path):
+        return 0
+    try:
+        rec = json.load(open(path))
+        os.unlink(path)
+    except (OSError, ValueError):
+        return 0
+    seen = headless_started(project_root(cwd), rec.get("t", now()), data.get("session_id") or "")
+    more = seen - int(rec.get("n", 0))
+    if more <= 0:
+        return 0
+    with Lock(slug):
+        before, count = read_count(slug), add_count(slug, more)
+        log(slug, "RECOUNT", count, rec.get("cmd") or "", f"counted {rec.get('n')}, started {seen} headless sessions: +{more}")
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext":
+          f"usage-guard: that command started {seen} headless sessions, {more} more than counted. " + count_note(before, count)[13:]}}))
+    return 0
+
+
+def session_start(data):
+    slug = slug_of(data.get("cwd") or os.getcwd())
+    count = read_count(slug)
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext":
+          f"usage-guard: {count}/{DAILY} launches already used today for {slug}, {max(DAILY - count, 0)} left"}}))
     return 0
 
 
@@ -350,8 +512,8 @@ def agent_hook(data):
                                       f"{clock(row.get('t'))}; reuse its output", count)
             if count + 1 > DAILY:
                 block(slug, what, f"blocked by usage-guard: {count}/{DAILY} launches used today for {slug}; this adds 1. "
-                                  "Do the work in this session, or ask the user to run `guard allow`.", count)
-        count = add_count(slug, 1)
+                                  f"0 left today: do the work in this session and {NO_CLAUDE}.", count)
+        before, count = count, add_count(slug, 1)
         with open(os.path.join(pdir(slug), f"{today()}.dispatched"), "a") as f:
             f.write(json.dumps({"t": now(), "desc": norm(desc), "prompt": norm(prompt[:200]), "full": digest(prompt), "shown": desc or prompt[:60]}) + "\n")
         pend = os.path.join(pdir(slug), "live", f"pending-{data.get('tool_use_id') or int(now() * 1000)}")
@@ -385,10 +547,8 @@ def agent_hook(data):
         if unlocked:
             notes.append(f"unlocked until {clock(unlocked)}")
         log(slug, "ALLOW", count, what, "; ".join(notes) or "subagent launch")
-    if changed:
-        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
-                                                 "permissionDecisionReason": "usage-guard: " + "; ".join(notes),
-                                                 "updatedInput": ti}}))
+    say(count_note(before, count), {"permissionDecision": "allow", "permissionDecisionReason": "usage-guard: " + "; ".join(notes),
+                                    "updatedInput": ti} if changed else None)
     return 0
 
 
@@ -460,9 +620,13 @@ def hook():
         return subagent_start(data)
     if event == "SubagentStop":
         return subagent_stop(data)
-    if event != "PreToolUse" or not is_worker(data):
+    if event not in ("PreToolUse", "PostToolUse", "SessionStart") or not is_worker(data):
         return 0
+    if event == "SessionStart":
+        return session_start(data)
     tool = data.get("tool_name")
+    if event == "PostToolUse":
+        return post_hook(data) if tool in ("Bash", "Monitor") else 0
     if tool in ("Bash", "Monitor"):
         return bash_hook(data)
     if tool == "Agent":

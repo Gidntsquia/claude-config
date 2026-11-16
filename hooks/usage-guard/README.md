@@ -14,8 +14,9 @@ session (you, the planner, the evaluator) is untouched and nothing is logged for
 
 | Rule | Blocked | The line the worker sees |
 | :- | :- | :- |
-| Parallel runs | more than 2 headless `claude` runs at once: `-j N`, `xargs -P N`, `parallel -j N`, `&` in a loop, several `&`, plus runs already going | `blocked by usage-guard: 4 parallel headless claude runs (max 2). Run -j 2 or one scene; ask the user to run `guard allow` for a full suite.` |
-| Daily cap | more than 30 launches a day (ET) in a project; a suite counts one per scene | `blocked by usage-guard: 28/30 headless launches used today for assistant-agent; this adds 39. ...` |
+| Parallel runs | more than 2 headless `claude` runs at once: `-j N`, `xargs -P N`, `parallel -j N`, `&` in a loop, several `&`, plus runs already going | `blocked by usage-guard: 4 parallel headless claude runs (max 2). Run: bash tests/agent-replay/run.sh -j 2` |
+| Daily cap | more than 30 launches a day (ET) in a project; a suite counts one per scene | `blocked by usage-guard: 27/30 headless launches used today for assistant-agent; this adds 39. 3 left today: Run: bash tests/agent-replay/run.sh -j 1 a01 a02 a03` |
+| Big run | 3 or more launches that take over half of what is left today: turned back once, nothing counted | `blocked by usage-guard: this takes 11 of your 18 left today. Pick fewer scenes, or send the same command again to confirm.` |
 | Budget flags | a headless launch without `--max-budget-usd` or `--max-turns` | `blocked by usage-guard: headless claude launch lacks --max-turns. Add --max-budget-usd 0.50 --max-turns 15.` |
 | Subagents at once | a 4th subagent while 3 run | `blocked by usage-guard: 3 subagents running (max 3); wait for one to finish` |
 | Repeat subagent | a description, or a whole prompt, already dispatched today | `blocked by usage-guard: "Transcribe VOD igDPMTZCnwg" was already dispatched today at 9:24 PM; reuse its output` |
@@ -24,7 +25,35 @@ session (you, the planner, the evaluator) is untouched and nothing is logged for
 A headless launch is `claude` (by any path, or through a variable set from `command -v claude`) with `-p`,
 `--print`, `--agent` or `--bg`, or a script that starts one. Scripts are read (first 200 lines) and followed three
 levels down, so `run.sh` → `scene.sh` → `drive.py` is seen. `claude --version`, `-h`, `auth` and `agents` are not
-launches, and neither is text that only mentions `claude -p` (a grep, a heredoc, a commit message).
+launches, and neither is text that only mentions `claude -p`: the arguments of `git commit`, `echo`, `printf`,
+`grep` and `cat`, string literals inside a `python3 - <<E` heredoc, a heredoc written to a file the command does
+not run, a `$(cat <<E … E)` commit message. Such a command counts 0 and runs at 30/30. A heredoc written to a path
+and run in the same command (`cat > d.sh <<E … E; bash d.sh`) is read as that script, a `$(…)` whose command starts
+a launch script counts that launch, and `env $vars "$REAL" -p` counts 1.
+
+## What the worker is told
+
+A block ends with a smaller command that fits, not with a way around the limit: the same script at `-j 2` (or
+`-j 1` when one run is already going) for the parallel rule; the same script at `-j 1` with the first K scenes for
+the daily cap, K being the launches left; `use checks that start no claude` at 0. No block names `guard allow`.
+
+The worker sees its count while it fills:
+
+- at session start: `usage-guard: 19/30 launches already used today for <project>, 11 left` (at 0 too);
+- on every allowed launch, Bash or Agent: `usage-guard: 12/30 used today, 18 left`;
+- on the launch that reaches 20, and again at 25: `usage-guard: 20/30 used, 10 left today: plan the remaining
+  checks to fit`;
+- a command of 3 or more launches that would take over half of what is left is refused once and counts nothing;
+  the identical command sent again within 10 minutes runs.
+
+After a launch command ends, a PostToolUse hook counts the headless sessions it really started (session files of
+the project whose first record is newer than the command). If that is more than was counted, the count is raised,
+the log gets a `RECOUNT` line and the worker is told.
+
+A log line is cut at 120 characters. When the launch sits past the cut (`git commit -m "…" && bash run.sh -j 2`),
+the line shows the first 50 characters, ` … `, then the part that launches, so a counted commit can be told from
+a miscount. On 15 Nov eight such lines looked like edits and commits counted as launches; each ended in a real
+`run.sh` call (`fixtures/nov15-commands.json` holds them in full).
 
 For a script that builds the claude command itself, the worker can pass the flags through `CLAUDE_GUARD_FLAGS` when
 the script reads that variable (`CLAUDE_GUARD_FLAGS="--max-budget-usd 0.50 --max-turns 15" bash run.sh -j 2 a01`),
@@ -54,10 +83,12 @@ guard log [n]                the last n decisions (default 20)
 guard usage [today|week|YYYY-MM-DD] [project]
                              FE tokens and API dollars: main session / subagents / headless runs, by model,
                              and the five most expensive subagents
+guard recount [n]            set today's count from the log's ALLOW and RECOUNT lines, or to n
 ```
 
-`guard allow` is yours alone: it refuses to run from inside a Claude session, and the hook blocks a worker that
-types it. While it is in force the budget and turn flags are still required. The longest unlock is 24 hours.
+`guard allow` and `guard recount` are yours alone: they refuse to run from inside a Claude session, and the hook
+blocks a worker that types them. A past day's `guard usage` is saved on its first read
+(`<project>/<date>.usage.json`); later calls answer from the save in under a second. While it is in force the budget and turn flags are still required. The longest unlock is 24 hours.
 
 The status line shows `guard 7/30 12.4M FE` once a project has a counted launch today, and
 `guard 7/30 12.4M FE unlocked→21:00` during an unlock. At zero it shows nothing.
@@ -71,6 +102,9 @@ The status line shows `guard 7/30 12.4M FE` once a project has a counted launch 
 ~/.cache/claude-guard/<project>/<date>.fe          today's FE tokens, for the status line
 ~/.cache/claude-guard/<project>/allow              unlock: expiry (epoch, then ET text)
 ~/.cache/claude-guard/<project>/live/<agent_id>    one file per running subagent (ignored after 2 hours)
+~/.cache/claude-guard/<project>/runs/<tool_use_id> an allowed launch command, until its PostToolUse recount
+~/.cache/claude-guard/<project>/confirm/<hash>     a big run turned back once, waiting for the resend (10 minutes)
+~/.cache/claude-guard/<project>/<date>.usage.json  a past day's `guard usage` totals
 ~/.cache/claude-guard/sessions/<session_id>        sessions known to be worker sessions
 ```
 
@@ -87,6 +121,8 @@ repo's `settings.json` carries the hooks:
   {"matcher": "Agent", "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py", "timeout": 10, "onFailure": "block"}]},
   {"matcher": "Edit|Write|NotebookEdit", "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py", "timeout": 10, "onFailure": "block"}]}
 ],
+"PostToolUse":   [{"matcher": "Bash|Monitor", "hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py", "timeout": 10}]}],
+"SessionStart":  [{"hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py", "timeout": 10}]}],
 "SubagentStart": [{"hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py", "timeout": 10}]}],
 "SubagentStop":  [{"hooks": [{"type": "command", "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py", "timeout": 10}]}]
 ```
@@ -100,7 +136,7 @@ To turn the guard off, delete those entries from `~/.claude/settings.json` (and 
 ## Tests
 
 ```
-bash hooks/usage-guard/test.sh           168 cases in a temp HOME with a fake claude, then the Bash replay below
+bash hooks/usage-guard/test.sh           286 cases in a temp HOME with a fake claude, then the Bash replay below
 python3 hooks/usage-guard/replay_bash.py <log dir> [--all] [-v]
                                          real Bash commands from a project's logs through the hook; by default
                                          the assistant-agent commands since Nov 4 (51 of 51 full-suite -j 4 runs blocked)
@@ -123,4 +159,7 @@ variable changes what the hook decides.
 - An unknown list size (`while read`, `$SCENES`) is assumed to be more than 2 when run in parallel.
 - Two descriptions that match exactly are a repeat even when the prompts differ, so a worker that names two
   different tasks the same way must rename one.
-- `guard usage` for a past day reads every log of the project and can take most of a minute on a large one.
+- The first `guard usage` of a past day reads every log of the project: 30 s to a few minutes on a large one
+  (199 s for slay-the-spire-advisor on 15 Nov, 0.2 s after that).
+- The PostToolUse recount needs real session files, so it sees nothing for a background command (it ends before
+  the launches do) or a fake `claude`.

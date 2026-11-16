@@ -14,13 +14,15 @@ vars=$(printf '%s\n' "$line" | grep -o 'CLAUDE_CODE_[A-Z_]*=[a-z0-9]*' | tr '\n'
 echo "run-agent's worker line: $line"
 cat > "$T/plans/PLAN.md" <<'F'
 # Toy report-writer check
-Ask: 1. Start ONE subagent with the Agent tool: `subagent_type: "report-writer"`, description `Write one word`,
-prompt `Reply with the word ok.` 2. When it has answered, start ONE more: `subagent_type: "general-purpose"`,
-`model: "opus"`, description `Say yes`, prompt `Reply with the word yes.` 3. Write both answers to `ANSWER.txt`.
+Ask: 1. Start ONE subagent with the Agent tool: `subagent_type: "report-writer"`, description `Write one word @STAMP@`,
+prompt `Reply with the word ok. (@STAMP@)` 2. When it has answered, start ONE more: `subagent_type: "general-purpose"`,
+`model: "opus"`, description `Say yes @STAMP@`, prompt `Reply with the word yes. (@STAMP@)` 3. Write both answers to `ANSWER.txt`.
 Acceptance: `ANSWER.txt` exists.
 Do nothing else: no commits, no notes file, no report, no skills.
 F
 printf -- '---\nname: report-writer\ndescription: Toy stand-in for the report-writer, for the guard check.\nmodel: opus\neffort: low\ntools: Read\n---\nAnswer in one word, exactly as asked. Use no tools.\n' > "$T/.claude/agents/report-writer.md"
+# a time in each description and prompt: the guard refuses a subagent task already dispatched today, so a rerun needs new text
+sed -i "s/@STAMP@/$(TZ=America/New_York date +%H:%M:%S)/g" "$T/plans/PLAN.md"
 echo "Toy repo for the guard report-writer check." > "$T/AGENTS.md"
 ( cd "$T" && git init -q && git add . && git -c user.name=demo -c user.email=demo@example.invalid commit -qm toy )
 # shellcheck disable=SC2086

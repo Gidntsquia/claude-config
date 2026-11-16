@@ -22,6 +22,40 @@ KEYWORDS = {"do", "then", "else", "elif", "if", "!", "while", "until"}
 SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
 PYTHONS = re.compile(r"^(python[\d.]*|pypy[\d.]*|node|bun|deno)$")
 VAR = re.compile(r"\$\{?(\w+)(?:\[[@*]\])?\}?")
+DATA_CMDS = {"echo", "printf", "grep", "egrep", "fgrep", "rg", "cat"}   # their arguments are text, never a command
+STARTER = r"(?:system|[pP]open|run|call|check_output|check_call|spawn\w*|exec\w*)"
+
+
+def strings_as_data(text, js=False):
+    """Python / JS source with comments dropped and string literals made inert: a triple-quoted string becomes "",
+    and inside any other string the characters that could look like a call or an argv list are blanked. The one string
+    left whole is the first argument of a process starter (`os.system("claude -p hi")`): that one is a command."""
+    out, i, n = "", 0, len(text)
+    quotes = "\"'`" if js else "\"'"
+    while i < n:
+        c = text[i]
+        if (c == "#" and not js) or (js and text.startswith("//", i)):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+            continue
+        if c not in quotes:
+            out += c
+            i += 1
+            continue
+        if text.startswith(c * 3, i):
+            j = text.find(c * 3, i + 3)
+            i = n if j < 0 else j + 3
+            out += '""'
+            continue
+        j = i + 1
+        while j < n and text[j] != c and (text[j] != "\n" or c == "`"):
+            j += 2 if text[j] == "\\" else 1
+        body = text[i + 1:j]
+        if not re.search(STARTER + r"\s*\(\s*[frbFRB]*$", out[-60:]):
+            body = re.sub(r"[\[\]()\"'`]", " ", body)
+        out += c + body + c
+        i = j + 1
+    return out
 
 
 class Launch:
@@ -35,6 +69,9 @@ class Launch:
         self.par_var = False     # parallelism came from a variable (so a caller's -j N overrides it)
         self.bg = False
         self.pipe = ()           # pipeline ids from the outermost command inwards
+        self.top = None          # the simple command of the analyzed text that leads to this launch
+        self.items = None        # names of the work list (scenes), when they can be read
+        self.takes_j = False     # the script takes its parallelism from -j N or a variable
 
     def total(self):
         return self.n if self.n is not None else self.conc
@@ -430,6 +467,7 @@ class Scan:
         self.env = dict(env or {})
         self.files = 0
         self.cmds = []          # every simple command seen at the top level (for the tamper check)
+        self.written = {}       # path -> text of files the command itself writes (cat > x.sh <<E), read when run
         self.script_texts = []  # (path, text) of scripts opened
 
     # -- files ---------------------------------------------------------------------------------------------------
@@ -455,12 +493,14 @@ class Scan:
             if "$" in c or "`" in c:
                 continue
             for b in (base, self.cwd, self.origin):
-                p = c if os.path.isabs(c) else os.path.join(b, c)
-                if os.path.isfile(p):
-                    return os.path.normpath(p)
+                p = os.path.normpath(c if os.path.isabs(c) else os.path.join(b, c))
+                if p in self.written or os.path.isfile(p):
+                    return p
         return None
 
     def _head(self, path):
+        if path in self.written:
+            return "\n".join(self.written[path].split("\n")[:HEAD_LINES])
         try:
             with open(path, "rb") as f:
                 raw = f.read(65536)
@@ -486,21 +526,25 @@ class Scan:
         else:
             sub = Scan(os.path.dirname(path), {})
             sub.origin = self.origin
-            sub.files, sub.script_texts = self.files, self.script_texts
+            sub.files, sub.script_texts, sub.written = self.files, self.script_texts, self.written
             found = sub.shell(text, depth, script=path)
             self.files = sub.files
         if not found:
             return []
         jn, rest = _jobs(args, env)
         positional = [a for a in rest if not a.startswith("-")]
-        listed = None
+        listed = names = None
         if positional and re.search(r'\$[@*]|\$\{[@*]\}', text):
-            listed = len(positional)
+            listed, names = len(positional), positional
             if any(re.search(r"[$*?`]", a) for a in positional):   # $ST, scenes/a0*: several names, count unknown
                 listed = max(listed, jn or UNKNOWN)
         elif not is_py:
-            listed = self._listable(text, os.path.dirname(path))
+            names = self._listable(text, os.path.dirname(path))
+            listed = len(names) if names else None
         for L in found:
+            if names and L.items is None:
+                L.items = names
+            L.takes_j = L.takes_j or L.par_var or jn is not None
             if L.script is None:
                 L.script = path
             if "CLAUDE_GUARD_FLAGS" in text:
@@ -527,14 +571,14 @@ class Scan:
                 if "grep -v '^_'" in line or 'grep -v "^_"' in line:
                     hits = [h for h in hits if not os.path.basename(h).startswith("_")]
                 if hits:
-                    return len(hits)
+                    return sorted(os.path.splitext(os.path.basename(h))[0] for h in hits)
         return None
 
     def code(self, text, path, depth):
         """Python / JS text: argv lists and command strings that start a headless claude"""
-        out, body = [], "\n".join(l for l in text.split("\n") if not l.lstrip().startswith(("#", "//")))
-        # text held in triple-quoted strings is data (a patch being applied to another file), not code that runs
-        body = re.sub(r"""(\'\'\'|\"\"\").*?\1""", '""', body, flags=re.S)
+        out = []
+        # text held in strings is data (a patch being applied to another file, a message), not code that runs
+        body = strings_as_data(text, js=str(path).endswith((".js", ".mjs", ".ts")))
         flags_here = [f for f in NEED if f not in body]
         guardflags = "CLAUDE_GUARD_FLAGS" in body
         hit = False
@@ -569,8 +613,11 @@ class Scan:
             for w in c.words + [t for _, t in c.redirs]:
                 for sub in w.subs:
                     found += self.shell(sub, depth, script)
+            self._writes(c)
             found += self.cmd(c, depth, script)
             for L in found:
+                if depth == 0 and script is None and L.top is None:
+                    L.top = c
                 if c.loop > 1:
                     tot = L.total()
                     if c.bg:
@@ -581,6 +628,25 @@ class Scan:
                 L.pipe = (c.pipe,) + L.pipe
             out += found
         return out
+
+    def _writes(self, c):
+        """remember the text a command writes to a file (heredoc or echo/printf redirected, tee), so that a script
+        written and run in one command is read like one on disk"""
+        words = [w.text for w in c.words]
+        base = os.path.basename(words[0]) if words else ""
+        text = c.heredoc if c.heredoc is not None and base in ("cat", "tee") else None
+        if text is None and base in ("echo", "printf"):
+            text = "\n".join(words[1:]).replace("\\n", "\n")
+        if text is None:
+            return
+        targets = [t.text for op, t in c.redirs if op in (">", ">>", ">|")]
+        if base == "tee":
+            targets += [w for w in words[1:] if not w.startswith("-")]
+        for t in targets:
+            t = os.path.expanduser(_expand(t, self.env))
+            if "$" not in t and "`" not in t:
+                p = os.path.normpath(os.path.join(self.cwd, t))
+                self.written[p] = (self.written.get(p, "") + "\n" + text) if p in self.written else text
 
     def cmd(self, c, depth, script):
         words = [w.text for w in c.words]
@@ -610,7 +676,8 @@ class Scan:
                     i += 2 if words[i] in two else 1
             elif w == "env":
                 i += 1
-                while i < len(words) and (words[i].startswith("-") or re.fullmatch(r"\w+=.*", words[i], re.S)):
+                while i < len(words) and (words[i].startswith("-") or re.fullmatch(r"\w+=.*", words[i], re.S)
+                                          or self._var_list(c, i, {**env, **local})):
                     m2 = re.fullmatch(r"(\w+)=(.*)", words[i], re.S)
                     if m2:
                         local[m2.group(1)] = m2.group(2)
@@ -636,6 +703,9 @@ class Scan:
             if "$" not in p:
                 self.cwd = os.path.normpath(os.path.join(self.cwd, p))
             return []
+
+        if base in DATA_CMDS or (base == "git" and "commit" in args[:4]):
+            return []      # what they are given is text; a $(...) inside it was scanned by shell() as its own command
 
         if _is_claude(w, e):
             missing = claude_args(args, e)
@@ -749,6 +819,12 @@ class Scan:
             if p:
                 return self._script(p, args, depth, e, local)
         return []
+
+    def _var_list(self, c, i, env):
+        """`env $vars claude -p`: an unquoted variable in front of the command word holds NAME=value pairs"""
+        if i >= len(c.words) or c.words[i].quoted or i + 1 >= len(c.words):
+            return False
+        return bool(re.fullmatch(r"\$\{?\w+\}?", c.words[i].text)) and not _is_claude(c.words[i].text, env)
 
     def _mark(self, found, local):
         ok = local.get("CLAUDE_GUARD_FLAGS", self.env.get("CLAUDE_GUARD_FLAGS", ""))

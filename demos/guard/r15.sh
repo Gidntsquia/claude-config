@@ -15,11 +15,13 @@ echo "run-agent's worker line: $line"
 cat > "$T/plans/PLAN.md" <<'F'
 # Toy env check
 Ask: 1. run `env | grep CLAUDE_CODE_ | sort > ENV.txt; cat ENV.txt` with Bash. 2. Start ONE subagent with the Agent
-tool, passing `model: "opus"` and `subagent_type: "general-purpose"`, description `Say ok`, prompt
-`Reply with the word ok.` 3. When it has answered, write its answer to `ANSWER.txt`.
+tool, passing `model: "opus"` and `subagent_type: "general-purpose"`, description `Say ok @STAMP@`, prompt
+`Reply with the word ok. (@STAMP@)` 3. When it has answered, write its answer to `ANSWER.txt`.
 Acceptance: `ENV.txt` and `ANSWER.txt` exist.
 Do nothing else: no commits, no notes file, no report.
 F
+# a time in the description and prompt: the guard refuses a subagent task already dispatched today, so a rerun needs new text
+sed -i "s/@STAMP@/$(TZ=America/New_York date +%H:%M:%S)/g" "$T/plans/PLAN.md"
 echo "Toy repo for the guard env check." > "$T/AGENTS.md"
 ( cd "$T" && git init -q && git add . && git -c user.name=demo -c user.email=demo@example.invalid commit -qm toy )
 # shellcheck disable=SC2086

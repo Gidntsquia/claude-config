@@ -145,6 +145,29 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Monitor",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/usage-guard/usage_guard.py",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   },
   "enableWorkflows": false,

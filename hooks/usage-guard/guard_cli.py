@@ -5,6 +5,8 @@
   guard revoke                     end the unlock now
   guard log [n]                    last n decisions (default 20)
   guard usage [today|week|YYYY-MM-DD] [project]   FE tokens and API-$ by main session / subagents / headless
+                                   (a past day is saved after its first read; later calls answer from the save)
+  guard recount [n]                set today's count from the log's ALLOW and RECOUNT lines, or to n
 """
 import json
 import os
@@ -259,7 +261,22 @@ def usage_data(when, project):
     gd = gather()
     dirs, name = project_dirs(project)
     start, end, label = window(when)
+    # a finished day does not change: its totals are kept in the guard cache and read back from there
+    past = end is not None and end <= ug.et().replace(tzinfo=None) and dirs
+    cache = os.path.join(ug.G, re.sub(r"[^\w.-]", "_", name), f"{when}.usage.json")
+    if past:
+        try:
+            saved = json.load(open(cache))
+            if saved.get("dirs") == dirs:
+                return gd, dirs, name, label, saved["kinds"], saved["agents"]
+        except (OSError, ValueError, KeyError):
+            pass
     kinds, agents = scan(dirs, start, end, gd)
+    if past:
+        os.makedirs(os.path.dirname(cache), exist_ok=True)
+        with open(cache + ".tmp", "w") as f:
+            json.dump({"dirs": dirs, "saved": ug.et().strftime("%Y-%m-%d %I:%M %p ET"), "kinds": kinds, "agents": agents}, f)
+        os.replace(cache + ".tmp", cache)
     return gd, dirs, name, label, kinds, agents
 
 
@@ -297,6 +314,41 @@ def cmd_usage(args):
     return 0
 
 
+def cmd_recount(args, slug):
+    """today's count rebuilt from the decision log (launches of ALLOW lines, `+N` of RECOUNT lines), or set to n"""
+    if not sandbox() and inside_claude():
+        print("guard recount is for the user: run it in your own terminal", file=sys.stderr)
+        return 1
+    old = ug.read_count(slug)
+    if args and args[0].isdigit():
+        new, how = int(args[0]), "set by hand"
+    elif args:
+        print("usage: guard recount [n]", file=sys.stderr)
+        return 2
+    else:
+        new, day = 0, ug.today()
+        try:
+            lines = open(os.path.join(ug.G, "log")).read().splitlines()
+        except OSError:
+            lines = []
+        for line in lines:
+            f = [x.strip() for x in line.split(" | ")]
+            if len(f) < 6 or not f[0].startswith(day) or f[1] != slug:
+                continue
+            if f[2] == "ALLOW":
+                m = re.match(r"(\d+) launch", f[-1])
+                new += int(m.group(1)) if m else 1          # an Agent line is one launch
+            elif f[2] == "RECOUNT":
+                m = re.search(r"\+(\d+)$", f[-1])
+                new += int(m.group(1)) if m else 0
+        how = "from the log"
+    with open(os.path.join(ug.pdir(slug), f"{ug.today()}.count"), "w") as f:
+        f.write(f"{new}\n")
+    ug.log(slug, "RECOUNT", new, "guard recount " + " ".join(args), f"was {old}, {how}")
+    print(f"{slug}: {new}/{ug.DAILY} launches today (was {old}, {how})")
+    return 0
+
+
 def cmd_fe_refresh(args):
     """write <project>/<date>.fe for the status line (started in the background by statusline.sh)"""
     cwd = args[0] if args else os.getcwd()
@@ -326,6 +378,8 @@ def main(argv):
         return cmd_log(argv[1:])
     if sub == "usage":
         return cmd_usage(argv[1:])
+    if sub == "recount":
+        return cmd_recount(argv[1:], slug)
     if sub == "fe-refresh":
         return cmd_fe_refresh(argv[1:])
     print(__doc__.strip(), file=sys.stderr)

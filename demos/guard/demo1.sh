@@ -18,10 +18,13 @@ for s in a01 a02 a03 a04; do echo "say $s" > "$T/scenes/$s.txt"; done
 cat > "$T/run.sh" <<'F'
 #!/usr/bin/env bash
 # run.sh [-j N] [scene ...]: run each scene through a headless claude, N at a time (default 1). All scenes if none named.
-cd "$(dirname "$0")"; export PATH="$PWD/bin:$PATH"
-J=1; [ "${1:-}" = -j ] && { J="$2"; shift 2; }
-[ $# -gt 0 ] || set -- $(ls scenes | sed 's/\.txt$//')
-printf '%s\n' "$@" | xargs -P "$J" -I{} claude -p --max-budget-usd 0.50 --max-turns 15 "scene {}" | tee out.log
+HERE="$(cd "$(dirname "$0")" && pwd)"; cd "$HERE"; export PATH="$HERE/bin:$PATH"
+J=1
+if [ "${1:-}" = -j ]; then J="$2"; shift 2; fi
+if [ $# -gt 0 ]; then scenes=("$@"); else
+  mapfile -t scenes < <(ls "$HERE/scenes"/*.txt | xargs -n1 basename | sed 's/\.txt$//')
+fi
+printf '%s\n' "${scenes[@]}" | xargs -P "$J" -I{} claude -p --max-budget-usd 0.50 --max-turns 15 "scene {}" | tee out.log
 echo "$(grep -c 'FAKE claude ok' out.log) passed"
 F
 cat > "$T/plans/PLAN.md" <<'F'
