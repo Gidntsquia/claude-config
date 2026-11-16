@@ -121,9 +121,11 @@ case "${1:-}" in
     D=$(ev_state_dir) || { echo "no session"; exit 1; }
     case "${2:-}" in shown) echo "$D/shown.png";; gate) echo "$D/gate.png";; zlog) echo "$D/zlog";; dir|"") echo "$D";; *) echo "usage: path shown|gate|zlog|dir"; exit 1;; esac;;
   noflash) D=$(ev_state_dir) || { echo "no session"; exit 1; }; python3 -I "$HOME/.claude/local-tools/evshow_noflash.py" "$D";;
-  gateloop)  # captures the screen every ~2.5 s until the answer; rotates 4 files; records finish time (ET) + path
+  gateloop)  # captures the screen every ~2.5 s until the answer (30 min at most); rotates 4 files; records finish time (ET) + path
     D=$(ev_state_dir); export EVSHOW_STATE="$D"; SID8=$(basename "$D" | cut -c1-8)
-    i=0; while [ ! -e "$D/answer" ] && [ ! -e "$D/done" ]; do
+    # also stops when the session's watcher is gone or after 30 min: an unanswered question once left three loops capturing for a day
+    i=0; t0=$SECONDS; wp=$(cat "$D/pid" 2>/dev/null)
+    while [ ! -e "$D/answer" ] && [ ! -e "$D/done" ] && [ $((SECONDS - t0)) -lt 1800 ] && { [ -z "$wp" ] || kill -0 "$wp" 2>/dev/null; }; do
       p=$("$CAP" "evshow-gate-$SID8-$((i % 4))") || { sleep 1; continue; }
       echo "$(et) $p" >> "$D/gates"; i=$((i+1)); sleep 1
     done;;
