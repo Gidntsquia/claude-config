@@ -20,7 +20,8 @@
 #                                          else UI Automation text of its TermControl: a tab renamed by hand ignores titles), restores
 #                                          the title, saves "HWND L T W H MAX" in <state>/term; prints "me: HWND L T W H MAX [(text marker)]"
 #   win.sh zlog <seconds>               -> every 100 ms "t HH:MM:SS.mmm" + "HWND|topmost|cloaked|iconic|L T W H|title" per window
-#   win.sh close-cloaked                -> close every window this session registered that is still cloaked (never shown)
+#   win.sh close-cloaked ["<title>"]    -> close every window this session registered (only those opened under <title>) that is still cloaked;
+#                                       one whose title changed to another page is left: `left cloaked: <HWND> opened as '<t>' now shows '<title>'`
 # The registry of windows THIS SESSION launched (front/place/close refuse others) is <state dir>/launched.txt; the
 # state dir is per session (evsession.sh: EVSHOW_STATE, else ~/.claude/local-tools/evshow.state/<Claude session id>).
 # Args are joined with '|' into ONE argument so negative numbers survive powershell -File.

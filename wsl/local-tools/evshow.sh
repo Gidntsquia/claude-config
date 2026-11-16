@@ -79,7 +79,7 @@ fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired
   hist "fired-by $1" "${2:+answer $2 (transcript timestamp, ET)}" "show-start $t0" "shown-at $t1 (process done $tdone)"
   [ -n "$2" ] && hist "elapsed $(secs "$2" "$t1") s (answer -> shown)"
   hist "$out" "rc $rc"
-  [ "$rc" -ne 0 ] && hist "$("$W" close-cloaked 2>&1)"   # not shown: the cloaked window of this attempt is closed, never left behind
+  [ "$rc" -ne 0 ] && hist "$("$W" close-cloaked "$title" 2>&1)"   # not shown: the cloaked window of this attempt is closed; the other queued items stay
   if printf '%s\n' "$out" | grep -q '^shown: '; then
     printf '%s\n' "$out" | grep '^shown: ' | cut -d' ' -f2 > "$D/current"; echo "$t1" > "$D/last-shown"
     [ -f "$capl" ] && { cp "$capl" "$D/shown.png"; hist "capture $D/shown.png (copy of $capl, taken after shown)"; }

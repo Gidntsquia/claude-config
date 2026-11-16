@@ -243,7 +243,11 @@ function OnScreen($h) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | O
 function ShowIt($t, $px, $py, $pw, $ph, $to, $term) {
     $end = (Get-Date).AddSeconds($to); $m = @()
     while ($true) { $m = Matches $t; if ($m.Count -ge 1 -or (Get-Date) -gt $end) { break }; Start-Sleep -Milliseconds 200 }
-    if ($m.Count -eq 0) { "not shown: no window matches '$t' after ${to}s"; return 1 }
+    if ($m.Count -eq 0) {   # a window this session opened under that title may still exist with another page in it (a link the user clicked lands in the newest Firefox window)
+      if (Test-Path $Reg) { foreach ($l in Get-Content $Reg) { $a = $l.Split('|', 2); $n = 0L
+        if ($a.Count -eq 2 -and $a[1].IndexOf($t, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and [int64]::TryParse($a[0], [ref]$n) -and [W]::IsWindow([IntPtr]$n)) {
+          "not shown: window $n opened as '$($a[1])' now shows '$([W]::Title([IntPtr]$n))' (another page was opened in it)"; return 1 } } }
+      "not shown: no window matches '$t' after ${to}s"; return 1 }
     if ($m.Count -gt 1) {   # R6: several windows on one title: keep the newest one this session registered whose title is not generic, close its other cloaked ones
       $mine = @($RegOrder | Where-Object { $m -contains $_ })
       if ($mine.Count -eq 0) { "not shown: $($m.Count) windows match '$t', none opened by this session: $(Holders $m)"; return 1 }
@@ -377,9 +381,14 @@ switch ($Action) {
       if ($m.Count -eq 1) { "me: $([int64]$m[0]) $(Rect $m[0]) $([int][W]::IsZoomed($m[0])) (text marker)"; exit 0 } }
     $c = @([W]::All() | Where-Object { $t = [W]::Title($_); $t -match 'Terminal|Ubuntu|WSL|bash|claude|tmux' })
     "not found: $($m.Count) windows hold '$($p[0])'$(if ($m.Count) { ': ' + (Holders $m) }); terminal candidates: $(Holders $c)"; exit 1 }
-  'close-cloaked' { # close every window this session registered that still exists and is cloaked (never shown): nothing cloaked is left behind
-    if (Test-Path $Reg) { foreach ($l in Get-Content $Reg) { $n = 0L; if ([int64]::TryParse($l.Split('|')[0], [ref]$n)) { $h = [IntPtr]$n
-      if ([W]::IsWindow($h) -and [W]::Hidden($h)) { $t = [W]::Title($h); [W]::PostMessage($h, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null; "closed cloaked: $([int64]$h) $t" } } } } }
+  'close-cloaked' { # close-cloaked|[title] : close every window this session registered (only those opened under <title>, when given) that is still cloaked (never shown).
+    # A window whose title no longer holds the title it was opened under carries someone else's page now: it is named and left alone.
+    $only = if ($p.Count -gt 0) { $p[0] } else { '' }
+    if (Test-Path $Reg) { foreach ($l in Get-Content $Reg) { $a = $l.Split('|', 2); $n = 0L; if ($a.Count -eq 2 -and [int64]::TryParse($a[0], [ref]$n)) { $h = [IntPtr]$n
+      if ($only -and $a[1].IndexOf($only, [StringComparison]::OrdinalIgnoreCase) -lt 0) { continue }
+      if ([W]::IsWindow($h) -and [W]::Hidden($h)) { $t = [W]::Title($h)
+        if ($t.IndexOf($a[1], [StringComparison]::OrdinalIgnoreCase) -lt 0 -and -not (Generic $t)) { "left cloaked: $([int64]$h) opened as '$($a[1])' now shows '$t'"; continue }
+        [W]::PostMessage($h, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null; "closed cloaked: $([int64]$h) $t" } } } } }
   'zlog' { # zlog|seconds : every 100 ms one block "t <ET time>" then "HWND|topmost|cloaked|iconic|L T W H|title" per visible titled window, top to bottom
     $tz = [TimeZoneInfo]::FindSystemTimeZoneById('Eastern Standard Time'); $end = (Get-Date).AddSeconds([double]$p[0])
     [void][Hider]::Period1(); $clock = [Diagnostics.Stopwatch]::StartNew(); $n = 0   # 1 ms timer so Sleep lands within ~1 ms; absolute schedule so cost never drifts the rate
