@@ -595,7 +595,7 @@ EOF
   FH="$T/fakehome2"; mkdir -p "$FH/.local/bin"; cp "$T/bin/claude" "$FH/.local/bin/claude"
   pane=$(TM display -p -t t:0 '#{pane_id}'); sock=$(TM display -p '#{socket_path}')
   R=$(( $(date +%s) + 10 )); : > "$RA_OUT"
-  out=$(env -i HOME="$FH" TMUX="$sock,0,0" TMUX_PANE="$pane" RUN_AGENT_HOME="$RUN_AGENT_HOME" RUN_AGENT_USAGE_FILE="$RUN_AGENT_USAGE_FILE" \
+  out=$(env -i HOME="$FH" TMUX="$sock,0,0" TMUX_PANE="$pane" RUN_AGENT_HOME="$RUN_AGENT_HOME" RUN_AGENT_USAGE_FILE="$RUN_AGENT_USAGE_FILE" RUN_AGENT_TEST_DIR="$RUN_AGENT_TEST_DIR" \
         RUN_AGENT_TZ=America/New_York RUN_AGENT_AGENTS_DIR="$T/agents" /bin/bash "$S" worker '.' --at "$R" --at-text 'in 10s' 2>&1)
   id=$(sed -n 's/^scheduled #\([0-9]*\):.*/\1/p' <<<"$out")
   grep -q "^scheduled #$id: claude --agent worker \".\" --name \"worker: repo (sonnet)\" (sonnet, default) at .* ET (in 10s, in 0m)$" <<<"$out" \
@@ -911,21 +911,22 @@ EOF
     && ok "canary: test run inside a claude tmux pane leaves it alone" \
     || bad "canary: test run inside a claude tmux pane leaves it alone" "pane pid $C_BEFORE -> ${C_AFTER:-gone}, dead=$C_DEAD; $(cat "$T"/canary1.[1-4] 2>&1)"
   canary canary0 0
-  [ -n "$C_BEFORE" ] && [ "$C_AFTER" != "$C_BEFORE" ] && [ ! -e "$T/canary0.done" ] \
-    && ok "canary: without the flag the pane is replaced (guard is what protects)" \
+  # dev copy: the dev lock (always test mode, only the run-agent-dev-test sockets) refuses before anything is replaced
+  [ -n "$C_BEFORE" ] && [ "$C_AFTER" = "$C_BEFORE" ] && [ "$C_DEAD" = 0 ] && grep -qF "refused: not the run-agent-dev-test socket" "$T"/canary0.[1-4] \
+    && ok "canary: without the flag the dev lock refuses and the pane stays (dev copy)" \
     || bad "canary: without the flag the pane is replaced (guard is what protects)" "pane pid $C_BEFORE -> ${C_AFTER:-gone}, dead=$C_DEAD; the unguarded run did not replace the canary: $(cat "$T"/canary0.[1-4] 2>&1)"
   tmux -L "$SOCK" kill-session -t canary1 2>/dev/null; tmux -L "$SOCK" kill-session -t canary0 2>/dev/null
   # refusal: TMUX names a throwaway server that is not the test's (socket name not run-agent-dev-test-*, outside $T)
   env TMUX= tmux -L "ra-other-$$" -f /dev/null new-session -d -s o "bash --norc --noprofile"; sleep 0.3
   osock=$(tmux -L "ra-other-$$" display -p '#{socket_path}'); opane=$(tmux -L "ra-other-$$" display -p -t o '#{pane_id}'); opid=$(tmux -L "ra-other-$$" display -p -t o '#{pane_pid}')
   out=$(TMUX="$osock,0,0" TMUX_PANE="$opane" "$S" --relaunch worker 2>&1); rc=$?
-  [ "$rc" = 2 ] && [ "$(tail -n1 <<<"$out")" = "test mode: refusing tmux respawn-pane on $osock" ] && [ "$(tmux -L "ra-other-$$" display -p -t o '#{pane_pid}')" = "$opid" ] \
-    && ok "guard: --relaunch worker on a server that is not the test's -> refused, exit 2, pane untouched" || bad "guard: tmux refusal" "rc=$rc $out"
+  [ "$rc" = 3 ] && [ "$(tail -n1 <<<"$out")" = "refused: not the run-agent-dev-test socket" ] && [ "$(tmux -L "ra-other-$$" display -p -t o '#{pane_pid}')" = "$opid" ] \
+    && ok "guard: --relaunch worker on a server that is not the test's -> refused (dev lock), exit 3, pane untouched" || bad "guard: tmux refusal" "rc=$rc $out"
   out=$(TMUX="$osock,0,0" TMUX_PANE="$opane" "$S" --relaunch "planner \"x\" in $T/sibling split" 2>&1); rc=$?
-  [ "$rc" = 2 ] && grep -qxF "test mode: refusing tmux new-window on $osock" <<<"$out" && [ "$(tmux -L "ra-other-$$" list-windows -t o | wc -l)" = 1 ] \
-    && ok "guard: split on a server that is not the test's -> no window opened, exit 2" || bad "guard: new-window refusal" "rc=$rc $out"
+  [ "$rc" = 3 ] && grep -qxF "refused: not the run-agent-dev-test socket" <<<"$out" && [ "$(tmux -L "ra-other-$$" list-windows -t o | wc -l)" = 1 ] \
+    && ok "guard: split on a server that is not the test's -> no window opened, exit 3" || bad "guard: new-window refusal" "rc=$rc $out"
   out=$(TMUX="/tmp/tmux-$(id -u)/default,1,0" TMUX_PANE="%0" "$S" --relaunch worker 2>&1); rc=$?
-  [ "$rc" = 2 ] && [ "$(tail -n1 <<<"$out")" = "test mode: refusing tmux respawn-pane on /tmp/tmux-$(id -u)/default" ] && ok "guard: the default server's socket is refused" || bad "guard: default socket" "rc=$rc $out"
+  [ "$rc" = 3 ] && [ "$(tail -n1 <<<"$out")" = "refused: not the run-agent-dev-test socket" ] && ok "guard: the default server's socket is refused" || bad "guard: default socket" "rc=$rc $out"
   tmux -L "ra-other-$$" kill-server 2>/dev/null
 fi
 # job store: without RUN_AGENT_HOME (a fake HOME, so nothing real is near) every store action is refused, no file made
