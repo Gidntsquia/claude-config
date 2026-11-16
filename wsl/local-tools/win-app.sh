@@ -12,8 +12,20 @@
 #        was in place (= visible-ms when it was hidden before it was ever visible); the difference bounds the time a frame could
 #        have been composed. The `hide-log:` lines carry every event. Registers the HWND in this
 #        session's launched.txt (token = --title if given, else the loaded title), appends the lines to <state>/hidden, and
-#        exits when the title is loaded (contains --title, or is not the bare app name) or after 20 s with
-#        `not hidden: <reason>` (exit 1). `win.sh show|start|next` un-cloak and place; `win.sh close-cloaked` closes leftovers.
+#        exits when the title is loaded (it contains --title, which is required) or after 20 s.
+#        Failure is ONE line `not hidden: <cause>`; exit 1 unless noted:
+#          title not loaded within Ns (want '<t>'; hidden N window(s): '<titles seen>')   the page/file did not load under that title
+#          VS Code update pending, restart VS Code       no window came and old_Code.exe sits beside Code.exe
+#          <App> dialog: <its text>                      the app answered with a dialog; it is closed, never shown
+#          a full-screen game is running                 exit 3; also appended to ~/.cache/claude-config/game-deferred.log
+#          error: <PowerShell message> | <exe> not found | --title is required (exit 2)
+#        A new window is this run's when its process is the launched pid, a descendant, or an image under the app's install folder.
+#        firefox: an argument that is an existing Linux path becomes a file:/// URL (Firefox cannot load a bare Linux path).
+#        code: runs Code.exe with its own profile (%LOCALAPPDATA%\claude-config\evshow-code: your settings.json plus
+#          security.allowedUNCHosts for the WSL hosts, no extensions), so an item never waits on your own VS Code, on its
+#          "allow host wsl.localhost?" dialog or on an unfinished update. EVSHOW_CODE_EXE=<Code.exe> overrides the exe (tests).
+#        `win.sh show|start|next` un-cloak and place; `win.sh close-cloaked` closes leftovers.
+#        GAME_GUARD_CMD=<script> replaces game-guard.sh, GAME_DEFERRED_LOG=<file> the log (tests).
 . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/winenv.sh"
 p=""; hidden=""; title=""
 while :; do case "${1:-}" in
@@ -28,18 +40,46 @@ esac
 for x in "${c[@]}"; do [ -n "$x" ] && [ -x "$x" ] && { exe="$x"; break; }; done
 [ -n "${exe:-}" ] || { echo "win-app.sh: $app not found (tried: ${c[*]})" >&2; exit 1; }
 [ -n "$p" ] && { echo "$exe"; exit 0; }
-"$HOME/.claude/local-tools/game-guard.sh" "win-app.sh ${hidden:+--hidden }$app $*" >/dev/null && exit 3   # a full-screen game has the screen: open nothing
+if g=$("${GAME_GUARD_CMD:-$HOME/.claude/local-tools/game-guard.sh}" 2>/dev/null); then   # a full-screen game has the screen: open nothing, say so, log it
+  gl="${GAME_DEFERRED_LOG:-$HOME/.cache/claude-config/game-deferred.log}"; mkdir -p "$(dirname "$gl")"
+  echo "$(TZ=America/New_York date '+%F %T') ET  game=${g#game: }  refused: win-app.sh ${hidden:+--hidden }${title:+--title $title }$app $*  -> not hidden: a full-screen game is running" >> "$gl"
+  echo "not hidden: a full-screen game is running"; exit 3
+fi
 [ -z "$hidden" ] && exec "$exe" "$@"
 grep -qi microsoft /proc/version 2>/dev/null || { echo "win-app.sh: --hidden is WSL only" >&2; exit 1; }
 . "$HOME/.claude/local-tools/evsession.sh"
 ev_export || { echo "not hidden: no session state dir (set EVSHOW_STATE)"; exit 1; }
+[ -n "$title" ] || { echo "not hidden: --title is required (a window counts as loaded only when its title holds it)"; exit 2; }
 D=$(ev_state_dir)
 q() { for a in "$@"; do case "$a" in *" "*|"") printf ' "%s"' "$a";; *) printf ' %s' "$a";; esac; done; }
 if [ "$app" = code ]; then   # Code.exe itself, not bin/code (the Remote-WSL launcher needs ~/.vscode-server for the running VS Code version and fails
   # after a VS Code update until a WSL window is opened by hand); Linux paths are passed as \\wsl.localhost\... paths
-  exe="${exe%/bin/code}/Code.exe"; [ -x "$exe" ] || { echo "not hidden: $exe not found"; exit 1; }
-  m=(); for a in "$@"; do case "$a" in /*) [ -e "$a" ] && a=$(wslpath -w "$a");; esac; m+=("$a"); done
-  case " $* " in *" -n "*|*" --new-window "*) ;; *) m=(-n "${m[@]}");; esac   # a running VS Code would otherwise open the file in ITS window (nothing new to hide)
+  exe="${EVSHOW_CODE_EXE:-${exe%/bin/code}/Code.exe}"; [ -x "$exe" ] || { echo "not hidden: $exe not found"; exit 1; }
+  # Own profile. Cause of the failed opens of Nov 2026: VS Code asks "The host 'wsl.localhost' was not found in the list of allowed
+  # hosts" for a \\wsl.localhost path; that dialog was hidden with the window, the instance waited on it for ever, and every later
+  # open got "Another instance of Code is running but not responding". The profile allows the WSL hosts and shares nothing with
+  # the user's own VS Code (no hand-off to it, none of its dialogs).
+  prof="${WIN_LOCALAPPDATA:?}/claude-config/evshow-code"; mkdir -p "$prof/User" "$prof/ext"
+  python3 -I - "${WIN_HOME:-/nonexistent}/AppData/Roaming/Code/User/settings.json" "$prof/User/settings.json" <<'PY'
+import json, re, sys
+try:   # the user's look (theme, font); their file is JSON with comments, so strip those; unreadable = defaults
+    t = open(sys.argv[1], encoding='utf-8-sig').read()
+    t = re.sub(r'("(?:\\.|[^"\\])*")|//[^\n]*|/\*.*?\*/', lambda m: m.group(1) or '', t, flags=re.S)
+    s = json.loads(re.sub(r',(\s*[}\]])', r'\1', t))
+except Exception:
+    s = {}
+s.update({'security.allowedUNCHosts': ['wsl.localhost', 'wsl$'], 'security.workspace.trust.enabled': False,
+          'workbench.startupEditor': 'none', 'window.restoreWindows': 'none', 'update.mode': 'none', 'telemetry.telemetryLevel': 'off',
+          'extensions.autoUpdate': False, 'extensions.ignoreRecommendations': True, 'workbench.tips.enabled': False,
+          'window.title': '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}'})
+json.dump(s, open(sys.argv[2], 'w', encoding='utf-8'), indent=1)
+PY
+  m=(--user-data-dir "$(wslpath -w "$prof")" --extensions-dir "$(wslpath -w "$prof/ext")" --skip-welcome --skip-release-notes --disable-workspace-trust)
+  for a in "$@"; do case "$a" in /*) [ -e "$a" ] && a=$(wslpath -w "$a");; esac; m+=("$a"); done
+  case " $* " in *" -n "*|*" --new-window "*) ;; *) m=(-n "${m[@]}");; esac   # a running instance would otherwise open the file in an existing window (nothing new to hide)
+  args="$(q "${m[@]}")"
+elif [ "$app" = firefox ]; then   # R6: an existing Linux path becomes a file:/// URL (\\wsl.localhost\... -> file://///wsl.localhost/...)
+  m=(); for a in "$@"; do case "$a" in /*) [ -e "$a" ] && a=$(python3 -I -c 'import sys, urllib.parse as u; print("file:///" + u.quote(sys.argv[1].replace("\\", "/"), safe="/:"))' "$(wslpath -w "$a")");; esac; m+=("$a"); done
   args="$(q "${m[@]}")"
 else args="$(q "$@")"; fi
 out=$(WSLENV="${WSLENV:+$WSLENV:}WINCTL_LINE" WINCTL_LINE="hidden|$app|$(wslpath -w "$exe")|${args# }|$title|${EVSHOW_HIDE_TIMEOUT:-20}" \

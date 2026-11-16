@@ -3,6 +3,9 @@
 param([string]$Line)
 if ($env:WINCTL_LINE) { $Line = $env:WINCTL_LINE }
 $a = $Line.Split('|'); $Action = $a[0]; $p = @($a | Select-Object -Skip 1)
+$Verb = switch -Regex ($Action) { '^hidden$' { 'hidden' } '^(show|start|next)$' { 'shown' } '^(find|me)$' { 'found' } '^(close|close-cloaked)$' { 'closed' } '^(place|placefg|setwin)$' { 'placed' } default { $Action } }
+trap { "not ${Verb}: error: $(("$($_.Exception.Message)" -replace '\s+', ' ').Trim())"; exit 1 }   # R3: a PowerShell exception is one line naming the action, exit 1
+$ErrorActionPreference = 'Stop'
 $Src = @"
 using System; using System.Text; using System.Collections.Generic; using System.Runtime.InteropServices;
 public class W {
@@ -70,6 +73,15 @@ public class W {
   public static bool EmptyRgn(IntPtr h) { IntPtr g = CreateRectRgn(0, 0, 1, 1); int k = GetWindowRgn(h, g); DeleteObject(g); return k == 1; }   // NULLREGION
   public static void Unhide(IntPtr h) { SetPropW(h, "evshow-shown", (IntPtr)1); int ex = GetWindowLong(h, -20); if ((ex & 0x80000) != 0) SetLayeredWindowAttributes(h, 0, 255, 2); SetWindowLong(h, -20, ex & ~(0x80000 | 0x80)); if (EmptyRgn(h)) SetWindowRgn(h, IntPtr.Zero, true); }
   public static int Cloaked(IntPtr h) { int v = 0; DwmGetWindowAttribute(h, 14, out v, 4); return v; }
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassNameW(IntPtr h, StringBuilder s, int n);
+  public static string Class(IntPtr h) { var s = new StringBuilder(256); GetClassNameW(h, s, 256); return s.ToString(); }
+  [StructLayout(LayoutKind.Sequential)] public struct PT { public int X, Y; }
+  [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(PT p);
+  public static IntPtr RootAt(int x, int y) { PT p; p.X = x; p.Y = y; IntPtr h = WindowFromPoint(p); return h == IntPtr.Zero ? h : GetAncestor(h, 2); }
+  // the window that really is on top at five points of h's rect (centre and four inner points); h itself = nothing covers it there
+  public static IntPtr Cover(IntPtr h) { if (IsIconic(h)) return IntPtr.Zero; R r; GetWindowRect(h, out r); int w = r.Rt - r.L, t = r.B - r.T;
+    double[] fx = { 0.5, 0.25, 0.75, 0.25, 0.75 }, fy = { 0.5, 0.3, 0.3, 0.75, 0.75 };
+    for (int i = 0; i < 5; i++) { IntPtr a = RootAt(r.L + (int)(w * fx[i]), r.T + (int)(t * fy[i])); if (a != h) return a; } return h; }
   public static string Title(IntPtr h) { var s = new StringBuilder(512); GetWindowText(h, s, 512); return s.ToString(); }
   public static List<IntPtr> All() {
     var r = new List<IntPtr>();
@@ -106,12 +118,27 @@ public class Hider {
   [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
   [DllImport("kernel32.dll", CharSet=CharSet.Unicode)] static extern bool QueryFullProcessImageName(IntPtr h, uint fl, System.Text.StringBuilder sb, ref int n);
   public Dictionary<uint, bool> fam = new Dictionary<uint, bool>();   // pid -> is it the app family (by image name; Firefox/WT hand the window to an already running process)
-  public void Refresh() { foreach (var n in names) foreach (var pr in System.Diagnostics.Process.GetProcessesByName(n)) { fam[(uint)pr.Id] = true; pr.Dispose(); } lastRefresh = sw.ElapsedMilliseconds; }
+  // R5: a new window is the run's when its process is the launched pid, a descendant of it (parent chain from one toolhelp snapshot,
+  // taken only for a pid whose image is NOT under the install folder), or runs an image under the app's install folder (so
+  // old_Code.exe after an unfinished update and a hand-off to an already running instance both count)
+  public string folder = "";   // install folder, lower case, with a trailing backslash; "" = match by image name only (wt)
+  public List<IntPtr> dialogs = new List<IntPtr>();   // #32770 windows of the family: the app is asking something instead of opening
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] struct PE32 { public uint size, usage, pid; public IntPtr heap; public uint module, threads, ppid; public int pri; public uint flags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst=260)] public string exe; }
+  [DllImport("kernel32.dll")] static extern IntPtr CreateToolhelp32Snapshot(uint f, uint pid);
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode)] static extern bool Process32FirstW(IntPtr s, ref PE32 e);
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode)] static extern bool Process32NextW(IntPtr s, ref PE32 e);
+  public bool Descendant(uint p) { var par = new Dictionary<uint, uint>(); IntPtr sn = CreateToolhelp32Snapshot(2, 0); if (sn == (IntPtr)(-1)) return false;
+    var e = new PE32(); e.size = (uint)Marshal.SizeOf(typeof(PE32)); if (Process32FirstW(sn, ref e)) do { par[e.pid] = e.ppid; } while (Process32NextW(sn, ref e)); CloseHandle(sn);
+    for (int i = 0; i < 16 && p > 4; i++) { lock (pids) if (pids.Contains(p)) return true; uint q; if (!par.TryGetValue(p, out q) || q == p) return false; p = q; } return false; }
+  public bool Launched(uint p) { lock (pids) if (pids.Contains(p)) return true; return Descendant(p); }
+  public void Refresh() { if (folder.Length > 0) { lastRefresh = sw.ElapsedMilliseconds; return; } foreach (var n in names) foreach (var pr in System.Diagnostics.Process.GetProcessesByName(n)) { fam[(uint)pr.Id] = true; pr.Dispose(); } lastRefresh = sw.ElapsedMilliseconds; }
   bool Mine(IntPtr h) {   // one OpenProcess+QueryFullProcessImageName per NEW pid (~0.1 ms); nothing per event once known
     uint p = W.Pid(h); bool r; if (fam.TryGetValue(p, out r)) return r; lock (pids) if (pids.Contains(p)) return fam[p] = true;
     IntPtr hp = OpenProcess(0x1000, false, p); r = false;
     if (hp != IntPtr.Zero) { var sb = new System.Text.StringBuilder(1024); int n = 1024; if (QueryFullProcessImageName(hp, 0, sb, ref n)) {
-        string f = System.IO.Path.GetFileNameWithoutExtension(sb.ToString()); foreach (var nm in names) if (string.Equals(f, nm, StringComparison.OrdinalIgnoreCase)) r = true; } CloseHandle(hp); }
+        string full = sb.ToString(), f = System.IO.Path.GetFileNameWithoutExtension(full); foreach (var nm in names) if (string.Equals(f, nm, StringComparison.OrdinalIgnoreCase)) r = true;
+        if (folder.Length > 0) r = full.ToLowerInvariant().StartsWith(folder); } CloseHandle(hp); }
+    if (!r) r = Descendant(p);
     fam[p] = r; return r; }
   bool Captioned(IntPtr h) { int st = W.GetWindowLong(h, -16); return (st & 0x00C00000) == 0x00C00000; }   // WS_CAPTION: a real app window, not a tooltip/popup
   bool Loaded(string t) { if (t.Length == 0) return false; if (want.Length > 0) return t.IndexOf(want, StringComparison.OrdinalIgnoreCase) >= 0;
@@ -124,6 +151,7 @@ public class Hider {
       if (debug) log.Add("debug " + (ev == 0x8000 ? "CREATE" : "SHOW") + " " + h.ToInt64() + " pid " + W.Pid(h) + " mine " + Mine(h) + " captioned " + Captioned(h) + " style " + W.GetWindowLong(h, -16).ToString("X") + " vis " + W.IsWindowVisible(h) + " title " + W.Title(h));
       if (!Captioned(h) || !Mine(h)) return;
       long cr = (long)(time - t0); string kind = ev == 0x8000 ? "CREATE" : "SHOW"; bool vis = W.IsWindowVisible(h);
+      if (W.Class(h) == "#32770") { lock (hidden) dialogs.Add(h); done = true; }   // hidden like any window (nothing may show before its question); reported and closed after the run
       lock (hidden) { hidden[h] = cr + " ?"; if (vis) vis0[h] = cr; }
       // the hide itself runs on a pool thread per window: SetWindowLong/SetWindowRgn synchronise with the window's own thread, and a
       // helper window of a busy thread (Firefox: 137 ms, Code: 254 ms) must not hold up the hook thread when the real window appears
@@ -191,7 +219,12 @@ public class Hider {
 Add-Type -TypeDefinition $Src
 [W]::SetProcessDPIAware() | Out-Null
 $Reg = if ($env:EVSHOW_LAUNCHED) { $env:EVSHOW_LAUNCHED } else { Join-Path $PSScriptRoot 'launched.txt' }   # per-session registry (win.sh sets it)
-if (Test-Path $Reg) { foreach ($l in Get-Content $Reg) { $n = 0L; if ([int64]::TryParse($l.Split('|')[0], [ref]$n)) { [void][W]::Reg.Add([IntPtr]$n) } } }
+$RegOrder = New-Object System.Collections.Generic.List[IntPtr]   # registration order: the last one is the newest
+if (Test-Path $Reg) { foreach ($l in Get-Content $Reg) { $n = 0L; if ([int64]::TryParse($l.Split('|')[0], [ref]$n)) { [void][W]::Reg.Add([IntPtr]$n); $RegOrder.Add([IntPtr]$n) } } }
+$GenericTitles = @('', 'Mozilla Firefox', 'Firefox', 'New Tab', 'Visual Studio Code', 'Code', 'Welcome', 'Get Started', 'Windows Terminal')
+# R7: a title that is only the app's own name (or its start page) means nothing was loaded into the window
+function Generic($t) { $GenericTitles -contains (($t -replace '\s+[-\u2014\u2013]\s+(Mozilla Firefox|Visual Studio Code)( Private Browsing)?\s*$', '').Trim()) }
+function Holders($m) { ($m | ForEach-Object { "$([int64]$_)|$([int][W]::Hidden($_))|$([W]::Title($_))" }) -join '; ' }   # R4: HWND|cloaked|title
 function Rect($h) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null; "$($r.L) $($r.T) $($r.Rt-$r.L) $($r.B-$r.T)" }
 function Hw($s) { $n = 0L; if (-not [int64]::TryParse($s, [ref]$n) -or $n -le 1) { "error: '$s' is not an HWND (title lookup is only in find/show)"; exit 1 }
   $h = [IntPtr]$n; if (-not [W]::IsWindow($h)) { "error: window $s no longer exists"; exit 1 }; $h }
@@ -211,8 +244,15 @@ function ShowIt($t, $px, $py, $pw, $ph, $to, $term) {
     $end = (Get-Date).AddSeconds($to); $m = @()
     while ($true) { $m = Matches $t; if ($m.Count -ge 1 -or (Get-Date) -gt $end) { break }; Start-Sleep -Milliseconds 200 }
     if ($m.Count -eq 0) { "not shown: no window matches '$t' after ${to}s"; return 1 }
-    if ($m.Count -gt 1) { "not shown: $($m.Count) windows match '$t':`n$(Cands $m)"; return 1 }
-    $h = $m[0]; Register $h $t; $x = [int]$px
+    if ($m.Count -gt 1) {   # R6: several windows on one title: keep the newest one this session registered whose title is not generic, close its other cloaked ones
+      $mine = @($RegOrder | Where-Object { $m -contains $_ })
+      if ($mine.Count -eq 0) { "not shown: $($m.Count) windows match '$t', none opened by this session: $(Holders $m)"; return 1 }
+      $good = @($mine | Where-Object { -not (Generic ([W]::Title($_))) }); $keep = if ($good.Count) { $good[-1] } else { $mine[-1] }
+      foreach ($o in $mine) { if ($o -ne $keep -and [W]::Hidden($o)) { "closed duplicate: $([int64]$o)|1|$([W]::Title($o))"; [W]::PostMessage($o, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null } }
+      $m = @($keep) }
+    $h = $m[0]
+    if (Generic ([W]::Title($h))) { "not shown: blank window $([int64]$h)"; return 1 }   # R7: never un-cloak a window that holds no item
+    Register $h $t; $x = [int]$px
     $why = ''; $trace = @()
     foreach ($pause in 250, 750, 1500) {
       # A fresh window (e.g. a new browser window) ignores TOPMOST until it has been minimized and restored; a prepped one is already minimized.
@@ -233,6 +273,10 @@ function ShowIt($t, $px, $py, $pw, $ph, $to, $term) {
       if (-not $Behind -and ([W]::GetWindowLong($h, -20) -band 8) -eq 0) { $why += 'not topmost' }
       if ($term) { $tr = New-Object W+R; [W]::GetWindowRect($term, [ref]$tr) | Out-Null
         if ($r.L -lt $tr.Rt -and $r.Rt -gt $tr.L -and $r.T -lt $tr.B -and $r.B -gt $tr.T) { $why += 'overlaps terminal' } }
+      # ground truth, not flags: the window under five points of its own rect must be this window (a TOPMOST bit can be set while
+      # another window still covers it; then the user sees nothing although every flag is right)
+      if ($why.Count -eq 0 -and -not $Behind) { $c = [W]::Cover($h); if ($c -ne $h) { $why += "covered by $([int64]$c) '$([W]::Title($c))'"
+          [W]::ShowWindow($h, 6) | Out-Null; Start-Sleep -Milliseconds 250; Unmin $h; PutWin $h $px $py $pw $ph; Top $h $true } }   # the minimize/restore round that makes a fresh window take TOPMOST
       if ($why.Count -eq 0) { if ($trace.Count) { "show-tries: $($trace -join '; ')" }; "shown: $([int64]$h) $([W]::Title($h)) $(Rect $h)"; return 0 }
       $trace += ($why -join ',') }
     "not shown: window $([int64]$h) $($why -join ', ') ($(Rect $h)); tries: $($trace -join '; ')"; return 1 }
@@ -263,6 +307,7 @@ switch ($Action) {
     "now $(Rect $h) $([int][W]::IsZoomed($h))" }
   'reg' { $h = Hw $p[0]; Register $h $p[1]; "registered $($p[0])" }
   'rect' { Rect (Hw $p[0]) }
+  'cover' { $h = Hw $p[0]; $c = [W]::Cover($h); if ($c -eq $h) { "on top: $([int64]$h)" } elseif ($c -eq [IntPtr]::Zero) { "covered: $([int64]$h) is minimized"; exit 1 } else { "covered: $([int64]$h) by $([int64]$c) $([W]::Title($c))"; exit 1 } }   # is the window really the top one over its own rect
   'unhide' { $h = Hw $p[0]; [W]::Unhide($h); "unhidden $([int64]$h) (still at $(Rect $h); place it)" }   # harness stand-ins opened hidden
   'wininfo' { $h = Hw $p[0]; "$([int64]$h) $(Rect $h) $([int][W]::IsZoomed($h))" }   # same shape as a `term` line: HWND L T W H MAX
   'bottom' { $h = Owned $p[0]; Bottom $h; "bottom: $([W]::Title($h))" }
@@ -276,8 +321,7 @@ switch ($Action) {
   'list-topmost' { [W]::All() | Where-Object { ([W]::GetWindowLong($_, -20) -band 8) -ne 0 } | ForEach-Object { "$([int64]$_) $([W]::Title($_))" } }
   'find' { $m = Matches $p[0]
     if ($m.Count -eq 1) { "$([int64]$m[0]) $([W]::Title($m[0]))"; exit 0 }
-    if ($m.Count -eq 0) { "no window matches '$($p[0])'"; exit 1 }
-    "$($m.Count) windows match '$($p[0])':`n$(Cands $m)"; exit 1 }
+    "not found: $($m.Count) windows hold '$($p[0])'$(if ($m.Count) { ': ' + (Holders $m) })"; exit 1 }
   'prep' { $t = $p[0]; $to = if ($p.Count -gt 1 -and $p[1]) { [double]$p[1] } else { 20 }
     $end = (Get-Date).AddSeconds($to); $m = @()
     while ($true) { $m = Matches $t; if ($m.Count -ge 1 -or (Get-Date) -gt $end) { break }; Start-Sleep -Milliseconds 250 }
@@ -294,14 +338,30 @@ switch ($Action) {
     $app = $p[0]; $exe = $p[1]; $args = $p[2]; $want = if ($p.Count -gt 3) { $p[3] } else { '' }; $to = if ($p.Count -gt 4 -and $p[4]) { [double]$p[4] } else { 20 }
     $hd = New-Object Hider; $hd.want = $want; $hd.debug = ($env:EVSHOW_HIDE_DEBUG -eq '1'); $hd.layered = -not ($app -eq 'code' -and $env:EVSHOW_CODE_REGION -eq '1')   # mode 1 for every app; EVSHOW_CODE_REGION=1 = old mode 2 for VS Code
     switch ($app) { 'firefox' { $hd.names = @('firefox') }; 'code' { $hd.names = @('Code') }; 'wt' { $hd.names = @('WindowsTerminal', 'wt', 'OpenConsole') }; default { $hd.names = @($app) } }
-    $hd.generic = @('Mozilla Firefox', 'Visual Studio Code', 'Windows Terminal', 'Firefox', 'Code')
+    if ($app -eq 'firefox' -or $app -eq 'code') { $hd.folder = ((Split-Path $exe -Parent).TrimEnd('\') + '\').ToLowerInvariant() }   # R5
+    if (-not $want) { 'not hidden: --title is required (a window counts as loaded only when its title holds it)'; exit 2 }   # R7
+    $hd.generic = $GenericTitles
     $rc = $hd.Run($exe, $args, [int]($to * 1000))
+    if ($hd.dialogs.Count) {   # the app answered the launch with a dialog (hidden like any window): say what it asks, close it (it is this run's window), fail
+      Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes; $txt = ''
+      foreach ($d in $hd.dialogs) { for ($i = 0; $i -lt 10 -and -not $txt -and [W]::IsWindow($d); $i++) { Start-Sleep -Milliseconds 200
+          try { $e = [System.Windows.Automation.AutomationElement]::FromHandle($d)
+            $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)
+            $txt = (@($e.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) -join ' ' } catch { } }
+        [W]::PostMessage($d, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null }
+      $hd.log | ForEach-Object { "hide-log: $_" }
+      foreach ($h in $hd.hidden.Keys) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null; if ([W]::IsWindow($h) -and ($r.Rt - $r.L) -gt 300) { Register $h $want } }
+      $name = switch ($app) { 'code' { 'VS Code' } 'firefox' { 'Firefox' } default { $app } }
+      "not hidden: $name dialog: $(if ($txt) { ($txt -replace '\s+', ' ').Trim() } else { [W]::Title($hd.dialogs[0]) })"; exit 1 }
     foreach ($kv in $hd.hidden.GetEnumerator()) { $h = $kv.Key; $t = [W]::Title($h); $tok = if ($want) { $want } else { $t }   # helper windows (never visible, no title) are cloaked too but not reported
       if ([W]::IsWindow($h) -and $t.Length -gt 0 -and ($want -eq '' -or $t.IndexOf($want, [StringComparison]::OrdinalIgnoreCase) -ge 0)) { Register $h $tok; "hidden: $([int64]$h) $($hd.Exposure($h)) $t (create $($kv.Value))" } }
     $hd.log | ForEach-Object { "hide-log: $_" }; if ($hd.fgRestored) { "hide-log: foreground given back $($hd.fgRestored)x" }; if ($hd.moved) { "hide-log: moved back off-screen $($hd.moved)x" }
     if ($rc -ne 0) { foreach ($h in $hd.hidden.Keys) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null   # register what was hidden anyway, so close-cloaked can clean it up
         if ([W]::IsWindow($h) -and ($r.Rt - $r.L) -gt 300) { Register $h $(if ($want) { $want } else { 'hidden' }) } }
-      $why = switch ($rc) { 1 { "title not loaded within ${to}s (want '$want'; hidden $($hd.hidden.Count) window(s))" } 2 { 'SetWinEventHook failed' } 3 { $hd.log[-1] } }
+      $seen = @($hd.hidden.Keys | Where-Object { [W]::IsWindow($_) } | ForEach-Object { [W]::Title($_) } | Where-Object { $_ } | ForEach-Object { "'$_'" }) -join ', '
+      $why = switch ($rc) { 1 { "title not loaded within ${to}s (want '$want'; hidden $($hd.hidden.Count) window(s)$(if ($seen) { ": $seen" }))" } 2 { 'SetWinEventHook failed' } 3 { $hd.log[-1] } }
+      # R1: no window at all from a VS Code whose update did not finish (old_Code.exe beside Code.exe): the launch went nowhere
+      if ($rc -eq 1 -and $hd.hidden.Count -eq 0 -and $app -eq 'code' -and (Test-Path (Join-Path (Split-Path $exe -Parent) 'old_Code.exe'))) { $why = 'VS Code update pending, restart VS Code' }
       "not hidden: $why"; exit 1 }
     exit 0 }
   'me' { # me|marker : exactly one Windows Terminal window whose title holds the marker, else one whose terminal TEXT holds it (UI
@@ -316,7 +376,7 @@ switch ($Action) {
           try { $tp = $d.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern); if ($tp.DocumentRange.GetText(400000).Contains($p[0])) { $m += [IntPtr]$w.Current.NativeWindowHandle; break } } catch { } } }
       if ($m.Count -eq 1) { "me: $([int64]$m[0]) $(Rect $m[0]) $([int][W]::IsZoomed($m[0])) (text marker)"; exit 0 } }
     $c = @([W]::All() | Where-Object { $t = [W]::Title($_); $t -match 'Terminal|Ubuntu|WSL|bash|claude|tmux' })
-    "not found: $($m.Count) windows hold '$($p[0])'; candidates:`n$(Cands $c)"; exit 1 }
+    "not found: $($m.Count) windows hold '$($p[0])'$(if ($m.Count) { ': ' + (Holders $m) }); terminal candidates: $(Holders $c)"; exit 1 }
   'close-cloaked' { # close every window this session registered that still exists and is cloaked (never shown): nothing cloaked is left behind
     if (Test-Path $Reg) { foreach ($l in Get-Content $Reg) { $n = 0L; if ([int64]::TryParse($l.Split('|')[0], [ref]$n)) { $h = [IntPtr]$n
       if ([W]::IsWindow($h) -and [W]::Hidden($h)) { $t = [W]::Title($h); [W]::PostMessage($h, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null; "closed cloaked: $([int64]$h) $t" } } } } }
