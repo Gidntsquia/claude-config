@@ -2496,5 +2496,239 @@
     "total_pct": 2.89
    }
   ]
+ },
+ {
+  "weekStart": "2026-11-08",
+  "label": "Nov 8–15, 2026",
+  "url": "https://claude.ai/artifact/7RvGGdq9sT43ntSesxtbm5",
+  "projectCount": 7,
+  "totalCost": 199.96,
+  "slices": [
+   {
+    "name": "Assistant Agent",
+    "pct": 32.97,
+    "color": "#2e9e6b"
+   },
+   {
+    "name": "Guardrail Builder",
+    "pct": 8.14,
+    "color": "#e5484d"
+   },
+   {
+    "name": "claude-config",
+    "pct": 6.64,
+    "color": "#2f80ed"
+   },
+   {
+    "name": "Planner Building",
+    "pct": 4.03,
+    "color": "#2e9e6b"
+   },
+   {
+    "name": "Run-Agent Improver",
+    "pct": 2.57,
+    "color": "#a13e85"
+   },
+   {
+    "name": "Evaluator Building",
+    "pct": 1.68,
+    "color": "#ff8a65"
+   },
+   {
+    "name": "Agent Eval Experiment",
+    "pct": 1.47,
+    "color": "#c2185b"
+   },
+   {
+    "name": "Misc",
+    "pct": 2.5,
+    "color": "#9aa3ad"
+   },
+   {
+    "name": "Unused",
+    "pct": 40.0,
+    "color": "#666f7d"
+   }
+  ],
+  "days": [
+   {
+    "date": "2026-11-08",
+    "label": "Sun",
+    "segments": [
+     {
+      "project": "claude-config",
+      "person": "Jaxon",
+      "color": "#2f80ed",
+      "pct": 0.19
+     }
+    ],
+    "total_pct": 0.19
+   },
+   {
+    "date": "2026-11-09",
+    "label": "Mon",
+    "segments": [
+     {
+      "project": "Assistant Agent",
+      "person": "Jaxon",
+      "color": "#2e9e6b",
+      "pct": 19.28
+     },
+     {
+      "project": "Guardrail Builder",
+      "person": "Jaxon",
+      "color": "#e5484d",
+      "pct": 6.03
+     },
+     {
+      "project": "claude-config",
+      "person": "Jaxon",
+      "color": "#2f80ed",
+      "pct": 5.12
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#9aa3ad",
+      "pct": 1.96
+     },
+     {
+      "project": "Planner Building",
+      "person": "Jaxon",
+      "color": "#2e9e6b",
+      "pct": 1.65
+     },
+     {
+      "project": "Agent Eval Experiment",
+      "person": "Jaxon",
+      "color": "#c2185b",
+      "pct": 0.64
+     }
+    ],
+    "total_pct": 34.69
+   },
+   {
+    "date": "2026-11-10",
+    "label": "Tue",
+    "segments": [],
+    "total_pct": 0.0
+   },
+   {
+    "date": "2026-11-11",
+    "label": "Wed",
+    "segments": [],
+    "total_pct": 0.0
+   },
+   {
+    "date": "2026-11-12",
+    "label": "Thu",
+    "segments": [],
+    "total_pct": 0.0
+   },
+   {
+    "date": "2026-11-13",
+    "label": "Fri",
+    "segments": [],
+    "total_pct": 0.0
+   },
+   {
+    "date": "2026-11-14",
+    "label": "Sat",
+    "segments": [
+     {
+      "project": "Assistant Agent",
+      "person": "Jaxon",
+      "color": "#2e9e6b",
+      "pct": 4.27
+     },
+     {
+      "project": "Guardrail Builder",
+      "person": "Jaxon",
+      "color": "#e5484d",
+      "pct": 1.04
+     },
+     {
+      "project": "Planner Building",
+      "person": "Jaxon",
+      "color": "#2e9e6b",
+      "pct": 0.93
+     },
+     {
+      "project": "claude-config",
+      "person": "Jaxon",
+      "color": "#2f80ed",
+      "pct": 0.37
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#9aa3ad",
+      "pct": 0.18
+     },
+     {
+      "project": "Agent Eval Experiment",
+      "person": "Jaxon",
+      "color": "#c2185b",
+      "pct": 0.02
+     }
+    ],
+    "total_pct": 6.81
+   },
+   {
+    "date": "2026-11-15",
+    "label": "Sun",
+    "segments": [
+     {
+      "project": "Assistant Agent",
+      "person": "Jaxon",
+      "color": "#2e9e6b",
+      "pct": 9.42
+     },
+     {
+      "project": "Run-Agent Improver",
+      "person": "Jaxon",
+      "color": "#a13e85",
+      "pct": 2.57
+     },
+     {
+      "project": "Evaluator Building",
+      "person": "Jaxon",
+      "color": "#ff8a65",
+      "pct": 1.68
+     },
+     {
+      "project": "Planner Building",
+      "person": "Jaxon",
+      "color": "#2e9e6b",
+      "pct": 1.45
+     },
+     {
+      "project": "Guardrail Builder",
+      "person": "Jaxon",
+      "color": "#e5484d",
+      "pct": 1.07
+     },
+     {
+      "project": "claude-config",
+      "person": "Jaxon",
+      "color": "#2f80ed",
+      "pct": 0.96
+     },
+     {
+      "project": "Agent Eval Experiment",
+      "person": "Jaxon",
+      "color": "#c2185b",
+      "pct": 0.81
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#9aa3ad",
+      "pct": 0.36
+     }
+    ],
+    "total_pct": 18.31
+   }
+  ]
  }
 ]
