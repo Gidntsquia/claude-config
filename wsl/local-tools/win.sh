@@ -10,7 +10,10 @@
 #   EVSHOW_BEHIND=1 (env): show/start/next/front place + un-minimize, then put the window at the very bottom of the
 #                          z-order (HWND_BOTTOM: below every user window; never topmost, never activated)
 #   win.sh min HWND                     -> minimize an item you launched
-#   (show takes an optional 7th arg: your terminal HWND; fails if the item overlaps it)
+#   (show takes an optional 7th arg: your terminal HWND, and 8th-11th: the terminal's place TX TY TW TH. A terminal lying over the
+#    item's place is moved there first; without TX.. the item stays hidden: `not shown: window <H> would overlap terminal <T> (...)`.
+#    A show that fails after the un-hide hides the window again: `not shown: window <H> <why> (...); tries: ...; hidden again`)
+#   win.sh showcheck "<title>" X Y W H s [save.png] -> show, then `z: HWND|topmost|cloaked|title` and `check: <p>` (open-streak.sh)
 #   win.sh front|untop|close HWND       -> topmost on / topmost off / close
 #   win.sh place HWND X Y W H           -> un-minimize, move, size (no focus)
 #   win.sh rect HWND | fgrect | placefg X Y W H | list-topmost | list-all
@@ -28,7 +31,7 @@
 grep -qi microsoft /proc/version 2>/dev/null || { echo "win.sh: WSL only (this is $(uname))" >&2; exit 1; }
 . "$HOME/.claude/local-tools/evsession.sh"
 ev_export || { echo "error: no session state dir (no transcript for this cwd; set EVSHOW_STATE)"; exit 1; }
-case "${1:-}" in show|start|next|front|place|placefg|setwin|restore) "$HOME/.claude/local-tools/game-guard.sh" "win.sh $*" >/dev/null && { echo "not shown: a full-screen game is running (game-guard.sh)"; exit 3; };; esac
+case "${1:-}" in show|showcheck|start|next|front|place|placefg|setwin|restore) "$HOME/.claude/local-tools/game-guard.sh" "win.sh $*" >/dev/null && { echo "not shown: a full-screen game is running (game-guard.sh)"; exit 3; };; esac
 if [ "${1:-}" = me ]; then
   # Marker routes, all at once: tmux window name + OSC title on the pane tty (title match) and a tmux status message on this
   # pane's client (text match: a WT tab renamed by hand ignores application titles). No /dev/tty needed (the Bash tool has none).

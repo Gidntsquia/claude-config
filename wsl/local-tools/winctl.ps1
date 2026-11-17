@@ -3,7 +3,7 @@
 param([string]$Line)
 if ($env:WINCTL_LINE) { $Line = $env:WINCTL_LINE }
 $a = $Line.Split('|'); $Action = $a[0]; $p = @($a | Select-Object -Skip 1)
-$Verb = switch -Regex ($Action) { '^hidden$' { 'hidden' } '^(show|start|next)$' { 'shown' } '^(find|me)$' { 'found' } '^(close|close-cloaked)$' { 'closed' } '^(place|placefg|setwin)$' { 'placed' } default { $Action } }
+$Verb = switch -Regex ($Action) { '^hidden$' { 'hidden' } '^(show|start|next|showcheck)$' { 'shown' } '^(find|me)$' { 'found' } '^(close|close-cloaked)$' { 'closed' } '^(place|placefg|setwin)$' { 'placed' } default { $Action } }
 trap { "not ${Verb}: error: $(("$($_.Exception.Message)" -replace '\s+', ' ').Trim())"; exit 1 }   # R3: a PowerShell exception is one line naming the action, exit 1
 $ErrorActionPreference = 'Stop'
 $Src = @"
@@ -21,7 +21,7 @@ public class W {
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
   [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr h);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
-  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int cx, int cy, uint f);
+  [DllImport("user32.dll", SetLastError=true)] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int cx, int cy, uint f);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
   [DllImport("user32.dll", EntryPoint="GetWindowLongW")] public static extern int GetWindowLong(IntPtr h, int i);
   [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int n);
@@ -71,7 +71,13 @@ public class W {
   public static bool OffScreen(IntPtr h) { R r; GetWindowRect(h, out r); return r.Rt <= -3000; }
   public static bool Invisible(IntPtr h) { if (OffScreen(h) || EmptyRgn(h)) return true; if ((GetWindowLong(h, -20) & 0x80000) != 0) { uint k, f; byte a; if (GetLayeredWindowAttributes(h, out k, out a, out f) && (f & 2) != 0 && a == 0) return true; } return false; }   // nothing of it can be on a monitor
   public static bool EmptyRgn(IntPtr h) { IntPtr g = CreateRectRgn(0, 0, 1, 1); int k = GetWindowRgn(h, g); DeleteObject(g); return k == 1; }   // NULLREGION
-  public static void Unhide(IntPtr h) { SetPropW(h, "evshow-shown", (IntPtr)1); int ex = GetWindowLong(h, -20); if ((ex & 0x80000) != 0) SetLayeredWindowAttributes(h, 0, 255, 2); SetWindowLong(h, -20, ex & ~(0x80000 | 0x80)); if (EmptyRgn(h)) SetWindowRgn(h, IntPtr.Zero, true); }
+  public static void Unhide(IntPtr h) { Unhide(h, false); }
+  // noclick (open-streak only): the window stays layered at alpha 255 with WS_EX_TRANSPARENT, so it is fully visible but a mouse click
+  // goes to the window under it: a click the user meant for their own window at that place cannot activate, minimize or close a test window
+  public static void Unhide(IntPtr h, bool noclick) { SetPropW(h, "evshow-shown", (IntPtr)1); int ex = GetWindowLong(h, -20);
+    if (noclick) { SetWindowLong(h, -20, (ex | 0x80020) & ~0x80); SetLayeredWindowAttributes(h, 0, 255, 2); }
+    else { if ((ex & 0x80000) != 0) SetLayeredWindowAttributes(h, 0, 255, 2); SetWindowLong(h, -20, ex & ~(0x80000 | 0x80)); }
+    if (EmptyRgn(h)) SetWindowRgn(h, IntPtr.Zero, true); }
   public static int Cloaked(IntPtr h) { int v = 0; DwmGetWindowAttribute(h, 14, out v, 4); return v; }
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassNameW(IntPtr h, StringBuilder s, int n);
   public static string Class(IntPtr h) { var s = new StringBuilder(256); GetClassNameW(h, s, 256); return s.ToString(); }
@@ -80,8 +86,10 @@ public class W {
   public static IntPtr RootAt(int x, int y) { PT p; p.X = x; p.Y = y; IntPtr h = WindowFromPoint(p); return h == IntPtr.Zero ? h : GetAncestor(h, 2); }
   // the window that really is on top at five points of h's rect (centre and four inner points); h itself = nothing covers it there
   public static IntPtr Cover(IntPtr h) { if (IsIconic(h)) return IntPtr.Zero; R r; GetWindowRect(h, out r); int w = r.Rt - r.L, t = r.B - r.T;
-    double[] fx = { 0.5, 0.25, 0.75, 0.25, 0.75 }, fy = { 0.5, 0.3, 0.3, 0.75, 0.75 };
-    for (int i = 0; i < 5; i++) { IntPtr a = RootAt(r.L + (int)(w * fx[i]), r.T + (int)(t * fy[i])); if (a != h) return a; } return h; }
+    double[] fx = { 0.5, 0.25, 0.75, 0.25, 0.75 }, fy = { 0.5, 0.3, 0.3, 0.75, 0.75 }; IntPtr res = h;
+    int ex = GetWindowLong(h, -20); bool nc = (ex & 0x20) != 0; if (nc) SetWindowLong(h, -20, ex & ~0x20);   // a click-through window is skipped by WindowFromPoint: clickable for the five lookups only
+    for (int i = 0; i < 5; i++) { IntPtr a = RootAt(r.L + (int)(w * fx[i]), r.T + (int)(t * fy[i])); if (a != h) { res = a; break; } }
+    if (nc) SetWindowLong(h, -20, GetWindowLong(h, -20) | 0x20); return res; }
   public static string Title(IntPtr h) { var s = new StringBuilder(512); GetWindowText(h, s, 512); return s.ToString(); }
   public static List<IntPtr> All() {
     var r = new List<IntPtr>();
@@ -230,17 +238,29 @@ function Hw($s) { $n = 0L; if (-not [int64]::TryParse($s, [ref]$n) -or $n -le 1)
   $h = [IntPtr]$n; if (-not [W]::IsWindow($h)) { "error: window $s no longer exists"; exit 1 }; $h }
 function Matches($t) { @([W]::All() | Where-Object { [W]::Title($_).IndexOf($t, [StringComparison]::OrdinalIgnoreCase) -ge 0 }) }
 function Cands($m) { ($m | ForEach-Object { "  $([int64]$_) $([W]::Title($_))" }) -join "`n" }
+$NoClick = $false   # showcheck sets it: the shown window lets mouse clicks through (see W.Unhide)
 $Behind = ($env:EVSHOW_BEHIND -eq '1')   # behind mode (tests): windows are placed and un-minimized but sent to the very bottom of the z-order (HWND_BOTTOM), never topmost/front
 function Bottom($h) { Top $h $false; 1..3 | ForEach-Object { [W]::SetWindowPos($h, [IntPtr]1, 0, 0, 0, 0, 0x0013) | Out-Null; Start-Sleep -Milliseconds 120 } }   # HWND_BOTTOM (below every other window, not topmost, no activation), NOMOVE|NOSIZE|NOACTIVATE
 function Unmin($h) { foreach ($c in 4, 9, 1) { if (-not [W]::IsIconic($h) -and -not [W]::IsZoomed($h)) { break }
     [W]::ShowWindow($h, $c) | Out-Null; if ($Behind) { Bottom $h }
     for ($i = 0; $i -lt 8 -and [W]::IsIconic($h); $i++) { Start-Sleep -Milliseconds 125 } } }
-function Top($h, $on) { $z = if ($on) { -1 } else { -2 }; [W]::SetWindowPos($h, [IntPtr]$z, 0, 0, 0, 0, 0x0053) | Out-Null }
+# Topmost on/off. An app can refuse the z-order change in its WM_WINDOWPOSCHANGING handler (Firefox keeps a window at its own z-level:
+# HWND_TOPMOST comes back as HWND_TOP and the TOPMOST bit never sets; seen as `not topmost` on 1 open in 20). If the bit is not set
+# after the plain call, the change is made again with SWP_NOSENDCHANGING (the app is not asked) and noted in $TopNote.
+$TopNote = ''
+function Top($h, $on) { $z = if ($on) { -1 } else { -2 }; [W]::SetWindowPos($h, [IntPtr]$z, 0, 0, 0, 0, 0x0053) | Out-Null
+  if ($on -and ([W]::GetWindowLong($h, -20) -band 8) -eq 0 -and [W]::IsWindow($h)) { $ok = [W]::SetWindowPos($h, [IntPtr]$z, 0, 0, 0, 0, 0x0453); $e = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+    $script:TopNote = "show-note: window $([int64]$h) refused topmost; set without asking it (SWP_NOSENDCHANGING): $(if (([W]::GetWindowLong($h, -20) -band 8) -ne 0) { 'topmost now' } else { "still not topmost, SetWindowPos=$ok error $e" })" } }
 function PutWin($h, $x, $y, $w, $ht) { [W]::SetWindowPos($h, [IntPtr]::Zero, [int]$x, [int]$y, [int]$w, [int]$ht, 0x0054) | Out-Null }  # NOZORDER|NOACTIVATE|SHOWWINDOW
 function OnScreen($h) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null
   (-not [W]::IsIconic($h)) -and $r.L -ge -16 -and $r.T -ge -16 -and ($r.Rt-$r.L) -gt 100 -and ($r.B-$r.T) -gt 100 }
 
-function ShowIt($t, $px, $py, $pw, $ph, $to, $term) {
+function Overlap($x, $y, $w, $ht, $term) { $tr = New-Object W+R; [W]::GetWindowRect($term, [ref]$tr) | Out-Null
+  ([int]$x -lt $tr.Rt) -and ([int]$x + [int]$w -gt $tr.L) -and ([int]$y -lt $tr.B) -and ([int]$y + [int]$ht -gt $tr.T) }
+# $tg = the terminal's own place (X Y W H) or $null: a terminal that lies over the item's place is moved there BEFORE the item is
+# un-hidden (a maximized terminal after a failed first show); if it cannot be moved the item is never un-hidden.
+# A show that fails after the un-hide takes the window off the screen again (not topmost, hidden as before), so nothing stays visible.
+function ShowIt($t, $px, $py, $pw, $ph, $to, $term, $tg) {
     $end = (Get-Date).AddSeconds($to); $m = @()
     while ($true) { $m = Matches $t; if ($m.Count -ge 1 -or (Get-Date) -gt $end) { break }; Start-Sleep -Milliseconds 200 }
     if ($m.Count -eq 0) {   # a window this session opened under that title may still exist with another page in it (a link the user clicked lands in the newest Firefox window)
@@ -256,7 +276,10 @@ function ShowIt($t, $px, $py, $pw, $ph, $to, $term) {
       $m = @($keep) }
     $h = $m[0]
     if (Generic ([W]::Title($h))) { "not shown: blank window $([int64]$h)"; return 1 }   # R7: never un-cloak a window that holds no item
-    Register $h $t; $x = [int]$px
+    Register $h $t; $x = [int]$px; $wasHidden = [W]::Hidden($h)
+    if ($term -and (Overlap $px $py $pw $ph $term)) {
+      if ($tg) { Unmin $term; PutWin $term $tg[0] $tg[1] $tg[2] $tg[3]; if ($Behind) { Bottom $term }; Start-Sleep -Milliseconds 150; "placed terminal $([int64]$term) $(Rect $term)" }
+      if (Overlap $px $py $pw $ph $term) { "not shown: window $([int64]$h) would overlap terminal $([int64]$term) ($(Rect $term)); it stays hidden"; return 1 } }
     $why = ''; $trace = @()
     foreach ($pause in 250, 750, 1500) {
       # A fresh window (e.g. a new browser window) ignores TOPMOST until it has been minimized and restored; a prepped one is already minimized.
@@ -264,7 +287,7 @@ function ShowIt($t, $px, $py, $pw, $ph, $to, $term) {
         # A --hidden window: place it and set its z-order while it is still invisible (alpha 0), un-hide last, so its first frame is in place.
         if (-not [W]::IsWindowVisible($h)) { [W]::ShowWindow($h, 4) | Out-Null }
         PutWin $h $px $py $pw $ph; if ($Behind) { Bottom $h } else { Top $h $true }; Start-Sleep -Milliseconds 100; PutWin $h $px $py $pw $ph
-        [W]::Unhide($h); [W]::SetWindowPos($h, [IntPtr]::Zero, 0, 0, 0, 0, 0x0037) | Out-Null   # FRAMECHANGED|NOMOVE|NOSIZE|NOZORDER|NOACTIVATE: style change takes effect
+        [W]::Unhide($h, $NoClick); [W]::SetWindowPos($h, [IntPtr]::Zero, 0, 0, 0, 0, 0x0037) | Out-Null   # FRAMECHANGED|NOMOVE|NOSIZE|NOZORDER|NOACTIVATE: style change takes effect
       } else {
         if (-not [W]::IsIconic($h)) { [W]::ShowWindow($h, 6) | Out-Null; Start-Sleep -Milliseconds 300 }
         Unmin $h; Start-Sleep -Milliseconds 300; PutWin $h $px $py $pw $ph; if ($Behind) { Bottom $h } else { Top $h $true } }
@@ -281,9 +304,41 @@ function ShowIt($t, $px, $py, $pw, $ph, $to, $term) {
       # another window still covers it; then the user sees nothing although every flag is right)
       if ($why.Count -eq 0 -and -not $Behind) { $c = [W]::Cover($h); if ($c -ne $h) { $why += "covered by $([int64]$c) '$([W]::Title($c))'"
           [W]::ShowWindow($h, 6) | Out-Null; Start-Sleep -Milliseconds 250; Unmin $h; PutWin $h $px $py $pw $ph; Top $h $true } }   # the minimize/restore round that makes a fresh window take TOPMOST
-      if ($why.Count -eq 0) { if ($trace.Count) { "show-tries: $($trace -join '; ')" }; "shown: $([int64]$h) $([W]::Title($h)) $(Rect $h)"; return 0 }
+      if ($why.Count -eq 0) { if ($TopNote) { $TopNote }; if ($trace.Count) { "show-tries: $($trace -join '; ')" }; "shown: $([int64]$h) $([W]::Title($h)) $(Rect $h)"; return 0 }
       $trace += ($why -join ',') }
-    "not shown: window $([int64]$h) $($why -join ', ') ($(Rect $h)); tries: $($trace -join '; ')"; return 1 }
+    $at = Rect $h; Top $h $false; if ($wasHidden) { [W]::Hide($h, $true) } else { [W]::ShowWindow($h, 6) | Out-Null }   # off the screen again
+    if ($TopNote) { $TopNote }
+    "not shown: window $([int64]$h) $($why -join ', ') ($at); tries: $($trace -join '; '); hidden again"; return 1 }
+$BlankSrc = @"
+using System; using System.Text; using System.Collections.Generic; using System.Drawing; using System.Drawing.Imaging; using System.Runtime.InteropServices;
+public class Blank {
+  [StructLayout(LayoutKind.Sequential)] struct R { public int L, T, Rt, B; } [StructLayout(LayoutKind.Sequential)] struct PT { public int X, Y; }
+  [StructLayout(LayoutKind.Sequential)] struct LII { public uint cb, t; }
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h); [DllImport("user32.dll")] static extern bool IsWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(PT p); [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, uint f);
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] static extern bool GetLastInputInfo(ref LII l); [DllImport("kernel32.dll")] static extern uint GetTickCount();
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll", EntryPoint="GetWindowLongW")] static extern int GetWindowLong(IntPtr h, int i); [DllImport("user32.dll", EntryPoint="SetWindowLongW")] static extern int SetWindowLong(IntPtr h, int i, int v);
+  static string Title(IntPtr h) { var s = new StringBuilder(200); GetWindowText(h, s, 200); return s.ToString(); }
+  // who did it: how long ago the user last touched mouse or keyboard, and which window has the focus now
+  static string Who() { var l = new LII(); l.cb = 8; GetLastInputInfo(ref l); IntPtr f = GetForegroundWindow(); return "; last user input " + (GetTickCount() - l.t) + " ms ago, foreground " + f.ToInt64() + " '" + Title(f) + "'"; }
+  // state and pixels in one go: the window must exist, not be minimized and be the top window at five points of its rect at the moment of the capture
+  static string State(IntPtr h, out R r) { r = new R(); if (!IsWindow(h)) return "window " + h.ToInt64() + " is gone (closed by someone else after it was shown)" + Who();
+    if (IsIconic(h)) return "window " + h.ToInt64() + " was minimized after it was shown (not by this script)" + Who(); GetWindowRect(h, out r); int w = r.Rt - r.L, t = r.B - r.T;
+    double[] fx = { 0.5, 0.25, 0.75, 0.25, 0.75 }, fy = { 0.5, 0.3, 0.3, 0.75, 0.75 };
+    int ex = GetWindowLong(h, -20); bool nc = (ex & 0x20) != 0; if (nc) SetWindowLong(h, -20, ex & ~0x20); IntPtr by = h;   // click-through off for the five lookups (WindowFromPoint skips such a window)
+    for (int i = 0; i < 5; i++) { PT p; p.X = r.L + (int)(w * fx[i]); p.Y = r.T + (int)(t * fy[i]); IntPtr a = GetAncestor(WindowFromPoint(p), 2); if (a != h) { by = a; break; } }
+    if (nc) SetWindowLong(h, -20, GetWindowLong(h, -20) | 0x20);
+    return by == h ? "" : "window " + h.ToInt64() + " is covered by " + by.ToInt64() + " '" + Title(by) + "'" + Who(); }
+  // content area = the rect less 170 px on top, 50 below, 20 at the sides (the app's own bars would make an empty window look painted)
+  public static string Run(long hw, string save) { IntPtr h = (IntPtr)hw; R r; string st = State(h, out r); if (st.Length > 0) return st;
+    int x = r.L + 20, y = r.T + 170, w = r.Rt - r.L - 40, ht = r.B - r.T - 220; if (w < 10 || ht < 10) return "window " + hw + " is too small to capture (" + (r.Rt - r.L) + "x" + (r.B - r.T) + ")";
+    using (var bmp = new Bitmap(w, ht, PixelFormat.Format32bppArgb)) { using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(x, y, 0, 0, bmp.Size);
+      st = State(h, out r); if (st.Length > 0) return st;
+      var d = bmp.LockBits(new Rectangle(0, 0, w, ht), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb); var px = new int[w * ht]; Marshal.Copy(d.Scan0, px, 0, px.Length); bmp.UnlockBits(d); if (save.Length > 0) bmp.Save(save, ImageFormat.Png);
+      var c = new Dictionary<int, int>(); int top = 0, tot = 0; for (int i = 0; i < px.Length; i += 3) { int k; c.TryGetValue(px[i], out k); c[px[i]] = ++k; if (k > top) top = k; tot++; }
+      return (100.0 - 100.0 * top / tot).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture); } } }
+"@
 function Capture($out) { # whole-display PNG (DPI aware already); prints "capture <path>"
   Add-Type -AssemblyName System.Windows.Forms, System.Drawing
   $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
@@ -400,20 +455,33 @@ switch ($Action) {
       $n++; $rest = $n * 100 - $clock.ElapsedMilliseconds; if ($rest -gt 0) { Start-Sleep -Milliseconds $rest } } }   # 10 samples/s whatever the enumeration costs
   'show' { $to = if ($p.Count -gt 5 -and $p[5]) { [double]$p[5] } else { 15 }
     $term = $null; if ($p.Count -gt 6 -and $p[6]) { $term = Hw $p[6] }
-    Done (ShowIt $p[0] $p[1] $p[2] $p[3] $p[4] $to $term) }
+    $tg = if ($p.Count -gt 10 -and $p[10]) { $p[7..10] } else { $null }   # 8th-11th arg: where the terminal goes if it lies over the item's place
+    Done (ShowIt $p[0] $p[1] $p[2] $p[3] $p[4] $to $term $tg) }
+  'showcheck' { # showcheck "<title>" X Y W H timeout [save.png] : show + the streak's checks in ONE process (the window is on screen ~1 s):
+    # after `shown:` -> `z: HWND|topmost|cloaked|title` and `check: <p>` (p = % of the content area that is not its main colour) or
+    # `check: window <HWND> <what happened to it>; last user input <ms> ms ago, foreground <HWND> '<title>'`
+    Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition $BlankSrc; $NoClick = $true   # mouse clicks pass through the test window to whatever is under it
+    $r = @(ShowIt $p[0] $p[1] $p[2] $p[3] $p[4] ([double]$p[5]) $null $null)
+    if ([int]$r[-1] -eq 0) { $hw = [int64](($r | Where-Object { $_ -like 'shown: *' } | Select-Object -Last 1).Split(' ')[1]); $h = [IntPtr]$hw
+      Start-Sleep -Milliseconds 800   # the first frame after the un-hide
+      $c = [Blank]::Run($hw, $(if ($p.Count -gt 6 -and $p[6]) { $p[6] } else { '' }))
+      $r = @($r[0..($r.Count-2)]) + @("clicks: $(if (([W]::GetWindowLong($h, -20) -band 0x20) -ne 0) { 'pass through' } else { 'land on it' })", "z: $hw|$([int](([W]::GetWindowLong($h, -20) -band 8) -ne 0))|$([int][W]::Hidden($h))|$([W]::Title($h))", "check: $c", 0) }
+    Done $r }
   'start' { # start "<title>" X Y W H timeout TX TY TW TH : fginfo + place the foreground (your terminal) + show, one process
     $h = if ($p.Count -gt 10 -and $p[10]) { Hw $p[10] } else { [W]::GetForegroundWindow() }   # 11th arg: terminal HWND override (tests)
     "fginfo $([int64]$h) $(Rect $h) $([int][W]::IsZoomed($h))"
     Unmin $h; PutWin $h $p[6] $p[7] $p[8] $p[9]; if ($Behind) { Bottom $h }; "placed foreground $(Rect $h)"
-    $r = @(ShowIt $p[0] $p[1] $p[2] $p[3] $p[4] ([double]$p[5]) $h)
+    $r = @(ShowIt $p[0] $p[1] $p[2] $p[3] $p[4] ([double]$p[5]) $h $null)
     if ($p.Count -gt 11 -and $p[11] -and [int]$r[-1] -eq 0) { Capture $p[11] }   # 12th arg: capture path, taken right after shown
     Done $r }
-  'next' { # next OLDHWND "<title>" X Y W H timeout termHWND : untop + close the old item, show the new one, one process
+  'next' { # next OLDHWND "<title>" X Y W H timeout termHWND capture TX TY TW TH : untop + close the old item, show the new one, one process;
+    # TX..TH: the terminal is put there first if it lies over the item's place
     $term = $null; if ($p.Count -gt 7 -and $p[7]) { $term = Hw $p[7] }
     if ($p[0] -and $p[0] -ne '0') { $n0 = 0L; [void][int64]::TryParse($p[0], [ref]$n0)
       if (-not [W]::IsWindow([IntPtr]$n0)) { "old window $($p[0]) already gone (never shown or closed): nothing to close" }   # a failed previous item is not an error here
       else { $o = Owned $p[0]; Top $o $false; $ot = [W]::Title($o); [W]::PostMessage($o, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null; "closed: $ot" } }
-    $r = @(ShowIt $p[1] $p[2] $p[3] $p[4] $p[5] ([double]$p[6]) $term)
+    $tg = if ($p.Count -gt 12 -and $p[12]) { $p[9..12] } else { $null }
+    $r = @(ShowIt $p[1] $p[2] $p[3] $p[4] $p[5] ([double]$p[6]) $term $tg)
     if ($p.Count -gt 8 -and $p[8] -and [int]$r[-1] -eq 0) { Capture $p[8] }   # 9th arg: capture path, taken right after shown
     Done $r }
   default { "error: unknown action '$Action'"; exit 1 }

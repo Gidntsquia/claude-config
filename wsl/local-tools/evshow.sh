@@ -65,14 +65,22 @@ fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired
   if [ -e "$D/gatepid" ]; then kill -- -"$(cat "$D/gatepid")" 2>/dev/null; pkill -P "$(cat "$D/gatepid")" 2>/dev/null; rm -f "$D/gatepid"; fi
   capl="$WIN_HOME/evshow-shown-$SID8-$(date +%s).png"; capw="$WIN_HOME_W\\$(basename "$capl")"
   t0=$(et); read -r ix iy iw ih <<<"$ITEMG"; read -r tx ty tw th <<<"$TERMG"
-  if [ "$mode" = first ]; then
-    local me; me=$(cut -d' ' -f1 "$D/term" 2>/dev/null)   # the terminal `win.sh me` found; else whatever is foreground
-    out=$("$W" start "$title" "$ix" "$iy" "$iw" "$ih" 5 "$tx" "$ty" "$tw" "$th" "${EVSHOW_TERMHWND:-$me}" "$capw"); rc=$?
-    local fg; fg=$(printf '%s\n' "$out" | grep '^fginfo ' | cut -d' ' -f2-); [ -n "$fg" ] && echo "$fg" > "$D/term"
-  else
-    local term; term=$(cut -d' ' -f1 "$D/term" 2>/dev/null)
-    out=$("$W" next "$old" "$title" "$ix" "$iy" "$iw" "$ih" 5 "$term" "$capw"); rc=$?
-  fi
+  local term try
+  for try in 1 2; do
+    term=${EVSHOW_TERMHWND:-$(cut -d' ' -f1 "$D/term" 2>/dev/null)}   # the terminal `win.sh me` found; `start` with none takes the foreground window
+    if [ "$mode" = first ]; then
+      out=$("$W" start "$title" "$ix" "$iy" "$iw" "$ih" 5 "$tx" "$ty" "$tw" "$th" "$term" "$capw"); rc=$?
+      local fg; fg=$(printf '%s\n' "$out" | grep '^fginfo ' | cut -d' ' -f2-); [ -n "$fg" ] && echo "$fg" > "$D/term"
+    else   # the terminal's place goes along: a terminal lying over the item's place (maximized after a failed first show) is moved first
+      out=$("$W" next "$old" "$title" "$ix" "$iy" "$iw" "$ih" 5 "$term" "$capw" "$tx" "$ty" "$tw" "$th"); rc=$?
+    fi
+    # the saved terminal window is gone (the tab moved to another window, the session was resumed elsewhere): find it again, once
+    if [ "$try" = 1 ] && [ -n "$term" ] && [ -z "${EVSHOW_TERMHWND:-}" ] && printf '%s\n' "$out" | grep -q "window $term no longer exists"; then
+      hist "terminal $term no longer exists; looking for it again: $("$W" me 2>&1 | tail -1)"
+      [ "$(cut -d' ' -f1 "$D/term" 2>/dev/null)" != "$term" ] && continue
+    fi
+    break
+  done
   local tdone; tdone=$(et); t1=""
   # shown-at = when the capture file was created (the capture starts right after the show checks pass); else process end
   if printf '%s\n' "$out" | grep -q '^shown: ' && [ -f "$capl" ]; then t1=$(TZ=America/New_York stat -c %y "$capl" | cut -d' ' -f2 | cut -c1-12); fi
