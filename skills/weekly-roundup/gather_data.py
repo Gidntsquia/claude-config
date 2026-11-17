@@ -37,7 +37,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 # Per-million-token USD list prices (source: platform.claude.com/docs/en/about-claude/pricing,
-# checked 2026-10-21). Cache reads default to 0.1x input; override with "cache_read_mult".
+# checked 2026-11-16). Cache reads default to 0.1x input; override with "cache_read_mult".
 # Cache writes are 1.25x (5m) / 2x (1h) input. Update as pricing changes.
 # "long_over": requests whose prompt (input + cache reads + cache writes) is over this many
 # tokens are tallied under "<model>@long" and priced by that entry instead.
@@ -49,6 +49,7 @@ PRICING = {
     "claude-haiku-5-5":       {"in": 0.10,  "out": 0.50, "long_over": 100_000, "display": "Haiku 5.5"},
     "claude-haiku-5-5@long":  {"in": 0.50,  "out": 2.50, "display": "Haiku 5.5"},
     "claude-haiku-4-5-20251001": {"in": 1.00, "out": 5.00, "display": "Haiku 4.5"},
+    "claude-fable-5-2":       {"in": 8.00,  "out": 40.00, "cache_read_mult": 0.025, "display": "Fable 5.2"},
     "claude-fable-5-1":       {"in": 10.00, "out": 50.00, "cache_read_mult": 0.025, "display": "Fable 5.1"},
     "claude-fable-5":         {"in": 10.00, "out": 50.00, "display": "Fable 5"},
     # Local models: free, so they add nothing to cost, FE tokens, or the weekly cap.
