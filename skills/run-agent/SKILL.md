@@ -42,7 +42,7 @@ that pane is gone at fire time the run waits (`jobs.log`: `waiting: no pane`) un
 call on that tmux server opens it in a new window.
 
 (Also: `S --parse '<raw>'` prints the parse as JSON; `S --handoff <agent> ["prompt"] [-- flags]` is the worker's
-usage-limit handoff; `S --next <agent> ["prompt"]` prints an agent's closing next step (short sentence, `/run-agent` line, `Without run-agent: claude …` line; no model/effort for worker and evaluator); `bin/run-agent` is
+usage-limit handoff; `S --next <agent> ["prompt"]` prints an agent's closing next step (short sentence, `/run-agent` line, `Without run-agent: claude …` line; no model/effort for any agent); `bin/run-agent` is
 the same skill as a shell command.)
 
 MCP tools (server `run-agent`, `mcp/server.py`, registered for every session with `claude mcp add --transport stdio

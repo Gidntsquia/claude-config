@@ -678,7 +678,11 @@ out=$( (exec -a claude bash -c "'$S' --next evaluator .; true" _ --agent worker 
 grep -qx '/run-agent evaluator "."' <<<"$out" && grep -qx 'Without run-agent: claude --agent evaluator "."' <<<"$out" \
   && ok "next evaluator: no model/effort even from an opus high session" || bad "next: evaluator flags" "$out"
 out=$( (exec -a claude bash -c "'$S' --next planner 'Replan based on plans/EVAL.md'; true" _ --agent evaluator --model opus --effort high) )
-grep -qx '/run-agent planner "Replan based on plans/EVAL.md" opus high' <<<"$out" && ok "next planner: keeps the session's model/effort" || bad "next: planner flags" "$out"
+grep -qx '/run-agent planner "Replan based on plans/EVAL.md"' <<<"$out" && grep -qx 'Without run-agent: claude --agent planner "Replan based on plans/EVAL.md"' <<<"$out" && ! grep -q -- '--model\|--effort\|opus\|high' <<<"$out" \
+  && ok "next planner: no model/effort even from an opus high session" || bad "next: planner flags" "$out"
+out=$( (exec -a claude bash -c "'$S' --next helper 'Replan based on plans/EVAL.md'; true" _ --agent evaluator --model opus --effort high) )
+grep -qx '/run-agent helper "Replan based on plans/EVAL.md"' <<<"$out" && grep -qx 'Without run-agent: claude --agent helper "Replan based on plans/EVAL.md"' <<<"$out" && ! grep -q -- '--model\|--effort\|opus\|high' <<<"$out" \
+  && ok "next helper: no model/effort even from an opus high session" || bad "next: helper flags" "$out"
 # the confirm state machine (--step): the script applies the answers, haiku only asks
 export RUN_AGENT_NOW=$(TZ=America/New_York date -d '2026-10-22 18:00' +%s)
 printf '{"five_hour":{"utilization":29.0,"resets_at":"2026-10-23T00:20:00.251269+00:00"}}' > "$RUN_AGENT_USAGE_FILE"

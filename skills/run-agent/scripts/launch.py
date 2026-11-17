@@ -52,7 +52,7 @@ def tmux_guard(sub):
         return
     sock = (os.environ.get("TMUX") or "").split(",")[0]
     d = os.environ.get("RUN_AGENT_TEST_DIR") or ""
-    if sock and (os.path.basename(sock).startswith("run-agent-test-")
+    if sock and (os.path.basename(sock) == "run-agent-test" or os.path.basename(sock).startswith("run-agent-test-")
                  or (d and os.path.realpath(sock).startswith(os.path.realpath(d) + os.sep))):
         return
     print(f"test mode: refusing tmux {sub} on {sock or 'default server'}", file=sys.stderr)
@@ -761,32 +761,12 @@ def next_line(args):
     agent = args[0] if args else "worker"
     prompt = args[1] if len(args) > 1 else NEXT_PROMPT.get(agent, "")
     argv = claude_argv()
-    model = effort = name = ""
-    for i, a in enumerate(argv):
-        nxt = argv[i + 1] if i + 1 < len(argv) else ""
-        if a in ("--model", "-m"):
-            model = nxt
-        elif a.startswith("--model="):
-            model = a.split("=", 1)[1]
-        elif a == "--effort":
-            effort = nxt
-        elif a.startswith("--effort="):
-            effort = a.split("=", 1)[1]
-        elif a in ("--name", "-n"):
-            name = nxt
-    if not model:
-        m = re.search(r"\((\w+)\)\s*$", name)
-        model = m.group(1) if m else ""
     caller = next((argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--agent"), "")
     words = ["/run-agent", agent]
     plain = ["claude", "--agent", agent]
     if prompt:
         words.append('"%s"' % prompt); plain.append('"%s"' % prompt)
-    if agent in ("worker", "evaluator"):
-        model = effort = ""  # workers and evaluators run on the default model and effort
-    for flag, v in (("--model", model), ("--effort", effort)):
-        if v:
-            words.append(v); plain += [flag, v]
+    # no model/effort for any agent: each starts on its own default, never the calling session's
     print(next_sentence(agent, prompt, caller))
     print(" ".join(words))
     if agent == "worker":  # usage-guard R15: the caps run-agent.sh forces (WORKER_ENV there), kept when it is bypassed

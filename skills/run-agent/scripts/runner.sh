@@ -26,7 +26,7 @@ tm_guard() {
   [ "${RUN_AGENT_TEST:-}" = 1 ] || return 0
   local s="$2" d="${RUN_AGENT_TEST_DIR:-}"
   if [ -n "$s" ]; then
-    case "${s##*/}" in run-agent-test-*) return 0 ;; esac
+    case "${s##*/}" in run-agent-test|run-agent-test-*) return 0 ;; esac
     [ -n "$d" ] && case "$(realpath -m -- "$s")" in "$(realpath -m -- "$d")"/*) return 0 ;; esac
   fi
   echo "test mode: refusing tmux $1 on ${s:-default server}" >&2
