@@ -32,6 +32,8 @@ public class W {
   [DllImport("kernel32.dll")] public static extern uint GetTickCount();
   public static int SetCloak(IntPtr h, int on) { return DwmSetWindowAttribute(h, 13, ref on, 4); }   // DWMWA_CLOAK (E_ACCESSDENIED on another process's window here; kept as a logged attempt)
   public static uint Pid(IntPtr h) { uint p; GetWindowThreadProcessId(h, out p); return p; }
+  [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool f); [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  public static void AttachedTop(IntPtr h) { uint p; uint wt = GetWindowThreadProcessId(h, out p), me = GetCurrentThreadId(); AttachThreadInput(me, wt, true); SetWindowPos(h, (IntPtr)(-1), 0, 0, 0, 0, 0x0053); AttachThreadInput(me, wt, false); }
   [DllImport("user32.dll")] public static extern IntPtr GetPropW(IntPtr h, string n);
   [DllImport("user32.dll")] public static extern bool SetPropW(IntPtr h, string n, IntPtr v);
   [DllImport("user32.dll")] public static extern IntPtr FindWindowW(string c, string t);
@@ -244,13 +246,19 @@ function Bottom($h) { Top $h $false; 1..3 | ForEach-Object { [W]::SetWindowPos($
 function Unmin($h) { foreach ($c in 4, 9, 1) { if (-not [W]::IsIconic($h) -and -not [W]::IsZoomed($h)) { break }
     [W]::ShowWindow($h, $c) | Out-Null; if ($Behind) { Bottom $h }
     for ($i = 0; $i -lt 8 -and [W]::IsIconic($h); $i++) { Start-Sleep -Milliseconds 125 } } }
-# Topmost on/off. An app can refuse the z-order change in its WM_WINDOWPOSCHANGING handler (Firefox keeps a window at its own z-level:
-# HWND_TOPMOST comes back as HWND_TOP and the TOPMOST bit never sets; seen as `not topmost` on 1 open in 20). If the bit is not set
-# after the plain call, the change is made again with SWP_NOSENDCHANGING (the app is not asked) and noted in $TopNote.
+# Topmost on/off. On a fresh window the TOPMOST bit sometimes does not set although SetWindowPos returns true (about 1 open in 20,
+# only Firefox so far, not reproducible on a settled window: 150/150 set). Cause not established, so the remedies run in order until
+# the bit is set and the one that worked is printed (`show-note:`): the plain call again (up to 5x, 100 ms apart), without
+# WM_WINDOWPOSCHANGING (SWP_NOSENDCHANGING: the app is not asked), then with this thread's input attached to the window's thread.
 $TopNote = ''
+function IsTop($h) { ([W]::GetWindowLong($h, -20) -band 8) -ne 0 }
 function Top($h, $on) { $z = if ($on) { -1 } else { -2 }; [W]::SetWindowPos($h, [IntPtr]$z, 0, 0, 0, 0, 0x0053) | Out-Null
-  if ($on -and ([W]::GetWindowLong($h, -20) -band 8) -eq 0 -and [W]::IsWindow($h)) { $ok = [W]::SetWindowPos($h, [IntPtr]$z, 0, 0, 0, 0, 0x0453); $e = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-    $script:TopNote = "show-note: window $([int64]$h) refused topmost; set without asking it (SWP_NOSENDCHANGING): $(if (([W]::GetWindowLong($h, -20) -band 8) -ne 0) { 'topmost now' } else { "still not topmost, SetWindowPos=$ok error $e" })" } }
+  if (-not $on -or (IsTop $h) -or -not [W]::IsWindow($h)) { return }
+  $how = ''
+  for ($i = 1; $i -le 5 -and -not $how; $i++) { Start-Sleep -Milliseconds 100; [W]::SetWindowPos($h, [IntPtr]$z, 0, 0, 0, 0, 0x0053) | Out-Null; if (IsTop $h) { $how = "plain call again x$i" } }
+  if (-not $how) { [W]::SetWindowPos($h, [IntPtr]$z, 0, 0, 0, 0, 0x0453) | Out-Null; if (IsTop $h) { $how = 'SWP_NOSENDCHANGING' } }
+  if (-not $how) { [W]::AttachedTop($h); if (IsTop $h) { $how = 'input attached to its thread' } }
+  $script:TopNote = "show-note: window $([int64]$h) '$([W]::Title($h))' did not take topmost at first: $(if ($how) { "set by $how" } else { 'still not topmost after 5 plain calls, SWP_NOSENDCHANGING and attached input' })" }
 function PutWin($h, $x, $y, $w, $ht) { [W]::SetWindowPos($h, [IntPtr]::Zero, [int]$x, [int]$y, [int]$w, [int]$ht, 0x0054) | Out-Null }  # NOZORDER|NOACTIVATE|SHOWWINDOW
 function OnScreen($h) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null
   (-not [W]::IsIconic($h)) -and $r.L -ge -16 -and $r.T -ge -16 -and ($r.Rt-$r.L) -gt 100 -and ($r.B-$r.T) -gt 100 }
