@@ -103,7 +103,7 @@ Web pages, HTML files, running apps and GitHub-hosted docs open in Firefox (a `.
   else its on-screen text), restores the title, saves it for the watcher; prints `me: HWND L T W H MAX`, else exit 1 `not found: N
   windows hold '<marker>' ...`. `win.sh show "<unique title text>" X Y W H [timeout-s] [termHWND]`: waits for the title, un-cloaks,
   places, topmost without focus, checks the window really is the top one at its place; prints `shown: HWND title L T W H`, else
-  exit 1 `not shown: <cause>` (`no window matches`, `blank window <HWND>` = nothing loaded in it, `overlaps terminal`, `covered by`).
+  exit 1 `not shown: <cause>` (`no window matches`, `blank window <HWND>` = nothing loaded, `would overlap terminal` = it stays hidden, `covered by` / `not topmost` = `hidden again`).
   Of 2+ windows on one title it keeps your newest loaded one and closes the others. By HWND only: `win.sh front|untop|close <HWND>`
   (close exits 1 if gone), `win.sh place <HWND> X Y W H`, `win.sh rect <HWND>`, `win.sh list-topmost`; `win.sh find "<title>"`: one
   match, else exit 1 `not found: N windows hold '<title>': HWND|cloaked|title; ...`.
