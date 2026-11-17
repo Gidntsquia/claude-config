@@ -662,6 +662,8 @@ out=$("$S" --parse 'worker after window')
 python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert 'target' not in d and d['at_text']=='after window', d" "$out" && ok "target: 'after window' stays a time" || bad "target: after window" "$out"
 out=$("$(dirname "$S")/../../../bin/run-agent-dev" worker "." in "$T" dry </dev/null 2>&1)
 grep -q "^command: claude --agent worker" <<<"$out" && grep -q "^dir: " <<<"$out" && grep -q "^run at: now" <<<"$out" && ok "bin/run-agent: dry prints command, dir, time" || bad "bin/run-agent dry" "$out"
+out=$("$(dirname "$S")/../../../bin/run-agent-dev" --jobs </dev/null 2>&1); o2=$("$(dirname "$S")/../../../bin/run-agent-dev" --next evaluator "." </dev/null 2>&1)
+[ "$out" = "no scheduled runs" ] && grep -q '^/run-agent evaluator "\."$' <<<"$o2" && ok "bin/run-agent: --jobs and --next go to the script as flags (no which-agent question)" || bad "bin/run-agent flags" "$out | $o2"
 out=$("$S" --next planner "Replan based on plans/EVAL.md")
 mapfile -t nl <<<"$out"
 [ "${#nl[@]}" = 3 ] && [[ "${nl[0]}" == Next,*replan* ]] && [[ "${nl[0]}" == *: ]] && [ "${#nl[0]}" -le 60 ] \

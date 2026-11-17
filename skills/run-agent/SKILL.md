@@ -44,3 +44,12 @@ call on that tmux server opens it in a new window.
 (Also: `S --parse '<raw>'` prints the parse as JSON; `S --handoff <agent> ["prompt"] [-- flags]` is the worker's
 usage-limit handoff; `S --next <agent> ["prompt"]` prints an agent's closing next step (short sentence, `/run-agent` line, `Without run-agent: claude …` line; no model/effort for worker and evaluator); `bin/run-agent` is
 the same skill as a shell command.)
+
+MCP tools (server `run-agent`, `mcp/server.py`, registered for every session with `claude mcp add --transport stdio
+--scope user run-agent -- ~/.claude/skills/run-agent/mcp/server.py`): an agent calls these instead of typing the Bash
+form, because the allow rule `mcp__run-agent__*` settles the call before the auto-mode classifier reads it.
+`mcp__run-agent__next` (agent, prompt, run) = `S --next`, and with `run: true` starts that agent in the calling pane
+2 s later; `mcp__run-agent__schedule` (agent, prompt, dir, model, effort, at, dry) = a typed `/run-agent` line;
+`mcp__run-agent__handoff` (prompt, done, in_progress, next, model, effort) = `S --handoff`; `mcp__run-agent__jobs`
+= `S --jobs`; `mcp__run-agent__cancel` (id) = `S --cancel`. Each acts on the calling session's own tmux pane. The Bash
+forms stay allowed as the fallback when the server is not connected.
