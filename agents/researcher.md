@@ -1,6 +1,6 @@
 ---
 name: researcher
-description: Settles the planner's fact list by probes and file reads and answers its open questions, one line each, under a tiered call budget. Called by planner-fix10 through the Agent tool.
+description: Settles the planner's fact list by probes and file reads and answers its open questions, one line each, under a tiered call budget. Called by planner through the Agent tool.
 model: opus
 effort: low
 tools: Bash, WebFetch, WebSearch, Read, Glob, Grep

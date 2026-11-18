@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-# run-agent: the /run-agent skill as a shell command. Same parser, scheduling, jobs/cancel; confirms with read -p
-# (or a tmux popup). Outside tmux it prints the command to run.
-# A first word that is one of run-agent.sh's own flags (--jobs, --next, --cancel, --handoff, --help, ...) goes to the
-# script as it is: `run-agent --jobs` lists the jobs instead of asking "which agent?" in a popup.
-SELF="$(readlink -f "${BASH_SOURCE[0]}")"
-S="$(dirname "$SELF")/../skills/run-agent-dev/scripts/run-agent.sh"
-case "${1:-}" in --*) exec "$S" "$@" ;; esac
-exec "$S" --cli "$@"

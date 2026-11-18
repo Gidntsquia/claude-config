@@ -28,7 +28,7 @@ from mcp.server.fastmcp import FastMCP
 HERE = os.path.dirname(os.path.realpath(__file__))
 SCRIPTS = os.path.join(os.path.dirname(HERE), "scripts")
 sys.path.insert(0, SCRIPTS)
-import jobs as jobs_mod  # noqa: E402  (the dev copy's store: RUN_AGENT_HOME or ~/.claude/run-agent-dev)
+import jobs as jobs_mod  # noqa: E402  (the job store: RUN_AGENT_HOME or ~/.claude/run-agent)
 from launch import claude_argv, claude_environ  # noqa: E402
 
 S = os.path.join(SCRIPTS, "run-agent.sh")

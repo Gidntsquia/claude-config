@@ -2,7 +2,7 @@
 # usage: test/install-scenarios.sh [--terminal|--no-terminal]
 # Runs install.sh from this clone in two throwaway home folders and exits non-zero on any failure:
 #   a) an empty ~/.claude
-#   b) a ~/.claude that already has the user's settings.json (own model and statusLine), CLAUDE.md and agents/planner.md
+#   b) a ~/.claude that already has the user's settings.json (own model, statusLine and hooks), CLAUDE.md and agents/planner.md
 # Each scenario runs install.sh, then install.sh --check, the personal-path grep and claude doctor.
 # Used by test/docker-install.sh and .github/workflows/install.yml. Needs bash, git, python3 (or python) and claude.
 set -u
@@ -46,7 +46,7 @@ scenario() {  # $1 = a|b
     [ -f "$REAL_HOME/.claude.json" ] && cp "$REAL_HOME/.claude.json" "$H/.claude.json"
     if [ "$name" = b ]; then
       mkdir -p "$H/.claude/agents"
-      printf '%s\n' '{"model": "haiku", "statusLine": {"type": "command", "command": "echo my-status"}, "permissions": {"deny": ["Bash(rm -rf:*)"]}, "env": {"CLAUDE_CODE_PLUGIN_DIRS": "/opt/my-mod"}}' > "$H/.claude/settings.json"
+      printf '%s\n' '{"model": "haiku", "statusLine": {"type": "command", "command": "echo my-status"}, "permissions": {"deny": ["Bash(rm -rf:*)"]}, "env": {"CLAUDE_CODE_PLUGIN_DIRS": "/opt/my-mod"}, "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "echo my-hook"}]}]}}' > "$H/.claude/settings.json"
       printf 'my own rules\n' > "$H/.claude/CLAUDE.md"
       printf -- '---\nname: planner\ndescription: my planner\n---\nmine\n' > "$H/.claude/agents/planner.md"
       cp "$H/.claude/CLAUDE.md" "$H/claude.md.orig"; cp "$H/.claude/agents/planner.md" "$H/planner.md.orig"
@@ -75,6 +75,12 @@ scenario() {  # $1 = a|b
       expect "b: deny list kept and unioned" "$PY" -c "import json,sys;d=json.load(open(sys.argv[1]))['permissions']['deny'];assert d[0]=='Bash(rm -rf:*)' and len(d)>1" "$s"
       expect "b: repo keys added (promptCacheTtl)" sh -c "grep -q promptCacheTtl '$s'"
       expect "b: your CLAUDE_CODE_PLUGIN_DIRS kept, mod joined after it" test "$(jget "$s" env | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("CLAUDE_CODE_PLUGIN_DIRS",""))')" = "/opt/my-mod:$R/mods/defer-artifact"
+      expect "b: your hooks key kept, every repo hook entry added to it (--settings merge)" "$PY" -c "
+import json,sys
+u=json.load(open(sys.argv[1])).get('hooks',{}); r=json.load(open(sys.argv[2])).get('hooks',{})
+assert {'matcher':'Bash','hooks':[{'type':'command','command':'echo my-hook'}]} == u['PreToolUse'][0]
+missing=[(e,h) for e in r for h in r[e] if h not in u.get(e,[])]
+assert not missing, missing" "$s" "$R/settings.json"
       expect "b: original settings kept as settings.json.pre-link" test -f "$s.pre-link"
       expect "b: CLAUDE.md byte-identical" cmp -s "$H/.claude/CLAUDE.md" "$H/claude.md.orig"
       expect "b: planner.md is now the repo's (--agent-clash replace)" sh -c "grep -q '^name: planner\$' '$H/.claude/agents/planner.md' && ! cmp -s '$H/.claude/agents/planner.md' '$H/planner.md.orig'"

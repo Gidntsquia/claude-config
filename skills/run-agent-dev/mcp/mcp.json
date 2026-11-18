@@ -1,1 +1,0 @@
-{"mcpServers": {"run-agent": {"type": "stdio", "command": "/home/jaxon/.claude/skills/run-agent-dev/mcp/server.py", "args": []}}}

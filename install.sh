@@ -151,6 +151,19 @@ repo_agents() { for f in "$R"/agents/*.md; do head -5 "$f" | grep -q '^name:' &&
 repo_skills() { for s in "$R"/skills/*/; do [ -f "$s/SKILL.md" ] && basename "$s"; done; }
 # ~/.claude/agents is either a link to the repo's agents/ (whole folder) or the user's own folder (one link per agent).
 agents_whole() { [ ! -e "$C/agents" ] && [ ! -L "$C/agents" ] || in_clone "$C/agents" "$R/agents"; }
+# run-agent's MCP server (agents hand off through its tools, so the auto-mode classifier never reads a handoff).
+# Registered for every session at user scope, from the installed skill path when that is a link into this clone.
+mcp_server() { if in_clone "$C/skills/run-agent" "$R/skills/run-agent"; then echo "$C/skills/run-agent/mcp/server.py"; else echo "$R/skills/run-agent/mcp/server.py"; fi; }
+mcp_add_cmd() { echo "claude mcp add --transport stdio --scope user run-agent -- $(mcp_server)"; }
+# mcp_registered: ~/.claude.json has a user-scope run-agent server whose command is this clone's server.py
+mcp_registered() {
+  "$PY" - "$HOME/.claude.json" "$R/skills/run-agent/mcp/server.py" <<'EOF' 2>/dev/null
+import json, os, sys
+s = json.load(open(sys.argv[1])).get("mcpServers", {}).get("run-agent") or {}
+c = s.get("command", "")
+sys.exit(0 if c and os.path.realpath(os.path.expanduser(c)) == os.path.realpath(sys.argv[2]) else 1)
+EOF
+}
 
 # =================================================================================================================
 # --check
@@ -175,6 +188,14 @@ if [ -n "$CHECK" ]; then
       elif [ -f "$C/agents/$a.md" ]; then skip "agent $a (yours kept, repo's skipped)"
       else fail "agent $a: $C/agents/$a.md missing"; fi
     done
+  fi
+  # the assistant agent starts its MCP server and guard hook from ../assistant/ next to the agent file's real path
+  if [ -f "$R/agents/assistant.md" ]; then
+    af="$C/agents/assistant.md"; [ -e "$af" ] || af="$C/agents/assistant-claude-config.md"
+    ad="$(dirname "$(resolve "$af" 2>/dev/null)")/../assistant"
+    if [ -e "$af" ] && [ -f "$ad/mcp/server.py" ] && [ -f "$ad/hooks/guard.py" ]; then pass "assistant agent (MCP server and guard hook in $(cd "$ad" && pwd -P))"
+    elif [ -e "$af" ]; then fail "assistant agent: $af does not resolve into $R/agents, so its MCP server and guard hook are not found (rerun install.sh with --agent-clash replace)"
+    else skip "assistant agent not installed"; fi
   fi
   for s in $(repo_skills); do
     if in_clone "$C/skills/$s" "$R/skills/$s"; then pass "skill $s"
@@ -245,6 +266,9 @@ PYEOF
         fail "PermissionDenied hook still in settings.json after $until_d (review $C/run-agent/denied.log, remove the hook and denied-until)"
       else pass "PermissionDenied hook logging run-agent denials to $C/run-agent/denied.log until ${until_d:-(no denied-until note; run run-agent.sh --install-denied)}"; fi
     else pass "PermissionDenied hook not in settings.json"; fi
+    if mcp_registered; then pass "run-agent MCP server registered (user scope, $(mcp_server))"
+    else fail "run-agent MCP server not registered in ~/.claude.json (run: $(mcp_add_cmd))"; fi
+    command -v uv >/dev/null 2>&1 || echo "NOTE uv is not on PATH: the run-agent and assistant MCP servers start with uv (https://docs.astral.sh/uv/)"
     # runs that failed or were skipped since a human last looked (run-agent jobs marks them seen)
     while IFS= read -r l; do [ -n "$l" ] && echo "NOTE scheduled run $l"; done < <(bash "$C/skills/run-agent/scripts/run-agent.sh" --failures 2>/dev/null)
     if out="$(bash "$C/skills/run-agent/scripts/run-agent.sh" --health 2>&1)"; then pass "scheduled /run-agent runs: $(grep -c '^ok' <<<"$out" || true) pending, every runner sleeping"
@@ -434,6 +458,16 @@ if [ "$OS" != windows ]; then
   mkdir -p "$C/hooks"
   link "$R/hooks/usage-guard" "$C/hooks/usage-guard"
   link "$R/hooks/usage-guard/guard" "$HOME/.local/bin/guard"
+  # run-agent's MCP server, for every session
+  if ! command -v claude >/dev/null 2>&1; then
+    echo "  run-agent MCP server: claude is not on PATH. After installing Claude Code, run:"
+    echo "      $(mcp_add_cmd)"
+  elif mcp_registered; then echo "  run-agent MCP server: already registered"
+  else
+    claude mcp remove --scope user run-agent >/dev/null 2>&1 || true   # an older registration pointing elsewhere
+    if claude mcp add --transport stdio --scope user run-agent -- "$(mcp_server)" >/dev/null 2>&1; then echo "  run-agent MCP server: registered (user scope, $(mcp_server))"
+    else echo "  run-agent MCP server: not registered (claude mcp add failed). Run: $(mcp_add_cmd)"; fi
+  fi
   # the PermissionDenied hook (settings.json) logs run-agent denials for one week; schedule its review once
   if grep -qs -- '--denied' "$C/settings.json"; then
     out=$(bash "$R/skills/run-agent/scripts/run-agent.sh" --install-denied 2>&1) && echo "  denied.log review: ${out##*$'\n'}" || echo "  denied.log review not scheduled: $out"
