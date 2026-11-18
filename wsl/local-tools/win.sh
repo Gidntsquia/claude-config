@@ -5,6 +5,8 @@
 #   win.sh find "<title>"               -> "HWND title" of exactly ONE visible window; else exit 1 + candidates
 #   win.sh show "<title>" X Y W H [s]   -> poll for exactly one match, un-minimize, place, topmost, no focus;
 #                                          prints "shown: HWND title L T W H"; exit 1 "not shown: reason"
+#                                          a window Windows will not flag always-on-top is raised instead and shown when it is the top
+#                                          window at its place (`show-note: ... shown raised instead`; state kept in %TEMP%\evshow-topmost.log)
 #   win.sh prep "<title>" [s]          -> wait for exactly one match, register it, minimize it; prints "prepped: HWND title"
 #   win.sh bottom HWND                  -> send an item you launched to the bottom of the z-order (HWND_BOTTOM)
 #   EVSHOW_BEHIND=1 (env): show/start/next/front place + un-minimize, then put the window at the very bottom of the
@@ -24,6 +26,7 @@
 #                                          the title, saves "HWND L T W H MAX" in <state>/term; prints "me: HWND L T W H MAX [(text marker)]"
 #                                          2+ windows hold it (one tmux session in several terminals): the foreground one, else the
 #                                          topmost in z-order, and a second line "me: took <HWND> of <N>"; exit 0
+#                                          (proof without a visible window: me-two-test.sh)
 #   win.sh zlog <seconds>               -> every 100 ms "t HH:MM:SS.mmm" + "HWND|topmost|cloaked|iconic|L T W H|title" per window
 #   win.sh close-cloaked ["<title>"]    -> close every window this session registered (only those opened under <title>) that is still cloaked;
 #                                       one whose title changed to another page is left: `left cloaked: <HWND> opened as '<t>' now shows '<title>'`

@@ -16,6 +16,7 @@
 # While a full-screen game runs: `not run: a full-screen game is running`, exit 3 (GAME_GUARD_CMD=<script> replaces game-guard.sh).
 # OST_KEEP=<dir> keeps each content-area capture as <dir>/<app>-<N>.png and the helper's show-note:/show-tries: lines in <dir>/notes.txt. A window that is covered, minimized or closed by someone
 # else between `show` and the capture fails stage `show` with that reason, the age of the last user input and the focused window.
+# Every line is also appended, with its ET time, to ~/.cache/claude-config/open-streak.log (OST_LOG=<file> replaces it).
 # Uses its own state dir, so it never touches an evaluator session's windows. The windows appear at the right of the screen
 # for about a second each, topmost, without taking focus, and mouse clicks pass through them to the window underneath
 # (so it can run while you use the screen: a click of yours cannot minimize or close a test window).
@@ -65,6 +66,9 @@ one() {  # one open of app $1, number $2; prints the line, returns 0 when shown
   echo "open $i $app: shown $hwnd $l $t $w $h title-ok cloaked=0 nonblank $p%"; return 0
 }
 sum=""; bad=0
+# every line of every run is also kept in ~/.cache/claude-config/open-streak.log (a caller that prints only the last lines loses the FAIL reasons)
+LOG="${OST_LOG:-$HOME/.cache/claude-config/open-streak.log}"; mkdir -p "$(dirname "$LOG")"
+exec > >(while IFS= read -r l; do printf '%s\n' "$l"; printf '%s ET  %s\n' "$(TZ=America/New_York date '+%F %T')" "$l" >> "$LOG"; done)
 for app in "${apps[@]}"; do
   case "$app" in firefox|page) ;; *) echo "open-streak.sh: unknown app $app (firefox, page)" >&2; exit 2;; esac
   ok=0
@@ -76,4 +80,5 @@ for app in "${apps[@]}"; do
   sum="${sum:+$sum, }$app $ok/$n shown"
 done
 echo "streak: $sum"
+exec >&-; wait   # the log writer has the last line before this exits
 exit $bad

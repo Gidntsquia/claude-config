@@ -65,8 +65,10 @@ printf '%s\n' "$out" | tr -d '\r'
 printf '%s\n' "$out" | tr -d '\r' | grep '^hidden: ' | sed "s/^/$(TZ=America/New_York date +%T.%N | cut -c1-12) /" >> "$D/hidden"
 # linger: for ${EVSHOW_LINGER_MS:-6000} ms a detached winctl keeps each hidden window off the taskbar and hidden on events only
 # (WT registers its taskbar button ~1.7 s in, Firefox moves its window back ~1 s in; both after the title loaded and this exited)
+# and gives the focus back to the window that had it before the launch (fg0) if the hidden window takes it in that time (WT does)
+fg0=$(printf '%s\n' "$out" | tr -d '\r' | awk '/^hide-log: fg0 /{print $3; exit}')
 for h in $(printf '%s\n' "$out" | tr -d '\r' | awk '/^hidden: /{print $2}'); do
-  WSLENV="${WSLENV:+$WSLENV:}WINCTL_LINE" WINCTL_LINE="linger|$h|1|${EVSHOW_LINGER_MS:-6000}" setsid nohup \
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w "$HOME/.claude/local-tools/winctl.ps1")" >/dev/null 2>&1 < /dev/null &
+  WSLENV="${WSLENV:+$WSLENV:}WINCTL_LINE" WINCTL_LINE="linger|$h|1|${EVSHOW_LINGER_MS:-6000}|${fg0:-0}" setsid nohup \
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w "$HOME/.claude/local-tools/winctl.ps1")" > "${EVSHOW_LINGER_OUT:-/dev/null}" 2>&1 < /dev/null &
 done
 exit $rc

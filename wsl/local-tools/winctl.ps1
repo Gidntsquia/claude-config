@@ -33,6 +33,10 @@ public class W {
   public static int SetCloak(IntPtr h, int on) { return DwmSetWindowAttribute(h, 13, ref on, 4); }   // DWMWA_CLOAK (E_ACCESSDENIED on another process's window here; kept as a logged attempt)
   public static uint Pid(IntPtr h) { uint p; GetWindowThreadProcessId(h, out p); return p; }
   [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool f); [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  // what Windows says when a window does not take TOPMOST: the call's result and error, the window's styles and owner, who has the focus
+  public static string TopDiag(IntPtr h) { bool r = SetWindowPos(h, (IntPtr)(-1), 0, 0, 0, 0, 0x0053); int e = Marshal.GetLastWin32Error(); IntPtr f = GetForegroundWindow();
+    return "SetWindowPos=" + r + " error " + e + ", style 0x" + GetWindowLong(h, -16).ToString("X") + " ex 0x" + GetWindowLong(h, -20).ToString("X") + ", visible " + IsWindowVisible(h) + ", minimized " + IsIconic(h) + ", root owner " + GetAncestor(h, 3).ToInt64() + ", pid " + Pid(h) + "; foreground " + f.ToInt64() + " [" + Class(f) + "] '" + Title(f) + "' pid " + Pid(f) + " ex 0x" + GetWindowLong(f, -20).ToString("X"); }
+  public static void AttachedFg(IntPtr from, IntPtr to) { uint p; uint ft = GetWindowThreadProcessId(from, out p), me = GetCurrentThreadId(); AttachThreadInput(me, ft, true); SetForegroundWindow(to); AttachThreadInput(me, ft, false); }
   public static void AttachedTop(IntPtr h) { uint p; uint wt = GetWindowThreadProcessId(h, out p), me = GetCurrentThreadId(); AttachThreadInput(me, wt, true); SetWindowPos(h, (IntPtr)(-1), 0, 0, 0, 0, 0x0053); AttachThreadInput(me, wt, false); }
   [DllImport("user32.dll")] public static extern IntPtr GetPropW(IntPtr h, string n);
   [DllImport("user32.dll")] public static extern bool SetPropW(IntPtr h, string n, IntPtr v);
@@ -185,15 +189,23 @@ public class Hider {
   // linger: after the hidden: line, keep ONE window hidden and off the taskbar for a few seconds on events only (no polling): the
   // app's own late setup (WT ~1.7 s: taskbar registration; Firefox ~1 s: moves the window back) comes after the title has loaded
   // and the launcher has exited. Hooks: explorer's CREATE..REORDER (a taskbar button being added) and the window's LOCATION/NAMECHANGE.
-  IntPtr lh; bool llay; public int redid, deltabs;
-  public int Linger(IntPtr h, bool layered, int ms) {
-    lh = h; llay = layered; keep = new WinEventDelegate(LCb); IntPtr tray = W.FindWindowW("Shell_TrayWnd", null); uint shell = W.Pid(tray), app = W.Pid(h);
-    var hks = new List<IntPtr> { SetWinEventHook(0x8000, 0x8004, IntPtr.Zero, keep, shell, 0, 0x0002), SetWinEventHook(0x8000, 0x800C, IntPtr.Zero, keep, app, 0, 0x0002) };   // the app's own object events (its pid only: cheap)
+  // fg = the window that had the focus before the launch: a hidden window that takes the foreground in these seconds (WT does, ~1-2 s
+  // after its title loaded) gives it straight back, so the user's typing never lands in a window they cannot see.
+  IntPtr lh, lfg; bool llay; public int redid, deltabs, fgback;
+  void GiveBack(string why) { if (lfg == IntPtr.Zero || lfg == lh || !W.IsWindow(lfg) || W.GetForegroundWindow() != lh) return;
+    bool ok = W.SetForegroundWindow(lfg); if (W.GetForegroundWindow() == lh) { W.AttachedFg(lh, lfg); ok = W.GetForegroundWindow() != lh; }
+    fgback++; llog.Add("foreground given back to " + lfg.ToInt64() + " (" + why + ") at " + sw.ElapsedMilliseconds + (ok ? "" : ": still with the hidden window")); }
+  public int Linger(IntPtr h, bool layered, int ms) { return Linger(h, layered, ms, IntPtr.Zero); }
+  public int Linger(IntPtr h, bool layered, int ms, IntPtr fg) {
+    lh = h; llay = layered; lfg = fg; sw.Restart(); GiveBack("at start"); keep = new WinEventDelegate(LCb); IntPtr tray = W.FindWindowW("Shell_TrayWnd", null); uint shell = W.Pid(tray), app = W.Pid(h);
+    var hks = new List<IntPtr> { SetWinEventHook(0x8000, 0x8004, IntPtr.Zero, keep, shell, 0, 0x0002), SetWinEventHook(0x8000, 0x800C, IntPtr.Zero, keep, app, 0, 0x0002),   // the app's own object events (its pid only: cheap)
+      SetWinEventHook(0x0003, 0x0003, IntPtr.Zero, keep, app, 0, 0x0002) };   // one of its windows became the foreground window
     SetTimer(IntPtr.Zero, UIntPtr.Zero, 250, IntPtr.Zero); sw.Restart(); MSG m;
     while (sw.ElapsedMilliseconds < ms && W.IsWindow(h) && W.GetPropW(h, "evshow-shown") == IntPtr.Zero && GetMessage(out m, IntPtr.Zero, 0, 0) > 0) { TranslateMessage(ref m); DispatchMessage(ref m); }
     foreach (var x in hks) UnhookWinEvent(x); return 0; }
   void LCb(IntPtr hook, uint ev, IntPtr h, int obj, int child, uint tid, uint time) {
     if (!W.IsWindow(lh) || W.GetPropW(lh, "evshow-shown") != IntPtr.Zero) return;
+    if (ev == 0x0003) { if (h == lh) GiveBack("foreground event"); return; }
     uint pid = W.Pid(h); if (pid == W.Pid(lh)) { if (h == lh || obj == 0) { if ((W.GetWindowLong(lh, -20) & 0x80) == 0 || !W.Invisible(lh)) { W.Hide(lh, llay); redid++; llog.Add("rehid on " + ev.ToString("X") + " " + h.ToInt64() + " at " + sw.ElapsedMilliseconds); } } return; }
     if (ev >= 0x8000 && ev <= 0x8004) { W.DeleteTab(lh); deltabs++; } }   // something changed in the shell's windows: make sure our button is gone
   public List<string> llog = new List<string>();
@@ -249,13 +261,19 @@ function Unmin($h) { foreach ($c in 4, 9, 1) { if (-not [W]::IsIconic($h) -and -
 # WM_WINDOWPOSCHANGING (SWP_NOSENDCHANGING: the app is not asked), then with this thread's input attached to the window's thread.
 $TopNote = ''
 function IsTop($h) { ([W]::GetWindowLong($h, -20) -band 8) -ne 0 }
-function Top($h, $on) { $z = if ($on) { -1 } else { -2 }; [W]::SetWindowPos($h, [IntPtr]$z, 0, 0, 0, 0, 0x0053) | Out-Null
+function Top($h, $on) { if ($on -and $env:EVSHOW_TEST_NOTOP -eq '1') { Add-Content -Path (Join-Path $env:TEMP 'evshow-topmost.log') -Value "$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')) local  window $([int64]$h) test: EVSHOW_TEST_NOTOP=1, flag not asked for"; return }   # tests: act as if Windows refused the flag
+  $z = if ($on) { -1 } else { -2 }; [W]::SetWindowPos($h, [IntPtr]$z, 0, 0, 0, 0, 0x0053) | Out-Null
   if (-not $on -or (IsTop $h) -or -not [W]::IsWindow($h)) { return }
   $how = ''
   for ($i = 1; $i -le 5 -and -not $how; $i++) { Start-Sleep -Milliseconds 100; [W]::SetWindowPos($h, [IntPtr]$z, 0, 0, 0, 0, 0x0053) | Out-Null; if (IsTop $h) { $how = "plain call again x$i" } }
   if (-not $how) { [W]::SetWindowPos($h, [IntPtr]$z, 0, 0, 0, 0, 0x0453) | Out-Null; if (IsTop $h) { $how = 'SWP_NOSENDCHANGING' } }
   if (-not $how) { [W]::AttachedTop($h); if (IsTop $h) { $how = 'input attached to its thread' } }
-  $script:TopNote = "show-note: window $([int64]$h) '$([W]::Title($h))' did not take topmost at first: $(if ($how) { "set by $how" } else { 'still not topmost after 5 plain calls, SWP_NOSENDCHANGING and attached input' })" }
+  $script:TopNote = "show-note: window $([int64]$h) '$([W]::Title($h))' did not take topmost at first: $(if ($how) { "set by $how" } else { 'still not topmost after 5 plain calls, SWP_NOSENDCHANGING and attached input' })"
+  if (-not $how) { try { $d = [W]::TopDiag($h); if (-not (IsTop $h)) {   # the state at the refusal, kept for the next look at the cause
+    Add-Content -Path (Join-Path $env:TEMP 'evshow-topmost.log') -Value "$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')) local  window $([int64]$h) '$([W]::Title($h))' refused topmost: $d; topmost now: $((@([W]::All() | Where-Object { IsTop $_ } | ForEach-Object { "$([int64]$_) '$([W]::Title($_))'" }) -join ', '))" } } catch { } } }
+# A window that will not take the TOPMOST flag is still shown when it is the top window over its own place: it is raised without
+# focus (HWND_TOP) and the five-point lookup decides. It then is not always-on-top: a window the user raises later can cover it.
+function RaiseNoTop($h) { [W]::SetWindowPos($h, [IntPtr]::Zero, 0, 0, 0, 0, 0x0053) | Out-Null; Start-Sleep -Milliseconds 120; ([W]::Cover($h) -eq $h) }
 function PutWin($h, $x, $y, $w, $ht) { [W]::SetWindowPos($h, [IntPtr]::Zero, [int]$x, [int]$y, [int]$w, [int]$ht, 0x0054) | Out-Null }  # NOZORDER|NOACTIVATE|SHOWWINDOW
 function OnScreen($h) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null
   (-not [W]::IsIconic($h)) -and $r.L -ge -16 -and $r.T -ge -16 -and ($r.Rt-$r.L) -gt 100 -and ($r.B-$r.T) -gt 100 }
@@ -307,6 +325,8 @@ function ShowIt($t, $px, $py, $pw, $ph, $to, $term, $tg) {
         if ($r.L -lt $tr.Rt -and $r.Rt -gt $tr.L -and $r.T -lt $tr.B -and $r.B -gt $tr.T) { $why += 'overlaps terminal' } }
       # ground truth, not flags: the window under five points of its own rect must be this window (a TOPMOST bit can be set while
       # another window still covers it; then the user sees nothing although every flag is right)
+      if ($why.Count -eq 1 -and $why[0] -eq 'not topmost' -and (RaiseNoTop $h)) { $why = @()
+        $script:TopNote = "show-note: window $([int64]$h) '$([W]::Title($h))' would not take the always-on-top flag; shown raised instead: it is the top window at its place (details: %TEMP%\evshow-topmost.log)" }
       if ($why.Count -eq 0 -and -not $Behind) { $c = [W]::Cover($h); if ($c -ne $h) { $why += "covered by $([int64]$c) '$([W]::Title($c))'"
           [W]::ShowWindow($h, 6) | Out-Null; Start-Sleep -Milliseconds 250; Unmin $h; PutWin $h $px $py $pw $ph; Top $h $true } }   # the minimize/restore round that makes a fresh window take TOPMOST
       if ($why.Count -eq 0) { if ($TopNote) { $TopNote }; if ($trace.Count) { "show-tries: $($trace -join '; ')" }; "shown: $([int64]$h) $([W]::Title($h)) $(Rect $h)"; return 0 }
@@ -396,8 +416,9 @@ switch ($Action) {
     if (-not [W]::IsIconic($h)) { "not prepped: window $([int64]$h) would not minimize"; exit 1 }
     "prepped: $([int64]$h) $([W]::Title($h))"; exit 0 }
   'min' { $h = Owned $p[0]; [W]::ShowWindow($h, 6) | Out-Null; "minimized: $([W]::Title($h))" }
-  'linger' { # linger|HWND|layered(1/0)|ms : see Hider.Linger (win-app.sh --hidden starts it detached after the hidden: line)
-    $hd = New-Object Hider; $h = Hw $p[0]; [void]$hd.Linger($h, ($p[1] -eq '1'), [int]$p[2]); "linger done: rehid $($hd.redid) deltab $($hd.deltabs)"; $hd.llog | ForEach-Object { "linger: $_" } }
+  'linger' { # linger|HWND|layered(1/0)|ms|[HWND that had the focus before the launch] : see Hider.Linger (win-app.sh --hidden starts it detached after the hidden: line)
+    $hd = New-Object Hider; $h = Hw $p[0]; $fg = 0L; if ($p.Count -gt 3) { [void][int64]::TryParse($p[3], [ref]$fg) }
+    [void]$hd.Linger($h, ($p[1] -eq '1'), [int]$p[2], [IntPtr]$fg); "linger done: rehid $($hd.redid) deltab $($hd.deltabs) fgback $($hd.fgback)"; $hd.llog | ForEach-Object { "linger: $_" } }
   'hidden' { # hidden|app|exe|args|title|timeout-s : WinEvent hook, launch, cloak every new top-level window of the app family from its CREATE event.
     $app = $p[0]; $exe = $p[1]; $args = $p[2]; $want = if ($p.Count -gt 3) { $p[3] } else { '' }; $to = if ($p.Count -gt 4 -and $p[4]) { [double]$p[4] } else { 20 }
     $hd = New-Object Hider; $hd.want = $want; $hd.debug = ($env:EVSHOW_HIDE_DEBUG -eq '1'); $hd.layered = $true   # mode 1 for every app
@@ -430,6 +451,7 @@ switch ($Action) {
       "not hidden: $name dialog: $(if ($txt) { ($txt -replace '\s+', ' ').Trim() } else { [W]::Title($hd.dialogs[0]) })"; exit 1 }
     foreach ($kv in $hd.hidden.GetEnumerator()) { $h = $kv.Key; $t = [W]::Title($h); $tok = if ($want) { $want } else { $t }   # helper windows (never visible, no title) are cloaked too but not reported
       if ([W]::IsWindow($h) -and $t.Length -gt 0 -and ($want -eq '' -or $t.IndexOf($want, [StringComparison]::OrdinalIgnoreCase) -ge 0)) { Register $h $tok; "hidden: $([int64]$h) $($hd.Exposure($h)) $t (create $($kv.Value))" } }
+    "hide-log: fg0 $([int64]$hd.fg0)"
     $hd.log | ForEach-Object { "hide-log: $_" }; if ($hd.fgRestored) { "hide-log: foreground given back $($hd.fgRestored)x" }; if ($hd.moved) { "hide-log: moved back off-screen $($hd.moved)x" }
     if ($rc -ne 0) { foreach ($h in $hd.hidden.Keys) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null   # register what was hidden anyway, so close-cloaked can clean it up
         if ([W]::IsWindow($h) -and ($r.Rt - $r.L) -gt 300) { Register $h $(if ($want) { $want } else { 'hidden' }) } }
