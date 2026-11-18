@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## v1.3.0-beta.3 — 2026-11-18
+## v1.3.0-beta.4 — 2026-11-18
 
 Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. This is a pre-release for testing, and v1.2.1 stays the latest release until it's promoted.
 
@@ -33,6 +33,7 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 - Time phrases like `tomorrow at 1am`, `in 2 hours 10 min` and `two hours before the window` are read without a model, and the scheduled line says how the time was worked out.
 - `+` joins runs into one new tmux window, tiled side by side, and `window` or `split` opens one agent in a new window.
 - Scheduled runs survive a reboot or WSL restart. A run that came due while the machine was off is skipped and logged.
+- Scheduling works on macOS, which has no `setsid` command. The runner gets its own session through Python there.
 - `run-agent jobs` shows each runner's state and the runs that failed since you last looked, and `run-agent clean` deletes job files older than 30 days.
 - `test.sh` can no longer touch a live tmux pane.
 
@@ -42,7 +43,7 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 - `install.sh` links `run-agent` and `guard` into `~/.local/bin` and installs the usage-guard and `/run-agent` hooks with the settings merge.
 - A settings merge into a `settings.json` that already has its own `hooks` keeps your hooks and adds the repo's, and the install test covers that case.
 - The install workflow on Ubuntu, macOS and Windows runs when a release is published.
-- On Windows, a second `./install.sh` no longer stops on a settings.json with an em dash or emoji (Python read it as cp1252), and `--check` reads the defer-artifact entry in Claude Code's `;`-separated plugin list. Where systemd won't enable the reboot service (CI runners, containers), `install.sh` adds the restart line to your shell rc. The install workflows of v1.3.0-beta.1 and beta.2 found these.
+- On Windows, a second `./install.sh` no longer stops on a settings.json with an em dash or emoji (Python read it as cp1252), and `--check` reads the defer-artifact entry in Claude Code's `;`-separated plugin list. Where systemd won't enable the reboot service (CI runners, containers), `install.sh` adds the restart line to your shell rc. The install workflows of v1.3.0-beta.1 to beta.3 found these.
 
 ### Settings ⚙️
 
@@ -51,7 +52,7 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 
 ### Known issues
 
-- This is a pre-release under test. UPDATING.md's step 3 skips it, so set `TAG=v1.3.0-beta.3` by hand to install it.
+- This is a pre-release under test. UPDATING.md's step 3 skips it, so set `TAG=v1.3.0-beta.4` by hand to install it.
 - usage-guard needs Claude Code 2.1.296 or newer and defer-artifact needs 2.1.293 or newer. Run `claude update` first.
 - A session's first second or two can start before the run-agent MCP server connects. The agents use the Bash form then.
 - With `--agent-clash keep`, the repo's assistant is installed as a copy outside the clone and can't find its MCP server. Use `--agent-clash replace` or `skip` for it.
@@ -70,6 +71,7 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 
 ### Full log
 
+- run-agent: scheduling works on macOS. `start_runner` started the sleeper with `setsid`, which macOS does not have, so every scheduled run there (and the denied.log review install.sh schedules) was `errored: ... setsid: command not found`. Without `setsid` it starts through `python3 -c 'os.setsid(); os.execvp(...)'`, the same pid and a new session. Found by v1.3.0-beta.3's install workflow on macOS.
 - install: on Windows a rerun of `./install.sh` (a settings merge into an existing `settings.json`) stopped with `UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d`: Windows Python reads files as cp1252, and the installed settings.json holds UTF-8 text. `install.sh` exports `PYTHONUTF8=1`. Found by v1.3.0-beta.2's install workflow (`rerun with no flags exits 0 (got 1)`), reproduced and checked in Git Bash on Windows.
 - install: `--check` finds the defer-artifact mod on Windows (the `;`-separated `CLAUDE_CODE_PLUGIN_DIRS` holds a `C:/...` path, which the old `:` split cut apart), and the reboot revive falls back to the shell rc line whenever `run-agent-revive.service` is not enabled afterwards (a CI runner's user manager answers but won't enable a unit from a scratch HOME). `test/install-scenarios.sh` expects the native path and separator on Windows. Found by v1.3.0-beta.1's install workflow (Ubuntu and Windows failed).
 - v1.3 release tree: one planner and one run-agent. `planner.md` already held planner-fix10's newest text, so `agents/planner-fix10.md` and `agents/planner-fix32.md` are deleted and `researcher.md`'s description names `planner`. `skills/run-agent-dev/` (with `promote.sh` and `apply_agents.py`) and `bin/run-agent-dev` are deleted; the dev files with a later commit than their `skills/run-agent` twins differed only in their `run-agent-dev` paths. `skills/run-agent/mcp/mcp.json` is gone (nothing read it). `install.sh` registers the run-agent MCP server (`claude mcp add --transport stdio --scope user run-agent -- ~/.claude/skills/run-agent/mcp/server.py`, replacing a registration that points elsewhere) and prints that command when `claude` is not on PATH; `--check` has a PASS/FAIL line for the registration, one for the assistant, and a NOTE when `uv` is missing. `test/install-scenarios.sh` scenario b starts from a `settings.json` with its own `hooks` key and checks that the merge keeps it and adds every repo hook entry. The settings allow `mcp__run-agent__*` and `autoMode.allow` is `"$defaults"` plus one sentence describing run-agent; worker and evaluator hand off through the MCP tools with the Bash form as fallback.
@@ -131,13 +133,17 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 - `bin/run-agent` confirms in the terminal again on Python 3.14 (opening `/dev/tty` read-write failed, so it fell back to a popup and changed nothing).
 - run-agent: scheduled runs survive a reboot or WSL restart. `run-agent-revive.service` (a systemd user service install.sh enables; the shell rc on macOS) runs `run-agent.sh --revive` at boot, silently: a run still ahead gets a new runner, and one that came due while the machine was down is skipped and logged as `skipped` in `jobs.log`. After a tmux restart the run opens a new window instead of reusing an old pane id. `/run-agent jobs` marks runs whose runner is gone.
 
+## v1.3.0-beta.3 — 2026-11-18
+
+Tagged and published as a pre-release; its install workflow passed on Ubuntu and Windows and failed on macOS (the first entry under v1.3.0-beta.4). Otherwise the same as v1.3.0-beta.4.
+
 ## v1.3.0-beta.2 — 2026-11-18
 
-Tagged and published as a pre-release; its install workflow passed on Ubuntu and failed on Windows (the first entry under v1.3.0-beta.3), and macOS got no runner. Otherwise the same as v1.3.0-beta.3.
+Tagged and published as a pre-release; its install workflow passed on Ubuntu and failed on Windows (the second entry under v1.3.0-beta.4), and macOS got no runner. Otherwise the same as v1.3.0-beta.4.
 
 ## v1.3.0-beta.1 — 2026-11-18
 
-Tagged and published as a pre-release; its install workflow failed on Ubuntu and Windows (the first two entries under v1.3.0-beta.3). Otherwise the same as v1.3.0-beta.3.
+Tagged and published as a pre-release; its install workflow failed on Ubuntu and Windows (the second and third entries under v1.3.0-beta.4). Otherwise the same as v1.3.0-beta.4.
 
 ## v1.2.1 — 2026-10-26
 

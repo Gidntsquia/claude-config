@@ -203,7 +203,10 @@ revive() {
 # alive() recognises it; its output goes to logs/<id>.log (empty unless it errored). Records the pid.
 start_runner() {
   store_guard; mkdir -p "$STATE/logs"
-  setsid nohup bash -c 'id=$1; at=$2; r=$3
+  # its own session, so closing the pane or terminal never reaches it; macOS has no setsid(1), so Python's os.setsid
+  local newsess=(setsid)
+  command -v setsid >/dev/null 2>&1 || newsess=(python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])')
+  "${newsess[@]}" nohup bash -c 'id=$1; at=$2; r=$3
 while :; do t=$(( at - $(date +%s) )); [ "$t" -le 0 ] && break; sleep "$t"; done
 exec bash "$r" "$id"' runner.sh "$1" "$2" "$HERE/runner.sh" >> "$STATE/logs/$1.log" 2>&1 < /dev/null 9>&- &
   python3 "$HERE/jobs.py" setpid "$1" "$!"
