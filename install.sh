@@ -38,6 +38,8 @@ esac
 OS="${CLAUDE_CONFIG_INSTALL_OS:-$OS}"  # tests only: pretend to be linux|wsl|mac|windows
 # Git Bash makes copies for ln -s unless told to make real Windows symlinks (needs Developer Mode or admin).
 [ "$OS" = windows ] && export MSYS=winsymlinks:nativestrict
+# Windows Python reads files as cp1252 by default; settings.json and the agents are UTF-8 (em dashes, emoji).
+export PYTHONUTF8=1
 PY=""
 for p in python3 python; do command -v "$p" >/dev/null 2>&1 && "$p" -c 'import json' >/dev/null 2>&1 && { PY="$p"; break; }; done
 [ -n "$PY" ] || { echo "install.sh: needs python3 (for the settings merge); install it and rerun" >&2; exit 1; }

@@ -1,4 +1,4 @@
-# v1.3.0-beta.2 — 2026-11-18
+# v1.3.0-beta.3 — 2026-11-18
 
 Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. This is a pre-release for testing, and v1.2.1 stays the latest release until it's promoted.
 
@@ -38,7 +38,7 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 - `install.sh` links `run-agent` and `guard` into `~/.local/bin` and installs the usage-guard and `/run-agent` hooks with the settings merge.
 - A settings merge into a `settings.json` that already has its own `hooks` keeps your hooks and adds the repo's, and the install test covers that case.
 - The install workflow on Ubuntu, macOS and Windows runs when a release is published.
-- On Windows, `--check` reads the defer-artifact entry in Claude Code's `;`-separated plugin list, and where systemd won't enable the reboot service (CI runners, containers) `install.sh` adds the restart line to your shell rc. v1.3.0-beta.1's install workflow failed on both.
+- On Windows, a second `./install.sh` no longer stops on a settings.json with an em dash or emoji (Python read it as cp1252), and `--check` reads the defer-artifact entry in Claude Code's `;`-separated plugin list. Where systemd won't enable the reboot service (CI runners, containers), `install.sh` adds the restart line to your shell rc. The install workflows of v1.3.0-beta.1 and beta.2 found these.
 
 ## Settings ⚙️
 
@@ -47,7 +47,7 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 
 ## Known issues
 
-- This is a pre-release under test. UPDATING.md's step 3 skips it, so set `TAG=v1.3.0-beta.2` by hand to install it.
+- This is a pre-release under test. UPDATING.md's step 3 skips it, so set `TAG=v1.3.0-beta.3` by hand to install it.
 - usage-guard needs Claude Code 2.1.296 or newer and defer-artifact needs 2.1.293 or newer. Run `claude update` first.
 - A session's first second or two can start before the run-agent MCP server connects. The agents use the Bash form then.
 - With `--agent-clash keep`, the repo's assistant is installed as a copy outside the clone and can't find its MCP server. Use `--agent-clash replace` or `skip` for it.
