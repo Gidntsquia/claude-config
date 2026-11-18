@@ -209,7 +209,7 @@ if [ -n "$CHECK" ]; then
     pass "settings.json parses ($SETTINGS)"
   else fail "settings.json missing or not valid JSON"; fi
   if [ "$SETTINGS" = keep ]; then skip "defer-artifact mod (settings.json kept; add $R/mods/defer-artifact to env.CLAUDE_CODE_PLUGIN_DIRS to load it)"
-  elif "$PY" -c 'import json,sys,os; v=json.load(open(sys.argv[1])).get("env",{}).get("CLAUDE_CODE_PLUGIN_DIRS",""); d=sys.argv[2]; sys.exit(0 if d in v.replace(";",":").split(":") and os.path.isfile(os.path.join(d,".claude-plugin","plugin.json")) else 1)' "$C/settings.json" "$(if [ "$OS" = windows ] && command -v cygpath >/dev/null 2>&1; then cygpath -m "$R"; else echo "$R"; fi)/mods/defer-artifact" 2>/dev/null; then
+  elif "$PY" -c 'import json,sys,os; v=json.load(open(sys.argv[1])).get("env",{}).get("CLAUDE_CODE_PLUGIN_DIRS",""); d=sys.argv[2]; sys.exit(0 if d in v.split(";" if sys.argv[3] == "windows" else ":") and os.path.isfile(os.path.join(d,".claude-plugin","plugin.json")) else 1)' "$C/settings.json" "$(if [ "$OS" = windows ] && command -v cygpath >/dev/null 2>&1; then cygpath -m "$R"; else echo "$R"; fi)/mods/defer-artifact" "$OS" 2>/dev/null; then
     pass "defer-artifact mod in env.CLAUDE_CODE_PLUGIN_DIRS ($R/mods/defer-artifact)"
   else fail "defer-artifact mod missing from env.CLAUDE_CODE_PLUGIN_DIRS in settings.json (rerun install.sh)"; fi
   if [ "$SETTINGS" = replace ]; then
@@ -500,7 +500,9 @@ elif [ "$TERMINAL" = true ]; then
     link "$R/skills/run-agent/run-agent-revive.service" "$HOME/.config/systemd/user/run-agent-revive.service"
     systemctl --user is-enabled run-agent-revive.service >/dev/null 2>&1 || \
       { systemctl --user daemon-reload && systemctl --user enable run-agent-revive.service; } >/dev/null 2>&1 || true
-  else
+  fi
+  # No systemd, or a user manager that would not enable the unit (CI runners, containers): the shell rc does it.
+  if ! systemctl --user is-enabled run-agent-revive.service >/dev/null 2>&1; then
     grep -qs 'run-agent.sh" --revive' "$RC" || printf '%s\n' \
       '[ -x "$HOME/.claude/skills/run-agent/scripts/run-agent.sh" ] && "$HOME/.claude/skills/run-agent/scripts/run-agent.sh" --revive  # restart /run-agent runs a reboot stopped' >> "$RC"
   fi

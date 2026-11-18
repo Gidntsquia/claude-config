@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## v1.3.0-beta.1 — 2026-11-18
+## v1.3.0-beta.2 — 2026-11-18
 
 Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. This is a pre-release for testing, and v1.2.1 stays the latest release until it's promoted.
 
@@ -42,6 +42,7 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 - `install.sh` links `run-agent` and `guard` into `~/.local/bin` and installs the usage-guard and `/run-agent` hooks with the settings merge.
 - A settings merge into a `settings.json` that already has its own `hooks` keeps your hooks and adds the repo's, and the install test covers that case.
 - The install workflow on Ubuntu, macOS and Windows runs when a release is published.
+- On Windows, `--check` reads the defer-artifact entry in Claude Code's `;`-separated plugin list, and where systemd won't enable the reboot service (CI runners, containers) `install.sh` adds the restart line to your shell rc. v1.3.0-beta.1's install workflow failed on both.
 
 ### Settings ⚙️
 
@@ -50,7 +51,7 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 
 ### Known issues
 
-- This is a pre-release under test. UPDATING.md's step 3 skips it, so set `TAG=v1.3.0-beta.1` by hand to install it.
+- This is a pre-release under test. UPDATING.md's step 3 skips it, so set `TAG=v1.3.0-beta.2` by hand to install it.
 - usage-guard needs Claude Code 2.1.296 or newer and defer-artifact needs 2.1.293 or newer. Run `claude update` first.
 - A session's first second or two can start before the run-agent MCP server connects. The agents use the Bash form then.
 - With `--agent-clash keep`, the repo's assistant is installed as a copy outside the clone and can't find its MCP server. Use `--agent-clash replace` or `skip` for it.
@@ -69,6 +70,7 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 
 ### Full log
 
+- install: `--check` finds the defer-artifact mod on Windows (the `;`-separated `CLAUDE_CODE_PLUGIN_DIRS` holds a `C:/...` path, which the old `:` split cut apart), and the reboot revive falls back to the shell rc line whenever `run-agent-revive.service` is not enabled afterwards (a CI runner's user manager answers but won't enable a unit from a scratch HOME). `test/install-scenarios.sh` expects the native path and separator on Windows. Found by v1.3.0-beta.1's install workflow (Ubuntu and Windows failed).
 - v1.3 release tree: one planner and one run-agent. `planner.md` already held planner-fix10's newest text, so `agents/planner-fix10.md` and `agents/planner-fix32.md` are deleted and `researcher.md`'s description names `planner`. `skills/run-agent-dev/` (with `promote.sh` and `apply_agents.py`) and `bin/run-agent-dev` are deleted; the dev files with a later commit than their `skills/run-agent` twins differed only in their `run-agent-dev` paths. `skills/run-agent/mcp/mcp.json` is gone (nothing read it). `install.sh` registers the run-agent MCP server (`claude mcp add --transport stdio --scope user run-agent -- ~/.claude/skills/run-agent/mcp/server.py`, replacing a registration that points elsewhere) and prints that command when `claude` is not on PATH; `--check` has a PASS/FAIL line for the registration, one for the assistant, and a NOTE when `uv` is missing. `test/install-scenarios.sh` scenario b starts from a `settings.json` with its own `hooks` key and checks that the merge keeps it and adds every repo hook entry. The settings allow `mcp__run-agent__*` and `autoMode.allow` is `"$defaults"` plus one sentence describing run-agent; worker and evaluator hand off through the MCP tools with the Bash form as fallback.
 - assistant agent (`agents/assistant.md`, `assistant/mcp/server.py`, `assistant/hooks/guard.py`): the operator of your Claude Code sessions in tmux, run as `claude --agent assistant`. Seven MCP tools (`assistant_panes`, `assistant_projects`, `assistant_launch`, `assistant_send`, `assistant_layout`, `assistant_schedule`, `assistant_jobs`) report each pane's state, start an agent in an empty shell, answer a waiting session, close or retile panes and schedule runs through run-agent. A PreToolUse guard hook blocks closing a pet pane or its own pane, answering a judgement menu (an evaluator's verdict, a planner's choice) and a forced layout change on a running pane without a yes. Both start with `uv run --script` from `../assistant/` next to the agent file's real path. Copied in from its own repo, where it was built and tested.
 - planner: research runs through the `researcher` subagent. The planner writes a fact list and a tier (`none`, `external`, `repo`, each with a call and time budget), splits it into at most three groups sent in one message, and writes each finding under its own heading in `plans/research/<slug>.md`; the plan's Facts carry one sentence pointing at it. `planner.md` is the planner-fix10 prompt, which passed 5/5 replay checks in 4/4 sessions.
@@ -127,6 +129,10 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 - The planner, worker and evaluator end with their next step (`run-agent.sh --next`): a sentence saying what to run and when, the `/run-agent <agent> "<prompt>" <model> <effort>` line on its own, then the plain `claude --agent …` form on its own labelled line.
 - `bin/run-agent` confirms in the terminal again on Python 3.14 (opening `/dev/tty` read-write failed, so it fell back to a popup and changed nothing).
 - run-agent: scheduled runs survive a reboot or WSL restart. `run-agent-revive.service` (a systemd user service install.sh enables; the shell rc on macOS) runs `run-agent.sh --revive` at boot, silently: a run still ahead gets a new runner, and one that came due while the machine was down is skipped and logged as `skipped` in `jobs.log`. After a tmux restart the run opens a new window instead of reusing an old pane id. `/run-agent jobs` marks runs whose runner is gone.
+
+## v1.3.0-beta.1 — 2026-11-18
+
+Tagged and published as a pre-release; its install workflow failed on Ubuntu and Windows (the first fix entry under v1.3.0-beta.2). Otherwise the same as v1.3.0-beta.2.
 
 ## v1.2.1 — 2026-10-26
 
