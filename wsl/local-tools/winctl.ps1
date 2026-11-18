@@ -405,7 +405,18 @@ switch ($Action) {
     if ($app -eq 'firefox') { $hd.folder = ((Split-Path $exe -Parent).TrimEnd('\') + '\').ToLowerInvariant() }   # R5
     if (-not $want) { 'not hidden: --title is required (a window counts as loaded only when its title holds it)'; exit 2 }   # R7
     $hd.generic = $GenericTitles
+    # Firefox opens "Open Firefox in Troubleshoot Mode?" instead of the page when Shift is down at launch (the user is typing);
+    # this variable makes it ignore the key
+    if ($app -eq 'firefox') { $env:MOZ_DISABLE_SAFE_MODE_KEY = '1' }
     $rc = $hd.Run($exe, $args, [int]($to * 1000))
+    # Firefox's own prompts are not #32770 dialogs: a launch that ends in one (Troubleshoot Mode; "Close Firefox" = a stuck instance
+    # holds the profile) never loads the page, and its process would hold the profile and block every later launch. This run started
+    # that process: end it and report the prompt as the dialog it is
+    if ($rc -eq 1 -and $app -eq 'firefox') {
+      $pr = @($hd.hidden.Keys | Where-Object { [W]::IsWindow($_) -and @('Open Firefox in Troubleshoot Mode?', 'Close Firefox') -contains [W]::Title($_) })
+      if ($pr.Count) { $t = [W]::Title($pr[0]); $hd.log | ForEach-Object { "hide-log: $_" }
+        foreach ($d in $pr) { $id = [W]::Pid($d); if ($id) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue } }
+        "not hidden: Firefox dialog: $t (its process was ended)"; exit 1 } }
     if ($hd.dialogs.Count) {   # the app answered the launch with a dialog (hidden like any window): say what it asks, close it (it is this run's window), fail
       Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes; $txt = ''
       foreach ($d in $hd.dialogs) { for ($i = 0; $i -lt 10 -and -not $txt -and [W]::IsWindow($d); $i++) { Start-Sleep -Milliseconds 200

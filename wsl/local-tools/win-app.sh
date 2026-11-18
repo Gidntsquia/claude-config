@@ -48,6 +48,8 @@ if [ "$app" = firefox ]; then   # an existing Linux path becomes a file:/// URL 
   m=(); for a in "$@"; do case "$a" in /*) [ -e "$a" ] && a=$(python3 -I -c 'import sys, urllib.parse as u; print("file:///" + u.quote(sys.argv[1].replace("\\", "/"), safe="/:"))' "$(wslpath -w "$a")");; esac; m+=("$a"); done
   set -- "${m[@]}"
 fi
+# Firefox opens its "Troubleshoot Mode" prompt instead of the page when Shift is down at launch; this makes it ignore the key
+[ "$app" = firefox ] && export MOZ_DISABLE_SAFE_MODE_KEY=1 WSLENV="${WSLENV:+$WSLENV:}MOZ_DISABLE_SAFE_MODE_KEY"
 [ -z "$hidden" ] && exec "$exe" "$@"
 grep -qi microsoft /proc/version 2>/dev/null || { echo "win-app.sh: --hidden is WSL only" >&2; exit 1; }
 . "$HOME/.claude/local-tools/evsession.sh"
