@@ -1,5 +1,5 @@
 #!/bin/bash
-# usage: flash-test.sh firefox|code|wt [launches=20]
+# usage: flash-test.sh firefox|wt [launches=20]
 # Does a `win-app.sh --hidden` launch ever paint a frame? For each launch one PowerShell captures the whole display at >=30 fps for
 # 2 s (Graphics.CopyFromScreen, 1/4 scale) starting just before the launch; a frame counts when more than 1 % of its pixels differ
 # from the first frame (a 1200x1100 window is ~36 % of a 2560x1440 screen; cursor and clock stay far below 1 %). The cloaked
@@ -11,16 +11,15 @@
 # of a 2560x1440 screen). Do not print to the terminal and do not open anything while it runs.
 # Refuses while a full-screen game runs (game-guard.sh). Needs the session state dir (evsession.sh / EVSHOW_STATE).
 set -u
-app="${1:?usage: flash-test.sh firefox|code|wt [launches]}"; n="${2:-20}"
+app="${1:?usage: flash-test.sh firefox|wt [launches]}"; n="${2:-20}"
 T="$HOME/.claude/local-tools"
 "$T/game-guard.sh" "flash-test.sh $app" >/dev/null && { echo "not run: a full-screen game is running"; exit 3; }
 . "$T/evsession.sh"; ev_export || { echo "no session state dir (set EVSHOW_STATE)"; exit 1; }
 D=$(ev_state_dir create); S="$(mktemp -d)"; trap 'rm -rf "$S"' EXIT
 case "$app" in
   firefox) args=(-new-window "FILE") ;;   # a file: page (Firefox never loads a top-level data: URL from the command line: the title stays "Mozilla Firefox")
-  code)    args=(-n "$S/flash-test-TOKEN.md") ;;
   wt)      args=(-w new --title flash-test-TOKEN wsl.exe -d "${WSL_DISTRO_NAME:-Ubuntu}" -- sleep 60) ;;
-  *) echo "unknown app $app"; exit 2 ;;
+  *) echo "flash-test.sh: unknown app $app (firefox, wt)"; exit 2 ;;
 esac
 cap="$S/cap.ps1"
 cat > "$cap" <<'PS'
@@ -69,7 +68,6 @@ PS
 total=0; maxhide=0; tbtotal=0; fps_low=""
 for i in $(seq 1 "$n"); do
   tok="$(tr -dc a-z0-9 </dev/urandom | head -c6)"; a=("${args[@]/TOKEN/$tok}")
-  [ "$app" = code ] && echo "# flash-test $tok" > "$S/flash-test-$tok.md"
   [ "$app" = firefox ] && { echo "<title>flash-test-$tok</title><h1>flash-test-$tok</h1>" > "$S/flash-test-$tok.html"; a=(-new-window "$(wslpath -w "$S/flash-test-$tok.html")"); }
   marker="$S/go-$i"; rm -f "$marker"
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w "$cap")" 2.5 "$(wslpath -w "$marker")" > "$S/cap-$i.out" 2>&1 </dev/null &

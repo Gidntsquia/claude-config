@@ -19,9 +19,11 @@
 #   win.sh rect HWND | fgrect | placefg X Y W H | list-topmost | list-all
 #   win.sh list-z                       -> every visible titled window top to bottom: "HWND|topmost|cloaked|title"
 #   win.sh me                           -> YOUR terminal: sets the tmux/OSC title to ev-<random> AND shows it as a tmux status message
-#                                          on this pane's client; finds exactly one Windows Terminal window holding it (title match,
+#                                          on this pane's client; finds the Windows Terminal window holding it (title match,
 #                                          else UI Automation text of its TermControl: a tab renamed by hand ignores titles), restores
 #                                          the title, saves "HWND L T W H MAX" in <state>/term; prints "me: HWND L T W H MAX [(text marker)]"
+#                                          2+ windows hold it (one tmux session in several terminals): the foreground one, else the
+#                                          topmost in z-order, and a second line "me: took <HWND> of <N>"; exit 0
 #   win.sh zlog <seconds>               -> every 100 ms "t HH:MM:SS.mmm" + "HWND|topmost|cloaked|iconic|L T W H|title" per window
 #   win.sh close-cloaked ["<title>"]    -> close every window this session registered (only those opened under <title>) that is still cloaked;
 #                                       one whose title changed to another page is left: `left cloaked: <HWND> opened as '<t>' now shows '<title>'`
@@ -57,7 +59,7 @@ if [ "${1:-}" = me ]; then
   done
   if [ -n "$pane" ]; then tmux rename-window -t "$pane" "${oldw:-bash}" 2>/dev/null; [ "${auto:-on}" = on ] && tmux set-window-option -t "$pane" automatic-rename on 2>/dev/null; fi
   [ -n "$ptty" ] && printf '\033]0;\007' > "$ptty" 2>/dev/null
-  printf '%s\n' "$out"; [ $rc -eq 0 ] && { o=${out#me: }; printf '%s\n' "${o%% (*}" > "$D/term"; }; exit $rc
+  printf '%s\n' "$out"; [ $rc -eq 0 ] && { o=$(printf '%s\n' "$out" | sed -n '1s/^me: //p'); printf '%s\n' "${o%% (*}" > "$D/term"; }; exit $rc
 fi
 IFS='|'
 WSLENV="${WSLENV:+$WSLENV:}WINCTL_LINE" WINCTL_LINE="$*" exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w "$HOME/.claude/local-tools/winctl.ps1")"

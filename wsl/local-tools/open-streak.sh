@@ -1,15 +1,18 @@
 #!/bin/bash
-# usage: open-streak.sh [n=10] [firefox|code ...]
-# Proof that hidden opens end in a real, loaded, visible window. Per app (firefox, then code), n times:
-#   a token file (ost-<tok>.html / .md) -> win-app.sh --hidden --title ost-<tok> -> win.sh showcheck "ost-<tok>" 1030 0 1530 1400
+# usage: open-streak.sh [n=10] [firefox|page ...]
+# Proof that hidden opens end in a real, loaded, visible window. Per app (firefox, then page), n times:
+#   firefox: a token page ost-<tok>.html -> win-app.sh --hidden --title ost-<tok> firefox
+#   page:    a token ost-<tok>.md -> file-page.sh (the file page every .md, log and source file is shown as) -> its `page:` line's
+#            html and title -> win-app.sh --hidden --title "<title>" firefox "<html>"
+#   then win.sh showcheck "ost-<tok>" 1030 0 1530 1400
 #   (= show + the checks, one process) -> win.sh close HWND + close-cloaked.
 # Checks: the shown: rect is the asked one (within 16 px), the HWND has cloaked=0 and the token in its title, and a
 # capture of the window's content area (the rect less 170 px on top, 50 below, 20 at the sides: the app's own bars would make an
 # empty window look painted) is under 98 % one colour.
 # Prints one line per open:
 #   open N <app>: shown HWND L T W H title-ok cloaked=0 nonblank <p>%     (p = share of the content area that is NOT its main colour)
-#   open N <app>: FAIL <stage>: <reason>          stage = open | show | rect | list | blank | close; reason = the helper's own line
-# and last `streak: firefox <k>/<n> shown, code <k>/<n> shown`. Exit 0 only when every open of every app was shown.
+#   open N <app>: FAIL <stage>: <reason>          stage = build (file-page.sh's `not built:` line) | open | show | rect | list | blank | close; reason = the helper's own line
+# and last `streak: firefox <k>/<n> shown, page <k>/<n> shown`. Exit 0 only when every open of every app was shown.
 # While a full-screen game runs: `not run: a full-screen game is running`, exit 3 (GAME_GUARD_CMD=<script> replaces game-guard.sh).
 # OST_KEEP=<dir> keeps each content-area capture as <dir>/<app>-<N>.png and the helper's show-note:/show-tries: lines in <dir>/notes.txt. A window that is covered, minimized or closed by someone
 # else between `show` and the capture fails stage `show` with that reason, the age of the last user input and the focused window.
@@ -18,14 +21,14 @@
 # (so it can run while you use the screen: a click of yours cannot minimize or close a test window).
 set -u
 n=10; case "${1:-}" in ''|*[!0-9]*) ;; *) n=$1; shift;; esac
-apps=("$@"); [ ${#apps[@]} -gt 0 ] || apps=(firefox code)
+apps=("$@"); [ ${#apps[@]} -gt 0 ] || apps=(firefox page)
 T="$HOME/.claude/local-tools"
 grep -qi microsoft /proc/version 2>/dev/null || { echo "open-streak.sh: WSL only (this is $(uname))" >&2; exit 1; }
 "${GAME_GUARD_CMD:-$T/game-guard.sh}" >/dev/null 2>&1 && { echo "not run: a full-screen game is running"; exit 3; }
 S="$(mktemp -d)"; export EVSHOW_STATE="$S/state"; mkdir -p "$EVSHOW_STATE"; trap 'rm -rf "$S"' EXIT
 X=1030; Y=0; W=1530; H=1400
 one() {  # one open of app $1, number $2; prints the line, returns 0 when shown
-  local app=$1 i=$2 tok f out line hwnd l t w h z p rc k sv tries
+  local app=$1 i=$2 tok f out line hwnd l t w h z p rc k sv tries pg
   tok="$(tr -dc a-z0-9 </dev/urandom | head -c6)"
   if [ "$app" = firefox ]; then f="$S/ost-$tok.html"
     { echo "<!doctype html><title>ost-$tok</title><body style='margin:0;font:28px sans-serif'><h1>ost-$tok</h1>"
@@ -33,7 +36,10 @@ one() {  # one open of app $1, number $2; prints the line, returns 0 when shown
     out=$("$T/win-app.sh" --hidden --title "ost-$tok" firefox -new-window "$f" 2>&1 | tr -d '\r'); rc=${PIPESTATUS[0]}   # a Linux path on purpose: the helper makes it a file:/// URL
   else f="$S/ost-$tok.md"
     { echo "# ost-$tok"; for k in $(seq 1 70); do echo "- line $k of ost-$tok: the quick brown fox jumps over the lazy dog, $k times, and comes back again"; done; } > "$f"
-    out=$("$T/win-app.sh" --hidden --title "ost-$tok" code -n "$f" 2>&1 | tr -d '\r'); rc=${PIPESTATUS[0]}
+    pg=$("$T/file-page.sh" "$f" 2>&1); rc=$?
+    case "$pg" in "page: "*"|"*) ;; *) echo "open $i $app: FAIL build: ${pg:-exit $rc}"; return 1;; esac
+    [ "$rc" -eq 0 ] || { echo "open $i $app: FAIL build: exit $rc: $pg"; return 1; }
+    pg=${pg#page: }; out=$("$T/win-app.sh" --hidden --title "${pg#*|}" firefox "${pg%%|*}" 2>&1 | tr -d '\r'); rc=${PIPESTATUS[0]}
   fi
   if [ "$rc" -ne 0 ] || ! printf '%s\n' "$out" | grep -q '^hidden: '; then
     line=$(printf '%s\n' "$out" | grep '^not hidden: ' | tail -1); echo "open $i $app: FAIL open: ${line:-exit $rc: $(printf '%s\n' "$out" | grep -v '^hide-log' | tail -1)}"; return 1; fi
@@ -60,7 +66,7 @@ one() {  # one open of app $1, number $2; prints the line, returns 0 when shown
 }
 sum=""; bad=0
 for app in "${apps[@]}"; do
-  case "$app" in firefox|code) ;; *) echo "open-streak.sh: unknown app $app (firefox, code)" >&2; exit 2;; esac
+  case "$app" in firefox|page) ;; *) echo "open-streak.sh: unknown app $app (firefox, page)" >&2; exit 2;; esac
   ok=0
   for i in $(seq 1 "$n"); do
     one "$app" "$i" && ok=$((ok + 1))

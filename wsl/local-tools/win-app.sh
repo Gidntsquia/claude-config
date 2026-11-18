@@ -1,7 +1,9 @@
 #!/bin/bash
-# usage: win-app.sh firefox|code|wt [args...]   Runs the Windows program, found from %ProgramFiles% / %LOCALAPPDATA%
+# usage: win-app.sh firefox|wt [args...]   Runs the Windows program, found from %ProgramFiles% / %LOCALAPPDATA%
 # (via winenv.sh) or PATH, so no user name is written anywhere. `win-app.sh --path <app>` prints the path instead.
-#   win-app.sh --hidden [--title "<t>"] firefox|code|wt [args...]
+#   win-app.sh code ...   (any mode) prints `not opened: VS Code is retired; use file-page.sh "<path>"`, exit 2, starts nothing:
+#        .md, logs, text and source are shown as a page in Firefox (file-page.sh builds it).
+#   win-app.sh --hidden [--title "<t>"] firefox|wt [args...]
 #        Opens the window cloaked from its first moment: ONE PowerShell process registers a WinEvent hook (CREATE/SHOW/
 #        FOREGROUND/NAMECHANGE; no polling, it sleeps in its message loop), launches the app, and on every new top-level window
 #        of the app's process family hides it before its first paint (DWMWA_CLOAK is tried but another process gets
@@ -15,27 +17,24 @@
 #        exits when the title is loaded (it contains --title, which is required) or after 20 s.
 #        Failure is ONE line `not hidden: <cause>`; exit 1 unless noted:
 #          title not loaded within Ns (want '<t>'; hidden N window(s): '<titles seen>')   the page/file did not load under that title
-#          VS Code update pending, restart VS Code       no window came and old_Code.exe sits beside Code.exe
 #          <App> dialog: <its text>                      the app answered with a dialog; it is closed, never shown
 #          a full-screen game is running                 exit 3; also appended to ~/.cache/claude-config/game-deferred.log
 #          error: <PowerShell message> | <exe> not found | --title is required (exit 2)
 #        A new window is this run's when its process is the launched pid, a descendant, or an image under the app's install folder.
-#        firefox: an argument that is an existing Linux path becomes a file:/// URL (Firefox cannot load a bare Linux path).
-#        code: runs Code.exe with its own profile (%LOCALAPPDATA%\claude-config\evshow-code: your settings.json plus
-#          security.allowedUNCHosts for the WSL hosts, no extensions), so an item never waits on your own VS Code, on its
-#          "allow host wsl.localhost?" dialog or on an unfinished update. EVSHOW_CODE_EXE=<Code.exe> overrides the exe (tests).
+#        firefox (both modes): an argument that is an existing Linux path becomes a file:/// URL (Firefox cannot load a bare
+#          Linux path); --hidden adds -new-window when it is missing (a tab in a running window would be nothing new to hide).
 #        `win.sh show|start|next` un-cloak and place; `win.sh close-cloaked` closes leftovers.
 #        GAME_GUARD_CMD=<script> replaces game-guard.sh, GAME_DEFERRED_LOG=<file> the log (tests).
 . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/winenv.sh"
 p=""; hidden=""; title=""
 while :; do case "${1:-}" in
   --path) p=1; shift;; --hidden) hidden=1; shift;; --title) title="${2:-}"; shift 2;; *) break;; esac; done
-app="${1:?usage: win-app.sh [--path] [--hidden [--title t]] firefox|code|wt [args...]}"; shift
+app="${1:?usage: win-app.sh [--path] [--hidden [--title t]] firefox|wt [args...]}"; shift
+[ "$app" = code ] && { echo 'not opened: VS Code is retired; use file-page.sh "<path>"'; exit 2; }
 case "$app" in
   firefox) c=("${WIN_PROGRAMFILES:-/mnt/c/Program Files}/Mozilla Firefox/firefox.exe" "/mnt/c/Program Files (x86)/Mozilla Firefox/firefox.exe" "$(command -v firefox.exe)") ;;
-  code)    c=("${WIN_LOCALAPPDATA:-/nonexistent}/Programs/Microsoft VS Code/bin/code" "${WIN_PROGRAMFILES:-/mnt/c/Program Files}/Microsoft VS Code/bin/code" "$(command -v code)") ;;
   wt)      c=("$(command -v wt.exe)" "${WIN_LOCALAPPDATA:-/nonexistent}/Microsoft/WindowsApps/wt.exe") ;;
-  *)       echo "win-app.sh: unknown app $app (firefox, code, wt)" >&2; exit 2 ;;
+  *)       echo "win-app.sh: unknown app $app (firefox, wt)" >&2; exit 2 ;;
 esac
 for x in "${c[@]}"; do [ -n "$x" ] && [ -x "$x" ] && { exe="$x"; break; }; done
 [ -n "${exe:-}" ] || { echo "win-app.sh: $app not found (tried: ${c[*]})" >&2; exit 1; }
@@ -45,6 +44,10 @@ if g=$("${GAME_GUARD_CMD:-$HOME/.claude/local-tools/game-guard.sh}" 2>/dev/null)
   echo "$(TZ=America/New_York date '+%F %T') ET  game=${g#game: }  refused: win-app.sh ${hidden:+--hidden }${title:+--title $title }$app $*  -> not hidden: a full-screen game is running" >> "$gl"
   echo "not hidden: a full-screen game is running"; exit 3
 fi
+if [ "$app" = firefox ]; then   # an existing Linux path becomes a file:/// URL (\\wsl.localhost\... -> file://///wsl.localhost/...)
+  m=(); for a in "$@"; do case "$a" in /*) [ -e "$a" ] && a=$(python3 -I -c 'import sys, urllib.parse as u; print("file:///" + u.quote(sys.argv[1].replace("\\", "/"), safe="/:"))' "$(wslpath -w "$a")");; esac; m+=("$a"); done
+  set -- "${m[@]}"
+fi
 [ -z "$hidden" ] && exec "$exe" "$@"
 grep -qi microsoft /proc/version 2>/dev/null || { echo "win-app.sh: --hidden is WSL only" >&2; exit 1; }
 . "$HOME/.claude/local-tools/evsession.sh"
@@ -52,45 +55,16 @@ ev_export || { echo "not hidden: no session state dir (set EVSHOW_STATE)"; exit 
 [ -n "$title" ] || { echo "not hidden: --title is required (a window counts as loaded only when its title holds it)"; exit 2; }
 D=$(ev_state_dir)
 q() { for a in "$@"; do case "$a" in *" "*|"") printf ' "%s"' "$a";; *) printf ' %s' "$a";; esac; done; }
-if [ "$app" = code ]; then   # Code.exe itself, not bin/code (the Remote-WSL launcher needs ~/.vscode-server for the running VS Code version and fails
-  # after a VS Code update until a WSL window is opened by hand); Linux paths are passed as \\wsl.localhost\... paths
-  exe="${EVSHOW_CODE_EXE:-${exe%/bin/code}/Code.exe}"; [ -x "$exe" ] || { echo "not hidden: $exe not found"; exit 1; }
-  # Own profile. Cause of the failed opens of Nov 2026: VS Code asks "The host 'wsl.localhost' was not found in the list of allowed
-  # hosts" for a \\wsl.localhost path; that dialog was hidden with the window, the instance waited on it for ever, and every later
-  # open got "Another instance of Code is running but not responding". The profile allows the WSL hosts and shares nothing with
-  # the user's own VS Code (no hand-off to it, none of its dialogs).
-  prof="${WIN_LOCALAPPDATA:?}/claude-config/evshow-code"; mkdir -p "$prof/User" "$prof/ext"
-  python3 -I - "${WIN_HOME:-/nonexistent}/AppData/Roaming/Code/User/settings.json" "$prof/User/settings.json" <<'PY'
-import json, re, sys
-try:   # the user's look (theme, font); their file is JSON with comments, so strip those; unreadable = defaults
-    t = open(sys.argv[1], encoding='utf-8-sig').read()
-    t = re.sub(r'("(?:\\.|[^"\\])*")|//[^\n]*|/\*.*?\*/', lambda m: m.group(1) or '', t, flags=re.S)
-    s = json.loads(re.sub(r',(\s*[}\]])', r'\1', t))
-except Exception:
-    s = {}
-s.update({'security.allowedUNCHosts': ['wsl.localhost', 'wsl$'], 'security.workspace.trust.enabled': False,
-          'workbench.startupEditor': 'none', 'window.restoreWindows': 'none', 'update.mode': 'none', 'telemetry.telemetryLevel': 'off',
-          'extensions.autoUpdate': False, 'extensions.ignoreRecommendations': True, 'workbench.tips.enabled': False,
-          'window.title': '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}'})
-json.dump(s, open(sys.argv[2], 'w', encoding='utf-8'), indent=1)
-PY
-  m=(--user-data-dir "$(wslpath -w "$prof")" --extensions-dir "$(wslpath -w "$prof/ext")" --skip-welcome --skip-release-notes --disable-workspace-trust)
-  for a in "$@"; do case "$a" in /*) [ -e "$a" ] && a=$(wslpath -w "$a");; esac; m+=("$a"); done
-  case " $* " in *" -n "*|*" --new-window "*) ;; *) m=(-n "${m[@]}");; esac   # a running instance would otherwise open the file in an existing window (nothing new to hide)
-  args="$(q "${m[@]}")"
-elif [ "$app" = firefox ]; then   # R6: an existing Linux path becomes a file:/// URL (\\wsl.localhost\... -> file://///wsl.localhost/...)
-  m=(); for a in "$@"; do case "$a" in /*) [ -e "$a" ] && a=$(python3 -I -c 'import sys, urllib.parse as u; print("file:///" + u.quote(sys.argv[1].replace("\\", "/"), safe="/:"))' "$(wslpath -w "$a")");; esac; m+=("$a"); done
-  args="$(q "${m[@]}")"
-else args="$(q "$@")"; fi
+if [ "$app" = firefox ]; then case " $* " in *" -new-window "*|*" --new-window "*) ;; *) set -- -new-window "$@";; esac; fi
+args="$(q "$@")"
 out=$(WSLENV="${WSLENV:+$WSLENV:}WINCTL_LINE" WINCTL_LINE="hidden|$app|$(wslpath -w "$exe")|${args# }|$title|${EVSHOW_HIDE_TIMEOUT:-20}" \
       powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w "$HOME/.claude/local-tools/winctl.ps1")"); rc=$?
 printf '%s\n' "$out" | tr -d '\r'
 printf '%s\n' "$out" | tr -d '\r' | grep '^hidden: ' | sed "s/^/$(TZ=America/New_York date +%T.%N | cut -c1-12) /" >> "$D/hidden"
 # linger: for ${EVSHOW_LINGER_MS:-6000} ms a detached winctl keeps each hidden window off the taskbar and hidden on events only
 # (WT registers its taskbar button ~1.7 s in, Firefox moves its window back ~1 s in; both after the title loaded and this exited)
-lay=1; [ "$app" = code ] && [ "${EVSHOW_CODE_REGION:-}" = 1 ] && lay=0
 for h in $(printf '%s\n' "$out" | tr -d '\r' | awk '/^hidden: /{print $2}'); do
-  WSLENV="${WSLENV:+$WSLENV:}WINCTL_LINE" WINCTL_LINE="linger|$h|$lay|${EVSHOW_LINGER_MS:-6000}" setsid nohup \
+  WSLENV="${WSLENV:+$WSLENV:}WINCTL_LINE" WINCTL_LINE="linger|$h|1|${EVSHOW_LINGER_MS:-6000}" setsid nohup \
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w "$HOME/.claude/local-tools/winctl.ps1")" >/dev/null 2>&1 < /dev/null &
 done
 exit $rc

@@ -16,7 +16,7 @@ change to the repo state (if the user asks for one, record it as an amendment or
 
 ## Order of work
 
-1. Run `win.sh me` (finds YOUR terminal by a title marker and saves it; `not found` = ask which window is yours). Read
+1. Run `win.sh me` (finds YOUR terminal by a title marker and saves it; of 2+ windows it picks one itself: never ask which is yours). Read
    `plans/EVAL_NOTES.md` if present (how this user wants evals run here), then the Ask and Acceptance criteria in `plans/PLAN.md`,
    then `plans/WORKER_NOTES.md` for how to launch. The worker's claims are claims.
 2. Sort the criteria: marked (user), the user judges; the rest a command decides, started now in the background; nothing opens.
@@ -85,23 +85,23 @@ change to the repo state (if the user asks for one, record it as an amendment or
 ## Desktop helpers (WSL2)
 
 Web pages, HTML files, running apps and GitHub-hosted docs open in Firefox (a `.md` that exists on GitHub opens as its GitHub URL);
-`.md`, logs, text and source open in VS Code; terminal programs via `term-open.sh`. One new window per item; never bare
+`.md`, logs, text and source open as a file page in Firefox; terminal programs via `term-open.sh`. One new window per item; never bare
 `firefox.exe`, `wslview`, `explorer.exe`, `xdg-open` or `code` (they open nothing here). Pixels are real display pixels
 (2560x1440). Every helper lives in `~/.claude/local-tools/`. Exit codes everywhere: 1 failed (one line says why), 2 usage, 3 game.
 - Firefox new window: `win-app.sh --hidden --title "<title>" firefox -new-window "<abs path or url>"` (a Linux path is converted)
-- VS Code new window: `win-app.sh --hidden --title "<file name>" code -n "<path>"` (its own profile: the user's VS Code is not used)
+- File page: `file-page.sh "<path>" [A-B]` writes one HTML page (a `.md` rendered; any other file as numbered text, `A-B` = only those lines; path and modified time on top) and prints `page: <html path>|<title>`; open it with `win-app.sh --hidden --title "<title>" firefox "<html path>"`. Build it anew for every open, retries too (each build has its own title); EVAL.md quotes its `elapsed N s (answer -> shown)` line.
+  `not built: <reason>` (exit 1: missing, unreadable, binary): open nothing; quote the line and give the file's path in that item's question. `win-app.sh code ...` only prints `not opened: VS Code is retired; use file-page.sh "<path>"` (exit 2).
   `--hidden` registers a WinEvent hook, launches, cloaks every new window of the app's process family at its CREATE event
   (off-screen, foreground given back) and waits until a title holds `<title>` (required: the page `<title>` or file name must
   contain it). Exit 0: `hidden: HWND <visible-ms> <hidden-ms> <title> (create ...)` (hidden-ms - visible-ms = the longest a frame
-  could have shown, 0 = hidden before it was ever visible); the window stays cloaked until `show`. Failure is ONE line. Exit 1:
-  `not hidden: title not loaded within Ns (...)` | `VS Code update pending, restart VS Code` | `<App> dialog: <its text>` |
-  `error: <message>`. Exit 2: usage (`--title is required`, unknown app). Exit 3: `not hidden: a full-screen game is running`.
+  could have shown, 0 = hidden before it was ever visible); the window stays cloaked until `show`. Failure is ONE line. Exit 1: `not hidden: title not loaded within Ns (...)` |
+  `<App> dialog: <its text>` | `error: <message>`. Exit 2: usage (`--title is required`, unknown app). Exit 3: `not hidden: a full-screen game is running`.
 - `term-open.sh <Title> "<dir>" '<command>'`: a new hidden Windows Terminal window titled <Title> on a tmux session <Title> you own;
   prints `opened <Title> HWND=<n> (hidden: ...)`, exit 3 `not opened: ...` in a game; the shell stays open. Drive it only via
   `tmux send-keys -t <Title>`; close: `term-close.sh <Title> <HWND>`.
-- `win.sh me`: shows a marker (tmux window title + a tmux status message), finds the one Windows Terminal window holding it (title,
-  else its on-screen text), restores the title, saves it for the watcher; prints `me: HWND L T W H MAX`, else exit 1 `not found: N
-  windows hold '<marker>' ...`. `win.sh show "<unique title text>" X Y W H [timeout-s] [termHWND]`: waits for the title, un-cloaks,
+- `win.sh me`: shows a marker (tmux window title + a tmux status message), finds the Windows Terminal window holding it (title,
+  else its on-screen text), restores the title, saves it for the watcher; prints `me: HWND L T W H MAX`; of 2+ holders the foreground one, else the topmost, plus
+  `me: took <HWND> of <N>` (exit 0). No holder: exit 1 `not found: 0 windows hold ...`; go on, the watcher takes the foreground window. `win.sh show "<unique title text>" X Y W H [timeout-s] [termHWND]`: waits for the title, un-cloaks,
   places, topmost without focus, checks the window really is the top one at its place; prints `shown: HWND title L T W H`, else
   exit 1 `not shown: <cause>` (`no window matches`, `blank window <HWND>` = nothing loaded, `would overlap terminal` = it stays hidden, `covered by` / `not topmost` = `hidden again`).
   Of 2+ windows on one title it keeps your newest loaded one and closes the others. By HWND only: `win.sh front|untop|close <HWND>`

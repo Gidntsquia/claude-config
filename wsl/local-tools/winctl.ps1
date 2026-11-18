@@ -51,20 +51,17 @@ public class W {
   public static bool Hidden(IntPtr h) { if (Reg.Contains(h) && (GetWindowLong(h, -20) & 0x80) != 0 && (OffScreen(h) || EmptyRgn(h))) return true; int ex = GetWindowLong(h, -20); if ((ex & 0x80000) != 0) { uint k, f; byte a; if (GetLayeredWindowAttributes(h, out k, out a, out f) && (f & 2) != 0 && a == 0) return true; }
     return Cloaked(h) != 0; }
   // hide: layered alpha 0 (DWM composes nothing of it) + tool window (no taskbar button) + off-screen; it stays WS_VISIBLE so the
-  // app keeps loading (VS Code's workbench waits for a frame; a SW_HIDE'd window never gets one, so its title never loads)
+  // app keeps loading (a SW_HIDE'd window never gets a frame, and an app that waits for one never loads its title)
   [DllImport("gdi32.dll")] public static extern IntPtr CreateRectRgn(int a, int b, int c, int d);
   [DllImport("user32.dll")] public static extern int SetWindowRgn(IntPtr h, IntPtr rgn, bool redraw);
   [DllImport("user32.dll")] public static extern int GetWindowRgn(IntPtr h, IntPtr rgn);
   [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr o);
   // mode 1 (Firefox, WT): layered alpha 0 + tool window (no taskbar button) + off-screen (-6000,0).
-  // mode 2 (EVSHOW_CODE_REGION=1, VS Code only; was the default): on screen with an EMPTY window region + tool window. Dropped as
-  //   default: ~1 s in, VS Code moves the window back AND resets its region in one go (fully visible ~100 ms, 3 frames at 35 fps).
-  //   With the off-screen move first, mode 1 loads the workbench fine and VS Code paints normally after Unhide (checked 2026-10-29).
   public static string hideT = "";
   public static void Hide(IntPtr h, bool layered) { int ex = GetWindowLong(h, -20); var w = System.Diagnostics.Stopwatch.StartNew(); long p, a, b;
     // off-screen FIRST: SetWindowPos with SWP_NOSENDCHANGING changes the position in the kernel before any message reaches the app's
     // (busy) thread, so a ShowWindow that races the style change shows the window at -6000,0; SetWindowLong/SetWindowRgn below wait for
-    // that thread (WM_STYLECHANGING): 30-140 ms while Firefox/Code start up
+    // that thread (WM_STYLECHANGING): 30-140 ms while Firefox starts up
     SetWindowPos(h, IntPtr.Zero, -6000, 0, 0, 0, 0x0415); p = w.ElapsedMilliseconds;   // NOSIZE|NOZORDER|NOACTIVATE|NOSENDCHANGING
     DeleteTab(h);
     if (layered) { SetWindowLong(h, -20, ex | 0x80080); a = w.ElapsedMilliseconds; SetLayeredWindowAttributes(h, 0, 0, 2); b = w.ElapsedMilliseconds; if (!OffScreen(h)) SetWindowPos(h, IntPtr.Zero, -6000, 0, 0, 0, 0x0015); }
@@ -130,7 +127,7 @@ public class Hider {
   public Dictionary<uint, bool> fam = new Dictionary<uint, bool>();   // pid -> is it the app family (by image name; Firefox/WT hand the window to an already running process)
   // R5: a new window is the run's when its process is the launched pid, a descendant of it (parent chain from one toolhelp snapshot,
   // taken only for a pid whose image is NOT under the install folder), or runs an image under the app's install folder (so
-  // old_Code.exe after an unfinished update and a hand-off to an already running instance both count)
+  // a hand-off to an already running instance counts)
   public string folder = "";   // install folder, lower case, with a trailing backslash; "" = match by image name only (wt)
   public List<IntPtr> dialogs = new List<IntPtr>();   // #32770 windows of the family: the app is asking something instead of opening
   [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] struct PE32 { public uint size, usage, pid; public IntPtr heap; public uint module, threads, ppid; public int pri; public uint flags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst=260)] public string exe; }
@@ -164,7 +161,7 @@ public class Hider {
       if (W.Class(h) == "#32770") { lock (hidden) dialogs.Add(h); done = true; }   // hidden like any window (nothing may show before its question); reported and closed after the run
       lock (hidden) { hidden[h] = cr + " ?"; if (vis) vis0[h] = cr; }
       // the hide itself runs on a pool thread per window: SetWindowLong/SetWindowRgn synchronise with the window's own thread, and a
-      // helper window of a busy thread (Firefox: 137 ms, Code: 254 ms) must not hold up the hook thread when the real window appears
+      // helper window of a busy thread (Firefox: 137 ms) must not hold up the hook thread when the real window appears
       System.Threading.Interlocked.Increment(ref pending);
       System.Threading.ThreadPool.QueueUserWorkItem(_ => { try {
         // observer (measurement only, lives for this one hide): the first ms at which the window is off-screen / transparent / empty-region
@@ -215,7 +212,7 @@ public class Hider {
     IntPtr hk = hks[1]; foreach (var x in hks) if (x == IntPtr.Zero) hk = IntPtr.Zero;
     if (hk == IntPtr.Zero) { log.Add("hook failed"); return 2; }
     t0 = W.GetTickCount(); sw.Restart();
-    // the launch runs on its own thread: ShellExecute can take hundreds of ms (VS Code), and the hook thread must be in GetMessage for every event
+    // the launch runs on its own thread: ShellExecute can take hundreds of ms, and the hook thread must be in GetMessage for every event
     string fail = null; var th = new System.Threading.Thread(() => { try { var psi = new System.Diagnostics.ProcessStartInfo(exe, args); psi.UseShellExecute = true;
       if (exe.EndsWith("wsl.exe", StringComparison.OrdinalIgnoreCase)) psi.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;   // console launcher: no console window
       var pr = System.Diagnostics.Process.Start(psi); lock (pids) pids.Add((uint)pr.Id); } catch (Exception e) { fail = e.Message; done = true; } });
@@ -231,9 +228,9 @@ Add-Type -TypeDefinition $Src
 $Reg = if ($env:EVSHOW_LAUNCHED) { $env:EVSHOW_LAUNCHED } else { Join-Path $PSScriptRoot 'launched.txt' }   # per-session registry (win.sh sets it)
 $RegOrder = New-Object System.Collections.Generic.List[IntPtr]   # registration order: the last one is the newest
 if (Test-Path $Reg) { foreach ($l in Get-Content $Reg) { $n = 0L; if ([int64]::TryParse($l.Split('|')[0], [ref]$n)) { [void][W]::Reg.Add([IntPtr]$n); $RegOrder.Add([IntPtr]$n) } } }
-$GenericTitles = @('', 'Mozilla Firefox', 'Firefox', 'New Tab', 'Visual Studio Code', 'Code', 'Welcome', 'Get Started', 'Windows Terminal')
+$GenericTitles = @('', 'Mozilla Firefox', 'Firefox', 'New Tab', 'Windows Terminal')
 # R7: a title that is only the app's own name (or its start page) means nothing was loaded into the window
-function Generic($t) { $GenericTitles -contains (($t -replace '\s+[-\u2014\u2013]\s+(Mozilla Firefox|Visual Studio Code)( Private Browsing)?\s*$', '').Trim()) }
+function Generic($t) { $GenericTitles -contains (($t -replace '\s+[-\u2014\u2013]\s+(Mozilla Firefox)( Private Browsing)?\s*$', '').Trim()) }
 function Holders($m) { ($m | ForEach-Object { "$([int64]$_)|$([int][W]::Hidden($_))|$([W]::Title($_))" }) -join '; ' }   # R4: HWND|cloaked|title
 function Rect($h) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null; "$($r.L) $($r.T) $($r.Rt-$r.L) $($r.B-$r.T)" }
 function Hw($s) { $n = 0L; if (-not [int64]::TryParse($s, [ref]$n) -or $n -le 1) { "error: '$s' is not an HWND (title lookup is only in find/show)"; exit 1 }
@@ -403,9 +400,9 @@ switch ($Action) {
     $hd = New-Object Hider; $h = Hw $p[0]; [void]$hd.Linger($h, ($p[1] -eq '1'), [int]$p[2]); "linger done: rehid $($hd.redid) deltab $($hd.deltabs)"; $hd.llog | ForEach-Object { "linger: $_" } }
   'hidden' { # hidden|app|exe|args|title|timeout-s : WinEvent hook, launch, cloak every new top-level window of the app family from its CREATE event.
     $app = $p[0]; $exe = $p[1]; $args = $p[2]; $want = if ($p.Count -gt 3) { $p[3] } else { '' }; $to = if ($p.Count -gt 4 -and $p[4]) { [double]$p[4] } else { 20 }
-    $hd = New-Object Hider; $hd.want = $want; $hd.debug = ($env:EVSHOW_HIDE_DEBUG -eq '1'); $hd.layered = -not ($app -eq 'code' -and $env:EVSHOW_CODE_REGION -eq '1')   # mode 1 for every app; EVSHOW_CODE_REGION=1 = old mode 2 for VS Code
-    switch ($app) { 'firefox' { $hd.names = @('firefox') }; 'code' { $hd.names = @('Code') }; 'wt' { $hd.names = @('WindowsTerminal', 'wt', 'OpenConsole') }; default { $hd.names = @($app) } }
-    if ($app -eq 'firefox' -or $app -eq 'code') { $hd.folder = ((Split-Path $exe -Parent).TrimEnd('\') + '\').ToLowerInvariant() }   # R5
+    $hd = New-Object Hider; $hd.want = $want; $hd.debug = ($env:EVSHOW_HIDE_DEBUG -eq '1'); $hd.layered = $true   # mode 1 for every app
+    switch ($app) { 'firefox' { $hd.names = @('firefox') }; 'wt' { $hd.names = @('WindowsTerminal', 'wt', 'OpenConsole') }; default { $hd.names = @($app) } }
+    if ($app -eq 'firefox') { $hd.folder = ((Split-Path $exe -Parent).TrimEnd('\') + '\').ToLowerInvariant() }   # R5
     if (-not $want) { 'not hidden: --title is required (a window counts as loaded only when its title holds it)'; exit 2 }   # R7
     $hd.generic = $GenericTitles
     $rc = $hd.Run($exe, $args, [int]($to * 1000))
@@ -418,7 +415,7 @@ switch ($Action) {
         [W]::PostMessage($d, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null }
       $hd.log | ForEach-Object { "hide-log: $_" }
       foreach ($h in $hd.hidden.Keys) { $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null; if ([W]::IsWindow($h) -and ($r.Rt - $r.L) -gt 300) { Register $h $want } }
-      $name = switch ($app) { 'code' { 'VS Code' } 'firefox' { 'Firefox' } default { $app } }
+      $name = switch ($app) { 'firefox' { 'Firefox' } default { $app } }
       "not hidden: $name dialog: $(if ($txt) { ($txt -replace '\s+', ' ').Trim() } else { [W]::Title($hd.dialogs[0]) })"; exit 1 }
     foreach ($kv in $hd.hidden.GetEnumerator()) { $h = $kv.Key; $t = [W]::Title($h); $tok = if ($want) { $want } else { $t }   # helper windows (never visible, no title) are cloaked too but not reported
       if ([W]::IsWindow($h) -and $t.Length -gt 0 -and ($want -eq '' -or $t.IndexOf($want, [StringComparison]::OrdinalIgnoreCase) -ge 0)) { Register $h $tok; "hidden: $([int64]$h) $($hd.Exposure($h)) $t (create $($kv.Value))" } }
@@ -427,21 +424,23 @@ switch ($Action) {
         if ([W]::IsWindow($h) -and ($r.Rt - $r.L) -gt 300) { Register $h $(if ($want) { $want } else { 'hidden' }) } }
       $seen = @($hd.hidden.Keys | Where-Object { [W]::IsWindow($_) } | ForEach-Object { [W]::Title($_) } | Where-Object { $_ } | ForEach-Object { "'$_'" }) -join ', '
       $why = switch ($rc) { 1 { "title not loaded within ${to}s (want '$want'; hidden $($hd.hidden.Count) window(s)$(if ($seen) { ": $seen" }))" } 2 { 'SetWinEventHook failed' } 3 { $hd.log[-1] } }
-      # R1: no window at all from a VS Code whose update did not finish (old_Code.exe beside Code.exe): the launch went nowhere
-      if ($rc -eq 1 -and $hd.hidden.Count -eq 0 -and $app -eq 'code' -and (Test-Path (Join-Path (Split-Path $exe -Parent) 'old_Code.exe'))) { $why = 'VS Code update pending, restart VS Code' }
       "not hidden: $why"; exit 1 }
     exit 0 }
   'me' { # me|marker : exactly one Windows Terminal window whose title holds the marker, else one whose terminal TEXT holds it (UI
     # Automation TextPattern on WT's TermControl: a tab renamed by hand ignores application titles, so win.sh also shows the marker
-    # as a tmux status message) -> "me: HWND L T W H MAX"; else "not found" + candidates (exit 1)
-    $m = @(Matches $p[0]); if ($m.Count -eq 1) { "me: $([int64]$m[0]) $(Rect $m[0]) $([int][W]::IsZoomed($m[0]))"; exit 0 }
+    # as a tmux status message) -> "me: HWND L T W H MAX". 2+ windows hold it (one tmux session attached in several terminals):
+    # the foreground one, else the topmost in z-order ([W]::All() is top to bottom), then "me: took <HWND> of <N>"; exit 0.
+    # No window holds it: "not found" + candidates (exit 1)
+    function Pick($m, $note) { $fg = [W]::GetForegroundWindow(); $h = $m[0]; foreach ($x in $m) { if ($x -eq $fg) { $h = $x } }
+      "me: $([int64]$h) $(Rect $h) $([int][W]::IsZoomed($h))$note"; if ($m.Count -gt 1) { "me: took $([int64]$h) of $($m.Count)" }; exit 0 }
+    $m = @(Matches $p[0]); if ($m.Count -ge 1) { Pick $m '' }
     if ($m.Count -eq 0) { Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
       $cw = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ClassNameProperty, 'CASCADIA_HOSTING_WINDOW_CLASS')
       $cc = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ClassNameProperty, 'TermControl')
       foreach ($w in [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $cw)) {
         foreach ($d in $w.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cc)) {
           try { $tp = $d.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern); if ($tp.DocumentRange.GetText(400000).Contains($p[0])) { $m += [IntPtr]$w.Current.NativeWindowHandle; break } } catch { } } }
-      if ($m.Count -eq 1) { "me: $([int64]$m[0]) $(Rect $m[0]) $([int][W]::IsZoomed($m[0])) (text marker)"; exit 0 } }
+      if ($m.Count -ge 1) { $z = @([W]::All() | Where-Object { $m -contains $_ }); if ($z.Count -eq $m.Count) { $m = $z }; Pick $m ' (text marker)' } }
     $c = @([W]::All() | Where-Object { $t = [W]::Title($_); $t -match 'Terminal|Ubuntu|WSL|bash|claude|tmux' })
     "not found: $($m.Count) windows hold '$($p[0])'$(if ($m.Count) { ': ' + (Holders $m) }); terminal candidates: $(Holders $c)"; exit 1 }
   'close-cloaked' { # close-cloaked|[title] : close every window this session registered (only those opened under <title>, when given) that is still cloaked (never shown).
