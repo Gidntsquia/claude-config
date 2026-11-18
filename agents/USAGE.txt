@@ -1,7 +1,10 @@
 # planner → worker → evaluator
 
-Three main-session agents. Run each with `claude --agent <name>` from the project root.
-They talk through gitignored files in `plans/`.
+Three main-session agents. Run each with `claude --agent <name>` from the project root, or from a tmux
+pane with `/run-agent <name>`, which replaces that pane's session. They talk through gitignored files in `plans/`.
+Each one ends with its next step in three lines: a sentence saying when, the `/run-agent` line, and the
+plain `claude --agent` line. The worker hands off to itself: at the usage limit `run-agent.sh --handoff`
+starts a fresh worker on its notes, and when only waiting is left it schedules its own relaunch.
 
 claude --agent planner     # "I want X." Answers a few questions.      → plans/PLAN.md (a spec)
 claude --agent worker      # builds the spec; does what you tell it     → plans/WORKER_NOTES.md
@@ -9,6 +12,17 @@ claude --agent evaluator "."      # runs checks once, shows you the app, asks  �
 claude --agent evaluator "phone"  # same, but on your phone: each item comes as a picture in the chat
 claude --agent worker      # fixes what EVAL.md lists                   (repeat)
 claude --agent planner     # only when EVAL.md says replan (big changes)
+
+/run-agent worker "."      # the same handoff from a tmux pane: replaces this pane's session
+/run-agent worker "." in 2h             # scheduled; `/run-agent jobs` lists it, `/run-agent cancel` drops it
+
+One subagent of the planner:
+
+researcher                 # settles the planner's fact list (at most three at once); findings in plans/research/
+
+One agent outside the plan loop:
+
+claude --agent assistant   # runs your tmux sessions: status, launch, send, close, retile, schedule
 
 Two side agents for study data (not part of the plan loop):
 

@@ -1,43 +1,64 @@
-# v1.2.1 — 2026-10-26
+# v1.3.0-beta.1 — 2026-11-18
 
-Installing this setup is now one sentence to Claude, and the install adds to what you already have instead of replacing it. Everything since v1.2.0 (2026-10-25) is here.
+Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. This is a pre-release for testing, and v1.2.1 stays the latest release until it's promoted.
 
 ## Highlights ✨
 
-- Paste `Install https://github.com/Gidntsquia/claude-config following its INSTALL.md` into Claude Code. Claude clones the repo to `~/.claude-config`, asks four questions (projects folder, terminal setup, status line, settings), runs the install, checks it and gives a five-step tour that ends with your first project.
-- iTerm2 no longer crashes on a Mac that isn't mine. Older installs pointed iTerm2's whole preferences at this repo, with profiles for folders only my Mac has. The install now adds one "Claude tmux" profile and undoes the old setting.
-- Your files win by default. `settings.json` is merged (your values stay, lists like `permissions.deny` are combined, the original is kept as `settings.json.pre-link`), your CLAUDE.md is left alone, and an agent or skill with the same name as one of mine stops the install so you choose: keep yours, use mine, or skip.
-- Every push runs the install on Ubuntu, macOS and Windows in GitHub Actions, in an empty `~/.claude` and in one that already has its own settings, CLAUDE.md and planner agent. `test/docker-install.sh` runs the same two cases on a fresh Ubuntu, and `test/windows-sandbox/` on a clean Windows with WSL.
-
-## Install 🧰
-
-- `install.sh` takes `--projects`, `--terminal`, `--default-profile`, `--statusline squid|plane|keep`, `--settings merge|keep|replace` and `--agent-clash keep|replace|skip` (or per name, `planner=keep`). `--theme` still works.
-- Choices are saved in `~/.claude/claude-config.json`. Running `./install.sh` with no flags reapplies them and prints "reusing saved choices".
-- `./install.sh --check` prints one PASS, FAIL or SKIP line per installed item, including `claude doctor`, the status line preview, tmux, the Windows Terminal or iTerm2 profile and the volume task, and exits 1 on any FAIL.
-- Terminal setup is a choice now. Without `--terminal` the install leaves tmux, starship, `.tmux.conf` and terminal profiles alone. With `--default-profile` it also makes the tmux profile the one new windows open with, and prints how to undo it.
-- Native Windows without WSL installs the agents, skills, settings and CLAUDE.md from Git Bash and says what it skipped (status line, tmux, terminal setup).
-- tmux-quad moved to `bin/` and opens its panes in your projects folder, falling back to your home folder.
-- No file in the repo names my home folder anymore. Windows paths come from `%USERPROFILE%` and `%LOCALAPPDATA%`, and `wsl/local-tools/win-app.sh` finds Firefox, VS Code and Windows Terminal.
+- The worker can build while you're away. It never stops on a question, writes a blocker down as the command it ran and its error, schedules its own relaunch when only waiting is left, and every agent ends with its next step.
+- `/run-agent worker` swaps the Claude session in a tmux pane for another agent, at once or at a time like `in 2h`. Agents call it through an MCP server so auto mode never blocks a handoff, and scheduled runs survive a reboot.
+- usage-guard stops a worker before it starts too many headless `claude` runs or subagents at once, or more than 30 launches a day per project. The worker sees its count after every launch, and the `guard` command shows it or lifts the limit.
+- The report-writer writes an outline before any prose, keeps each middle section on what you asked, and draws a table, split bar or pair where numbers compare. A run that can't build a report ends with one line saying what to run.
+- The defer-artifact mod keeps the Artifact tool's 38 KB schema out of every session and subagent until you ask for an artifact, when Claude loads it through ToolSearch. Measured here, a subagent's first request drops from 22,565 to 10,093 tokens.
+- The new assistant agent runs your tmux sessions from one chat. It reports where each project is, starts an agent in a free pane, answers a waiting session and schedules runs, and a guard hook keeps it away from your own panes.
 
 ## Agents 🤖
 
-- report-writer finds Playwright through `$PLAYWRIGHT_DIR`, the project's `node_modules`, your projects folder or the global npm folder, and says what to install when none has it.
-- evaluator opens Firefox and VS Code through `win-app.sh`, and helper starts your first project in your projects folder, instead of using paths from my PC.
+- When a requirement depends on a fact the planner can't know, it sends the question to up to three `researcher` subagents at once and saves their findings in `plans/research/`.
+- There is one planner again. planner-fix10's prompt is now `planner.md`, and the planner-fix10 and planner-fix32 variants are deleted.
+- When a command is denied, the worker writes it under `## Denied` in `plans/WORKER_NOTES.md` and tries two other routes before it calls the step blocked. Its last message never ends on a question.
+- The worker gets reports from the report-writer through `skills/write-report/SKILL.md` and reruns the writer on what its last line names.
+- On the desktop the evaluator opens every item hidden first, asks "Ready for me to move windows and start?", and shows each item when its question comes up. `plans/EVAL.md` quotes a `no-flash:` line saying whether any window showed early.
+- The evaluator opens files as pages in Firefox, a `.md` rendered and anything else as numbered text, and no longer opens VS Code.
+- A worker's subagents run as `helper` on Sonnet, except the report-writer, which stays on Opus.
+
+## run-agent 🔁
+
+- The run-agent MCP server has five tools (`next`, `schedule`, `handoff`, `jobs`, `cancel`) that auto mode allows by rule. The agents use them and keep the Bash form as the fallback.
+- A typed `/run-agent` costs no tokens: a hook runs it in place of a model turn.
+- A `/run-agent` line runs without a confirm question. Add `confirm` to be asked first.
+- Time phrases like `tomorrow at 1am`, `in 2 hours 10 min` and `two hours before the window` are read without a model, and the scheduled line says how the time was worked out.
+- `+` joins runs into one new tmux window, tiled side by side, and `window` or `split` opens one agent in a new window.
+- Scheduled runs survive a reboot or WSL restart. A run that came due while the machine was off is skipped and logged.
+- `run-agent jobs` shows each runner's state and the runs that failed since you last looked, and `run-agent clean` deletes job files older than 30 days.
+- `test.sh` can no longer touch a live tmux pane.
+
+## Install 🧰
+
+- `install.sh` registers the run-agent MCP server for every session, and `--check` has a line for it and one for the assistant. When `claude` isn't on PATH it prints the `claude mcp add` command to run later.
+- `install.sh` links `run-agent` and `guard` into `~/.local/bin` and installs the usage-guard and `/run-agent` hooks with the settings merge.
+- A settings merge into a `settings.json` that already has its own `hooks` keeps your hooks and adds the repo's, and the install test covers that case.
+- The install workflow on Ubuntu, macOS and Windows runs when a release is published.
 
 ## Settings ⚙️
 
-- The default model in `settings.json` is Sonnet. With the merge, your own `model` stays.
-- `UPDATING.md` finds the clone through `~/.claude/claude-config.json`, so it works when `settings.json` is merged rather than linked.
+- `settings.json` allows six narrow run-agent Bash rules and `mcp__run-agent__*`, so auto mode never sends a run-agent call to the classifier. The installed copy names your clone's own path in those rules.
+- `autoMode.allow` keeps Claude Code's defaults and adds one sentence describing run-agent.
 
 ## Known issues
 
+- This is a pre-release under test. UPDATING.md's step 3 skips it, so set `TAG=v1.3.0-beta.1` by hand to install it.
+- usage-guard needs Claude Code 2.1.296 or newer and defer-artifact needs 2.1.293 or newer. Run `claude update` first.
+- A session's first second or two can start before the run-agent MCP server connects. The agents use the Bash form then.
+- With `--agent-clash keep`, the repo's assistant is installed as a copy outside the clone and can't find its MCP server. Use `--agent-clash replace` or `skip` for it.
 - The Windows Sandbox test needs nested virtualization for WSL inside the Sandbox, which some PCs don't have.
 
 ## Agent versions 📄
 
-- planner.md at 19ecb18 (2026-10-23)
-- worker.md at 8206204 (2026-10-24)
-- evaluator.md at 36b2e06 (2026-10-26)
-- helper.md at 36b2e06 (2026-10-26)
-- report-writer.md at 36b2e06 (2026-10-26)
-- report-checker.md at 06a0875 (2026-10-25)
+- planner.md at 751a899 (2026-11-17)
+- worker.md at a839db2 (2026-11-18)
+- evaluator.md at a839db2 (2026-11-18)
+- helper.md at 723ebb1 (2026-11-09)
+- report-writer.md at 8c5b81a (2026-11-09)
+- report-checker.md at 81cd4b6 (2026-11-06)
+- researcher.md at 238bb09 (2026-11-18)
+- assistant.md at 238bb09 (2026-11-18)
