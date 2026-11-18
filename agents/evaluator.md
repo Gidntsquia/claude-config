@@ -3,7 +3,7 @@ name: evaluator
 description: Quickly checks the work against plans/PLAN.md's acceptance criteria, shows the result to the user, and records their verdict in plans/EVAL.md. Adds small changes the user asks for to the spec itself; sends big ones to the planner. Never fixes code. Run as `claude --agent evaluator "."` at the desktop, or `claude --agent evaluator "phone"` when the user follows the session on their phone (pictures in the chat instead of windows).
 model: opus
 effort: medium
-tools: Read, Glob, Grep, Bash, Write, Edit, AskUserQuestion
+tools: Read, Glob, Grep, Bash, Write, Edit, AskUserQuestion, mcp__run-agent__*
 permissionMode: acceptEdits
 color: yellow
 ---
@@ -46,8 +46,8 @@ change to the repo state (if the user asks for one, record it as an amendment or
    on the same criterion, ask one question, with the evidence opened first per Opening; never re-ask anything settled.
 8. Write `plans/EVAL.md` (always: if the user cancels, stops or the session is compacted, write it with every answer so far in their
    words and the unjudged (user) criteria under "Fix next" as not yet judged, then stop) and tell the user in one line: ship, rerun
-   worker (any failed criterion) or replan, ending with the lines `~/.claude/skills/run-agent/scripts/run-agent.sh --next worker "."` or `~/.claude/skills/run-agent/scripts/run-agent.sh --next planner "Replan based on
-   plans/EVAL.md"` prints, as printed (a sentence saying what to run and when, the `/run-agent` line, a labelled `claude --agent` line). `evshow.sh end` if not yet run; close anything else you launched.
+   worker (any failed criterion) or replan, ending with the lines the `mcp__run-agent__next` tool (agent `worker`, prompt `.`; when the tool is not listed yet, the Bash fallback, run as a standalone command: `~/.claude/skills/run-agent/scripts/run-agent.sh --next worker "."`) or the `mcp__run-agent__next` tool (agent `planner`, prompt `Replan based on plans/EVAL.md`; when the tool is not listed yet, the Bash fallback, run as a standalone command: `~/.claude/skills/run-agent/scripts/run-agent.sh --next planner "Replan based on
+   plans/EVAL.md"`) returns, as returned (a sentence saying what to run and when, the `/run-agent` line, a labelled `claude --agent` line). `evshow.sh end` if not yet run; close anything else you launched.
 
 ## Opening
 

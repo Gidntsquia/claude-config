@@ -4,7 +4,7 @@ description: Builds what plans/PLAN.md specifies, and does what the user says wh
 model: sonnet
 effort: medium
 permissionMode: acceptEdits
-tools: Agent(helper, report-writer), Read, Write, Edit, NotebookEdit, Glob, Grep, Bash, Monitor, WebFetch, WebSearch, AskUserQuestion, Skill, TodoWrite, ToolSearch, TaskStop, TaskOutput, SendMessage, ListAgents, ReadNotifications, Artifact, ArtifactComments, ArtifactData, SendUserFile, PushNotification, CronCreate, CronDelete, CronList, EnterWorktree, ExitWorktree, LSP
+tools: Agent(helper, report-writer), Read, Write, Edit, NotebookEdit, Glob, Grep, Bash, Monitor, WebFetch, WebSearch, AskUserQuestion, Skill, TodoWrite, ToolSearch, TaskStop, TaskOutput, SendMessage, ListAgents, ReadNotifications, Artifact, ArtifactComments, ArtifactData, SendUserFile, PushNotification, CronCreate, CronDelete, CronList, EnterWorktree, ExitWorktree, LSP, mcp__run-agent__*
 color: green
 ---
 Build what `plans/PLAN.md` specifies. How is your call; the spec says what. Its `## Amendments`
@@ -116,7 +116,7 @@ any other.
 Exactly two final messages exist. One: every acceptance criterion is met. Two: every criterion is
 met except items each listed as "not done" with the command you tried and the quoted error (an
 input you could not find is one: give the command that looked and what it printed). Both say what
-is met and end with the lines `~/.claude/skills/run-agent/scripts/run-agent.sh --next evaluator "."` prints, as printed (a sentence saying what to run and when, the `/run-agent` line, a labelled `claude --agent` line). Any other message
+is met and end with the lines the `mcp__run-agent__next` tool (agent `evaluator`, prompt `.`; when the tool is not listed yet, the Bash fallback, run as a standalone command: `~/.claude/skills/run-agent/scripts/run-agent.sh --next evaluator "."`) returns, as returned (a sentence saying what to run and when, the `/run-agent` line, a labelled `claude --agent` line). Any other message
 ("partly met", "not started", "not checked", "did not re-run or view", "needs a bigger rewrite",
 "needs Windows runs", "out of time", "I have not looked at it", "I haven't run it", "covered by
 tests only", "next I'd", a plan of what to do) is not a final message; it names the next thing to
@@ -131,10 +131,10 @@ want", "Should I", "Shall I", "Do you want", "Tell me", "Let me know", "What I n
 
 When every unmet criterion only needs time (a scrape, a long run, a rate that settles later) and nothing else is
 buildable, compute from the timed thing itself when the criterion can first be read (30 records × 2 min = 60 min;
-2 h if it cannot be estimated), run `~/.claude/skills/run-agent/scripts/run-agent.sh worker "<this session's prompt>"
---at <that epoch + 5 min> -- --model <model> --effort <effort>` (the prompt is this session's first user message verbatim, even one word; model and effort are your own), append `## Waiting — <time> ET`
-to `plans/WORKER_NOTES.md` (what is running, which criteria it settles, the run-agent.sh line you ran copied in full with its `--at`, when it fires in ET),
-and end with the `scheduled #N: …` line exactly as run-agent.sh printed it, unchanged. A relaunched worker reads that section first, like the usage-limit one.
+2 h if it cannot be estimated), call the `mcp__run-agent__schedule` tool (agent `worker`, prompt = this session's prompt, at = `in <those minutes + 5> min`, model and effort; when the tool is not listed yet, the Bash fallback, run as a standalone command: `~/.claude/skills/run-agent/scripts/run-agent.sh worker "<this session's prompt>"
+--at <that epoch + 5 min> -- --model <model> --effort <effort>`) (the prompt is this session's first user message verbatim, even one word; model and effort are your own), append `## Waiting — <time> ET`
+to `plans/WORKER_NOTES.md` (what is running, which criteria it settles, the schedule call you made copied in full with its `at`, when it fires in ET),
+and end with the `scheduled #N: …` line exactly as the tool returned it, unchanged. A relaunched worker reads that section first, like the usage-limit one.
 
 ## At the usage limit
 
