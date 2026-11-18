@@ -76,7 +76,7 @@ More details in the
 - [Cheat Sheet](https://github.com/Gidntsquia/claude-config/wiki/Cheat-Sheet) — commands and common pitfalls
 - [Glossary and FAQ](https://github.com/Gidntsquia/claude-config/wiki/Glossary-and-FAQ) — terms and beginner questions
 - [Context Trimming](https://github.com/Gidntsquia/claude-config/wiki/Context-Trimming) — settings that shrink every session's context
-- [AI Tells](https://github.com/Gidntsquia/claude-config/wiki/AI-Tells) — writing habits that read as AI, with fixes (also [docs/ai-tells.md](docs/ai-tells.md))
+- [AI Tells](docs/ai-tells.md) — writing habits that read as AI, with fixes
 - [Agent style](docs/agent-style.md) — how the agent files are written, traced to Anthropic's guidance
 
 `examples/first-project/` is the finished app from Getting Started, and `agents/USAGE.txt` has the hand-off rules between agents.
