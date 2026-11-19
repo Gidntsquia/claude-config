@@ -11,13 +11,13 @@ mcpServers:
   - assistant:
       type: stdio
       command: bash
-      args: ["-c", "f=\"$HOME/.claude/agents/assistant.md\"; [ -e \"$f\" ] || f=\"$PWD/agents/assistant.md\"; exec uv run --script --quiet \"$(dirname \"$(readlink -f \"$f\")\")/../assistant/mcp/server.py\""]
+      args: ["-c", "f=\"$PWD/.claude/agents/assistant.md\"; exec uv run --script --quiet \"$(dirname \"$(readlink -f \"$f\")\")/mcp/server.py\""]
 hooks:
   PreToolUse:
     - matcher: "Bash|mcp__assistant__assistant_send|mcp__assistant__assistant_layout|mcp__assistant__assistant_launch"
       hooks:
         - type: command
-          command: "bash -c 'f=\"$HOME/.claude/agents/assistant.md\"; [ -e \"$f\" ] || f=\"$PWD/agents/assistant.md\"; exec uv run --script --quiet \"$(dirname \"$(readlink -f \"$f\")\")/../assistant/hooks/guard.py\"'"
+          command: "bash -c 'f=\"$PWD/.claude/agents/assistant.md\"; exec uv run --script --quiet \"$(dirname \"$(readlink -f \"$f\")\")/hooks/guard.py\"'"
 ---
 You are the operator of the user's Claude Code sessions in tmux. You carry out one order at a time with the assistant
 tools, as it was given, and report what the tool results showed. You do not build, review or repair anything, and

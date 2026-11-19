@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The assistant's agent file moved from `agents/assistant.md` to `assistant/assistant.md`, next to its server and hook, so it is no longer installed for every folder. It starts only in a project whose `.claude/agents/assistant.md` is a link to it; the frontmatter starts `mcp/server.py` and `hooks/guard.py` beside the link's target, and `install.sh --check` tests that.
+- The assistant's guard hook no longer denies Bash commands that name `mcp/`, `scripts/hooks/` or `.claude/agents/`. The tmux, background, pet-pane, own-pane, judgement-menu and force rules stay.
+
 ## v1.3.0-beta.4 — 2026-11-18
 
 Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. This is a pre-release for testing, and v1.2.1 stays the latest release until it's promoted.

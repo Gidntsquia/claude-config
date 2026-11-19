@@ -23,6 +23,8 @@ researcher                 # settles the planner's fact list (at most three at o
 One agent outside the plan loop:
 
 claude --agent assistant   # runs your tmux sessions: status, launch, send, close, retile, schedule
+                           # lives in assistant/ (not agents/): starts only in a project whose
+                           # .claude/agents/assistant.md links to <clone>/assistant/assistant.md
 
 Two side agents for study data (not part of the plan loop):
 

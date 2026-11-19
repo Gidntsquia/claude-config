@@ -191,13 +191,13 @@ if [ -n "$CHECK" ]; then
       else fail "agent $a: $C/agents/$a.md missing"; fi
     done
   fi
-  # the assistant agent starts its MCP server and guard hook from ../assistant/ next to the agent file's real path
-  if [ -f "$R/agents/assistant.md" ]; then
-    af="$C/agents/assistant.md"; [ -e "$af" ] || af="$C/agents/assistant-claude-config.md"
-    ad="$(dirname "$(resolve "$af" 2>/dev/null)")/../assistant"
-    if [ -e "$af" ] && [ -f "$ad/mcp/server.py" ] && [ -f "$ad/hooks/guard.py" ]; then pass "assistant agent (MCP server and guard hook in $(cd "$ad" && pwd -P))"
-    elif [ -e "$af" ]; then fail "assistant agent: $af does not resolve into $R/agents, so its MCP server and guard hook are not found (rerun install.sh with --agent-clash replace)"
-    else skip "assistant agent not installed"; fi
+  # the assistant agent lives in assistant/ (not agents/, so it is not installed for every folder); a project links
+  # its .claude/agents/assistant.md to it, and the frontmatter starts mcp/server.py and hooks/guard.py next to the real file
+  if [ -f "$R/assistant/assistant.md" ]; then
+    ad="$R/assistant"; am="$(grep -c -F '$(readlink -f \"$f\")\")/mcp/server.py' "$ad/assistant.md")"; ah="$(grep -c -F '$(readlink -f \"$f\")\")/hooks/guard.py' "$ad/assistant.md")"
+    if [ -e "$C/agents/assistant.md" ] || [ -L "$C/agents/assistant.md" ]; then fail "assistant agent: $C/agents/assistant.md exists, so it starts in every folder (remove it; the agent is linked into one project from $ad/assistant.md)"
+    elif [ "$am" = 1 ] && [ "$ah" = 1 ] && [ -f "$ad/mcp/server.py" ] && [ -f "$ad/hooks/guard.py" ]; then pass "assistant agent (agent file, MCP server and guard hook in $(cd "$ad" && pwd -P); starts only where a project links it)"
+    else fail "assistant agent: the frontmatter of $ad/assistant.md does not resolve to $ad/mcp/server.py and $ad/hooks/guard.py"; fi
   fi
   for s in $(repo_skills); do
     if in_clone "$C/skills/$s" "$R/skills/$s"; then pass "skill $s"

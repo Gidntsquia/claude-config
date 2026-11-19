@@ -15,19 +15,19 @@ that line), exits 0 to allow.
      unless confirmed=True, which the agent sets after an AskUserQuestion yes or a standing order (stop asking before restarts).
   d. assistant_launch(force=True) without confirmed=True: an occupied pane is taken only on purpose.
   e. Bash: a tmux subcommand other than list-*, display-message and capture-pane (reading is allowed, changing goes
-     through the assistant tools); a command naming this repo's mcp/, scripts/hooks/ or .claude/agents/ (the operator
-     does not read or edit its own server, hook or agent file); run_in_background (no watch scripts). Each reason
-     names the assistant tool that does the job.
+     through the assistant tools); run_in_background (no watch scripts). Each reason names the assistant tool that
+     does the job.
 
-Pane facts come from mcp/server.py's list_panes (the same tmux server the tool will use), imported from the file next
-to this script's repo; nothing is typed or changed here. ASSISTANT_GUARD_LOG=<path> appends one line per decision."""
+Pane facts come from ../mcp/server.py's list_panes (the same tmux server the tool will use), found from this file's
+real location, so a run through a link behaves the same; nothing is typed or changed here. ASSISTANT_GUARD_LOG=<path>
+appends one line per decision."""
 import importlib.util
 import json
 import os
 import re
 import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.realpath(__file__))   # the real file, also when run through a link
 SERVER = os.path.join(HERE, "..", "mcp", "server.py")
 
 
@@ -55,7 +55,6 @@ def truthy(v) -> bool:
     return v is True or (isinstance(v, str) and v.lower() in ("true", "1", "yes"))
 
 
-REPO = os.path.realpath(os.path.join(HERE, "..", ".."))
 TMUX_READ = {"display-message", "display", "capture-pane", "capturep", "ls", "lsp", "lsw", "lsc", "lsb", "lsk", "lscm"}
 TMUX_TOOL = [
     (("send-keys", "send", "send-prefix", "paste-buffer", "pasteb", "set-buffer", "setb", "load-buffer", "loadb"),
@@ -70,7 +69,6 @@ TMUX_TOOL = [
 ]
 # tmux where a command starts: the start of the line, after a separator, an opening quote of `bash -c`, or a wrapper word
 TMUX_AT = re.compile(r"""(?:^|[;&|(){}`\n]|["'])\s*(?:(?:exec|command|sudo|env|nohup|time|xargs(?:\s+-\S+)*)\s+)*(?:[\w/.~$-]*/)?tmux(?=\s|$|["'`;&|)])""", re.M)
-PATH_PART = re.compile(r"""([^\s"'`=:;|&()<>,]*?)(?<![\w-])(mcp/|scripts/hooks/|\.claude/agents/|mcp(?=[\s"'`;|&)]|$)|scripts/hooks(?=[\s"'`;|&)]|$)|\.claude/agents(?=[\s"'`;|&)]|$))""")
 
 
 def tmux_denial(cmd: str) -> str:
@@ -104,38 +102,12 @@ def tmux_denial(cmd: str) -> str:
     return ""
 
 
-def repo_denial(cmd: str, cwd: str) -> str:
-    """'' unless `cmd` names this repo's mcp/, scripts/hooks/ or .claude/agents/ (or the installed agent file)"""
-    home = os.path.expanduser("~")
-    for m in PATH_PART.finditer(cmd):
-        pre, part = m.group(1), m.group(2).rstrip("/")
-        pre = pre.replace("${HOME}", home).replace("$HOME", home)
-        pre = os.path.expanduser(pre)
-        if "$" in pre:
-            continue
-        if not os.path.isabs(pre):
-            if not cwd:
-                continue
-            pre = os.path.join(cwd, pre)
-        hit = os.path.realpath(os.path.join(pre, part))
-        if part == ".claude/agents":
-            f = os.path.realpath(os.path.join(pre, part, "assistant.md"))
-            ok = not (f == os.path.join(REPO, ".claude", "agents", "assistant.md") or hit == os.path.join(REPO, ".claude", "agents"))
-        else:
-            ok = hit != os.path.join(REPO, part)
-        if not ok:
-            return (f"blocked: the command names {m.group(0)!r}, the operator's own {('server' if part == 'mcp' else 'hook' if part == 'scripts/hooks' else 'agent file')}; "
-                    f"it is not read, run or edited from the shell. Use assistant_panes for what is on the panes, and report a tool "
-                    f"result that looks wrong to the user as it came back")
-    return ""
-
-
 def guard_bash(data: dict, inp: dict) -> None:
     cmd = str(inp.get("command") or "")
     if truthy(inp.get("run_in_background")):
         block("blocked: no background commands and no watch scripts. Nothing runs between the user's messages; a step for "
               "later is booked with assistant_schedule, and the state is read again with assistant_panes on the next order")
-    why = tmux_denial(cmd) or repo_denial(cmd, str(data.get("cwd") or ""))
+    why = tmux_denial(cmd)
     if why:
         block(why)
     _log("allow bash " + cmd[:200])
