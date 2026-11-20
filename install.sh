@@ -262,7 +262,7 @@ PYEOF
       *) fail "run-agent allow rule missing: ${rules#MISSING } (rerun install.sh)" ;;
     esac
     # the PermissionDenied hook logs denials for one week (denied-until), then the helper review job removes it
-    until_d=$(sed -n 's/^denied-until: //p' "$C/run-agent/denied-until" 2>/dev/null | head -n1)
+    until_d=$(sed -n 's/^denied-until: //p' "$C/run-agent/denied-until" 2>/dev/null | head -n1) || true
     if "$PY" -c 'import json,sys; s=json.load(open(sys.argv[1])); sys.exit(0 if any("--denied" in x.get("command","") for h in s.get("hooks",{}).get("PermissionDenied",[]) for x in h.get("hooks",[])) else 1)' "$C/settings.json" 2>/dev/null; then
       if [ -n "$until_d" ] && [ "$(date +%Y-%m-%d)" \> "$until_d" ]; then
         fail "PermissionDenied hook still in settings.json after $until_d (review $C/run-agent/denied.log, remove the hook and denied-until)"
