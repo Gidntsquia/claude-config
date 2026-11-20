@@ -1,0 +1,65 @@
+== uv run pytest (as written)
+error: Failed to spawn: `pytest`
+  Caused by: No such file or directory (os error 2)
+rc=0
+== uv run --with pytest -v
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0 -- /home/jaxon/.cache/uv/builds-v0/.tmp1stFXA/bin/python
+cachedir: .pytest_cache
+rootdir: /home/jaxon/files/claude-config
+collecting ... collected 9 items
+
+skills/weekly-roundup/tests/test_gather_data.py::test_first_run_one_entry PASSED [ 11%]
+skills/weekly-roundup/tests/test_gather_data.py::test_rerun_equals_single_run PASSED [ 22%]
+skills/weekly-roundup/tests/test_gather_data.py::test_rerun_drops_own_feature_links_keeps_other PASSED [ 33%]
+skills/weekly-roundup/tests/test_gather_data.py::test_dangling_feature_link_warns_and_drops PASSED [ 44%]
+skills/weekly-roundup/tests/test_gather_data.py::test_same_hostname_different_person_errors PASSED [ 55%]
+skills/weekly-roundup/tests/test_gather_data.py::test_two_hostnames_same_person_stay_two PASSED [ 66%]
+skills/weekly-roundup/tests/test_gather_data.py::test_legacy_entry_without_hostname_matched PASSED [ 77%]
+skills/weekly-roundup/tests/test_gather_data.py::test_shared_project_keeps_other_machine PASSED [ 88%]
+skills/weekly-roundup/tests/test_gather_data.py::test_rewrite_lists_authored PASSED [100%]
+
+============================== 9 passed in 3.27s ===============================
+== check.py
+PASS S1: root@machine-a total FE == 532000
+PASS S1: root@machine-b total FE == 723200
+PASS S2: root@machine-a total FE == 532000
+PASS S2: root@machine-b total FE == 723200
+PASS S3: root@machine-a total FE == 532000
+PASS S3: root@machine-b total FE == 723200
+PASS S4: exactly one roundup-data block
+PASS S4: pool devices length is 1
+PASS S4: hostname field == machine-a
+PASS S4: sessions == 3
+PASS S4: total FE == 532000
+PASS S4: alpha-app commits == 3
+PASS S4: one deep-dive card for alpha-app
+PASS S4: no card title repeated
+PASS S4: one Data sources row for machine-a
+PASS S4: no duplicated Things-fixed id
+PASS S4: no duplicated Things-fixed text
+PASS S4: authored.projects.alpha-app == machine-a
+PASS S4: every Things-fixed id is authored by machine-a
+PASS S4: second-run log says it replaced this machine's earlier data
+PASS S4: test archive lists the week once
+FAIL count: 0
+== grep rewrite SKILL
+92:the user, and do not work around it. On a rerun the output has `rewrite` (`hostname`,
+152:**Rerun (the output has `rewrite`):** for every project in `rewrite.projects`, rewrite the
+155:`rewrite.fixed`. Cards and entries owned by other hostnames are kept verbatim. Numbers and colors
+166:replaces the `roundup-data` block; rerun it after any later edit that rewrites the page).
+== authored in S4 page
+roundup-data blocks: 1
+authored: {"projects": {"alpha-app": "machine-a"}, "fixed": {}}
+devices: ['root@machine-a'] ['machine-a']
+== replaced msg in logs
+skills/weekly-roundup/tests/out/S4/a-2.log
+skills/weekly-roundup/tests/out/S4/fetch.log
+skills/weekly-roundup/tests/out/S4/a.log
+skills/weekly-roundup/tests/out/S4/fetch-archive.log
+skills/weekly-roundup/tests/out/S4/a-2.log:replaced this machine's earlier data from 2026-10-11 20:19.[K
+skills/weekly-roundup/tests/out/S4/a-2.log:replaced this machine's earlier data from 2026-10-11 20:19.[K
+skills/weekly-roundup/tests/out/S4/a-2.log:replaced this machine's earlier data from 2026-10-11 20:19.[K
+== rewrite in logs
+== test file net/docker refs
+-rw-r--r-- 1 jaxon jaxon 7514 Oct 11 16:04 skills/weekly-roundup/tests/test_gather_data.py

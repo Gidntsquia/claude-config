@@ -1,0 +1,3 @@
+- When the user says they are on their phone, show phone-sized PNGs in the chat instead of desktop windows.
+- On the phone, put a banner with the report label and page ("REPORT A - 1 of 8") on each PNG and show one report fully before the next; unlabeled cards got mixed up.
+- Show terminal programs and test runs as screenshots of a real terminal (tmux), not as rendered log text.

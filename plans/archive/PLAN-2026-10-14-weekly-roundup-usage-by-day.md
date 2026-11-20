@@ -1,0 +1,64 @@
+# Spec: weekly-roundup — usage-by-day stacked bar chart, per-week and across the archive, with a wider two-person palette and stable project colors
+
+## Ask
+"I want the /weekly-roundup skill to track usage over time, with a bar chart of usage by day. I want the bars in the chart to be split by project with the same color scheme each project has in the pie chart. Also, for now, we just have two people adding usage—I want to expand the range of colors for the two options (currently, the colors look too similar, especially with how many projects I, Jaxon, am making)"
+
+Answers (round 1): bar measure = "Weekly cap % (Recommended)"; scope = "Both" (7-day chart on each week page + all-weeks daily chart on the archive); colors = "Full hue halves, 12 shades each"; how to tell it's right = "Bars sum to pie", "Spot-check a day against transcripts", "Modify this last week's artifact in place-- I'll check to see if it looks good or not".
+Answers (round 2): archive data = "Add per-day data to each week's archive entry"; recolor = "Only weeks rebuilt from now on" + "Also this last week's page now" + "Keep a project's color stable across weeks"; bar layout = "Biggest-at-bottom per day"; edges = "Empty bar, calendar-day boundary in local time".
+
+## What to build
+Extend `skills/weekly-roundup/` (gather_data.py, embed_pool.py, build_archive.py, archive_template.html, SKILL.md, tests) so every run also computes usage per local calendar day, split by project × person, in weekly-cap %; each week page gets a 7-bar stacked chart under the pies, and the Roundup Archive gets one continuous day-by-day stacked chart across every week that carries `days`. Segment colors are the pie's colors. Replace the 6-accent per-person palettes with 12-shade warm/cool halves and make a project keep its accent across weeks via a stored map. Then rerun last week (Oct 4–11, weekStart 2026-10-04) in place so Jaxon can judge it.
+
+## Facts
+- Verified in gather_data.py: every usage record has a `timestamp`; session usage is tallied per message with dedup by `(msg_id, model)`, so per-day splitting needs no new data source. `PERSON_PALETTES` has 6 accents each (warm/cool/berry/earth), assigned `accents[i % 6]` by usage rank within a person; `SOLO_PALETTE` (12 colors) is used with one person.
+- Verified: archive_weeks.json entries hold only `weekStart, label, url, projectCount, totalCost, slices`; build_archive.py copies exactly `KEYS` and reads `weeks-data` from the published archive via `--base`. Past weeks have no per-day data.
+- Verified: pool lives in the week page's `roundup-data` block; `state.json` holds `person`, `archive_url`, `last_cap_usage_pct`.
+- Daily cap % basis: a day's segment = that day's FE tokens for the project×person ÷ `implied_cap_fe` × 100, the same denominator as `weekly_pct` (default).
+
+## Requirements
+1. (user) gather_data.py output gains `days`: a list of exactly 7 entries, Sunday through Saturday of the chosen week, each `{date: YYYY-MM-DD, label: "Sun"|…|"Sat", segments: [{project, person, color, pct}], total_pct}`. Days are local calendar days (midnight boundaries); usage between the week's opening Sunday 22:00 and midnight counts as that Sunday; usage after the closing Sunday 22:00 is outside the week. A day with no usage has `segments: []`, `total_pct: 0`.
+2. (user) `pct` is weekly-cap %, the same basis as `weekly_pct`: summing a project×person's `pct` over the 7 days equals that pie slice's `pct` (±0.1 after rounding), and the sum of all `total_pct` equals the used share of the cap (100 − `unused_pct`, ±0.1). Misc usage appears as "Misc" segments per person, same as the pie.
+3. (user) Each segment's `color` is identical to the `pie_slices` entry for the same project×person (Misc uses the person's `misc` gray). No separate color table.
+4. (user) Within each day, segments are ordered largest `pct` first (drawn bottom-up, so the biggest sits at the bottom). Ties keep pie order.
+5. (user) Pooling: `days` is computed from the merged pool (all machines), recomputed on every run, and stored in `roundup-data` by embed_pool.py like the rest of the pool. Shared sessions count once per day.
+6. (user) Week page: a new block `<div class="barchart-wrap">` titled "Usage by day" placed after the "Usage by model" pie and before `.total-cost` (desktop: in the right column, under the second pie). Pure HTML/CSS (no chart library): 7 equal-width columns labeled Sun…Sat, bar height = `total_pct` against a shared y-axis whose max is the tallest day rounded up to the next 5%; faint horizontal gridlines every 5% with the % printed on the left; each segment a `div` with `title="<project> · <person> · <pct>%"` (hover shows it). Empty days render an empty slot with the label.
+7. (default) The week-page chart has no legend of its own; a one-line caption under it reads "Colors match the projects pie above." If the pool has one person, segments and titles omit the person name.
+8. (user) Archive: each week's entry in `weeks-data` / archive_weeks.json gains `days` (same shape as R1, including each segment's color); `KEYS` in build_archive.py includes it. The week JSON passed via `--add` must carry `days` from the run output. Entries without `days` (old weeks) are left as-is.
+9. (user) Archive page gets a section "Usage by day" above the week gallery: one continuous stacked bar chart, one column per calendar day from the earliest week that has `days` to the latest, in order, same drawing rules as R6 (biggest-at-bottom, shared y-axis, hover titles). Weeks without `days` show as 7 empty columns with a faint "no daily data" marker spanning them. X-axis prints the week label (e.g. "Oct 4–11") once under each week's 7 columns; a thin vertical rule separates weeks. The chart scrolls horizontally when wider than the page; the newest week is in view on load.
+10. (user) Palette: `PERSON_PALETTES[0]` ("warm", Jaxon as first person seen) becomes 12 accents spanning the warm half of the wheel (reds, oranges, ambers, yellows, pinks, magentas, browns), `PERSON_PALETTES[1]` ("cool") 12 accents spanning the cool half (blues, teals, cyans, greens, indigos, violets). Adjacent accents in each list differ clearly in hue or lightness (no two with hue within 15° and lightness within 10% of each other); the two lists share no hue range. Each list stays readable as a swatch on both the light and dark themes. berry/earth stay 6-accent fallbacks for a third/fourth person. `main` and `misc` keep their roles. Document the halves in SKILL.md where the schemes are described (currently "warm reds/oranges … cool blues/greens").
+11. (user) Stable project colors: a new `project_colors.json` in the skill directory maps `<person>|<project key>` → accent, where project key is the GitHub remote URL when present, else the repo folder name. On each run, a project×person that is in the map reuses its accent; a new one takes the first accent of that person's palette not already used by any of that person's projects this week (then the least-used accent in the map, then cycles), and is written to the map. The map is also embedded in `roundup-data` and merged on joining runs (page's map ∪ local map, page wins on conflict) so other machines see the same assignments. The solo palette (one person in the pool) uses the same mechanism with key prefix `solo|`.
+12. (user) Switching from solo to two-person palettes (second person joins) assigns fresh colors from the person's half; the solo assignments stay in the map for solo weeks.
+13. (user) Tests: `tests/test_gather_data.py` covers R1–R5 and R10–R11 (fixture sessions spanning the 22:00 sliver, a midnight-crossing session, an empty day, two people, a joining run reusing a mapped color, a 13th project cycling). `tests/check.py`/`expected.json` updated if they assert output keys.
+14. (user) SKILL.md: step 4 structure gains the "Usage by day" block (R6–R7), step 5 the archive `days` field and chart (R8–R9), the palette description (R10) and the color map (R11); the desktop layout list names `.barchart-wrap` in `.projects` after the second `.piechart-wrap`. Archive template and build_archive changes are self-contained so a run on another machine rebuilds the archive identically from `--base`.
+15. (user) After the code changes, rerun the skill for last week (weekStart 2026-10-04, Oct 4–11) as a rerun on this machine per SKILL.md (joining run, `--pool-in` the existing page, keep the stored cap_pct): the page gets the new chart, the new palette, stable-color map entries, and the archive entry gains `days` and the archive page shows the chart. Report the per-project day sums vs pie slices and one hand-spot-checked day (pick the busiest day, tally one project's jsonl usage for that day) in the reply so Jaxon can judge the page.
+16. (default) All numbers are the script's; the page never recomputes percentages in JS. Rounding to 2 decimals in JSON, 1 decimal in hover text.
+
+## Constraints
+- Stack as in the repo: Python 3 scripts run with `python3`, no new dependencies; HTML/CSS matching the existing Podium visual language (Barlow Condensed / Source Sans 3, light/dark tokens); tests with pytest via `uv run`.
+- Only files under `skills/weekly-roundup/` change (plus `state.json`/`archive_weeks.json`/new `project_colors.json` as data). Don't change the week boundary (Sunday 22:00) or any existing output field.
+- The artifact rerun (R15) follows SKILL.md exactly; never publish a new artifact for a listed week.
+
+## Acceptance criteria
+- [ ] R1–R2: run gather_data.py on the test fixtures; output has 7 `days`, Sun–Sat; per project×person day sums equal pie `pct` ±0.1; `total_pct` sums to 100 − `unused_pct` ±0.1.
+- [ ] R1: a fixture message at Sunday 22:30 lands in Sunday's bar; one at Monday 00:10 in Monday's.
+- [ ] R3–R4: every segment color string equals its pie slice's color; each day's segments are sorted by pct descending.
+- [ ] R5: a joining run with two devices sharing a session shows that session's tokens once in `days`; `roundup-data` block contains `days`.
+- [ ] R6–R7: last week's page shows "Usage by day" between the model pie and the total cost, 7 labeled columns, gridlines at 5% steps, hover title on a segment reads "project · person · x.x%"; caption present.
+- [ ] R8–R9: archive page shows the day chart above the gallery; weeks before Oct 4 render as empty columns with the marker; Oct 4–11 columns colored; chart scrolls, newest week visible on load.
+- [ ] R10: `PERSON_PALETTES[0]` and `[1]` each have 12 accents; a test asserts the hue/lightness separation and disjoint hue ranges; SKILL.md text updated.
+- [ ] R11–R12: `project_colors.json` exists after the rerun with one entry per project×person; a second run of the same fixtures yields identical accents; a 13th fixture project gets a color without error.
+- [ ] R13: `uv run pytest skills/weekly-roundup/tests` passes.
+- [ ] R14: SKILL.md diff covers chart, archive, palette, map and the desktop layout line.
+- [ ] R15: Oct 4–11 artifact updated in place (same URL), archive entry has `days`, reply lists day-sum vs pie comparison and the spot-check; Jaxon judges the look.
+- [ ] R16: no `%` arithmetic in page JS beyond bar heights from the given numbers.
+
+## Amendments
+- 2026-10-14 "It should go in the left column instead of the right column, though, so that the pieces or more balanced. Or perhaps it should be dynamic depending on how many projects we make so that there aren't these big empty spaces"
+  - [ ] (user) On the desktop week page, the "Usage by day" chart sits in whichever column leaves the two columns closest in height, so neither column ends in a big empty space; on the Oct 4–11 page it sits in the left column. Republished in place (same URL).
+    Replaces: R6 "desktop: in the right column, under the second pie" and R14's desktop layout line.
+- 2026-10-14 "There should be two Sundays-- The sunday from 10:00pm-12:00am at the beginning, then the Sunday from 12:00am-10:00pm at the end"
+  - [ ] (user) The day chart has 8 columns: the opening Sunday (22:00–24:00 only) first, then Mon–Sat, then the closing Sunday (00:00–22:00) last, each labeled with its own date; on the Oct 4–11 week page Oct 4 is the first column and Oct 11 the last. The archive chart shows the same 8 columns per week. Day sums still equal the pie. Republished in place (same URL).
+    Replaces: R1 "exactly 7 entries, Sunday through Saturday" and "usage between the week's opening Sunday 22:00 and midnight counts as that Sunday"; R6/R9 "7 columns".
+- 2026-10-14 "I want to expand the color list further, if its possible"
+  - [ ] (user) Each person's palette has more distinct accents than 12, enough that on the Oct 4–11 week page no two of Jaxon's projects share a color in the pie, legend or day chart; Jaxon's and Jet's hue ranges stay disjoint, colors stay stable across weeks. Republished in place (same URL).
+    Replaces: R10 "12 accents" each.
