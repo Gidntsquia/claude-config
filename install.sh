@@ -261,13 +261,6 @@ PYEOF
       OK*) pass "run-agent allow rules (6): ${rules#OK }" ;;
       *) fail "run-agent allow rule missing: ${rules#MISSING } (rerun install.sh)" ;;
     esac
-    # the PermissionDenied hook logs denials for one week (denied-until), then the helper review job removes it
-    until_d=$(sed -n 's/^denied-until: //p' "$C/run-agent/denied-until" 2>/dev/null | head -n1) || true
-    if "$PY" -c 'import json,sys; s=json.load(open(sys.argv[1])); sys.exit(0 if any("--denied" in x.get("command","") for h in s.get("hooks",{}).get("PermissionDenied",[]) for x in h.get("hooks",[])) else 1)' "$C/settings.json" 2>/dev/null; then
-      if [ -n "$until_d" ] && [ "$(date +%Y-%m-%d)" \> "$until_d" ]; then
-        fail "PermissionDenied hook still in settings.json after $until_d (review $C/run-agent/denied.log, remove the hook and denied-until)"
-      else pass "PermissionDenied hook logging run-agent denials to $C/run-agent/denied.log until ${until_d:-(no denied-until note; run run-agent.sh --install-denied)}"; fi
-    else pass "PermissionDenied hook not in settings.json"; fi
     if mcp_registered; then pass "run-agent MCP server registered (user scope, $(mcp_server))"
     else fail "run-agent MCP server not registered in ~/.claude.json (run: $(mcp_add_cmd))"; fi
     command -v uv >/dev/null 2>&1 || echo "NOTE uv is not on PATH: the run-agent and assistant MCP servers start with uv (https://docs.astral.sh/uv/)"
@@ -469,10 +462,6 @@ if [ "$OS" != windows ]; then
     claude mcp remove --scope user run-agent >/dev/null 2>&1 || true   # an older registration pointing elsewhere
     if claude mcp add --transport stdio --scope user run-agent -- "$(mcp_server)" >/dev/null 2>&1; then echo "  run-agent MCP server: registered (user scope, $(mcp_server))"
     else echo "  run-agent MCP server: not registered (claude mcp add failed). Run: $(mcp_add_cmd)"; fi
-  fi
-  # the PermissionDenied hook (settings.json) logs run-agent denials for one week; schedule its review once
-  if grep -qs -- '--denied' "$C/settings.json"; then
-    out=$(bash "$R/skills/run-agent/scripts/run-agent.sh" --install-denied 2>&1) && echo "  denied.log review: ${out##*$'\n'}" || echo "  denied.log review not scheduled: $out"
   fi
 fi
 

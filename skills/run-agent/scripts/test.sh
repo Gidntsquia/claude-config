@@ -639,16 +639,6 @@ EOF
   wait_for 15 grep -q "  #$id  fired  " "$LOG" && ok "old job: a pre-1.3.1 job file fires" || bad "old job: fired" "$(tail -3 "$LOG"; cat "$RUN_AGENT_HOME/logs/$id.log" 2>/dev/null)"
   wait_for 5 grep -q "arg=worker: repo (sonnet)" "$RA_OUT" && ok "old job: claude ran (PATH's claude, today's behaviour)" || bad "old job: claude ran" "$(cat "$RA_OUT")"
   wait_for 3 TM display -p -t t:0 '#{pane_dead}' >/dev/null
-  # (R3) --install-denied: denied-until one week out, the helper review job scheduled once, in its own window
-  keys "'$S' --install-denied > '$T/inst.out' 2>&1; '$S' --install-denied >> '$T/inst.out' 2>&1; echo end >> '$T/inst.out'"
-  wait_for 15 grep -q '^end$' "$T/inst.out"
-  [ "$(cat "$RUN_AGENT_HOME/denied-until")" = "denied-until: $(date -d '+7 days' +%Y-%m-%d)" ] && ok "denied: denied-until = today + 7 days" || bad "denied: denied-until" "$(cat "$RUN_AGENT_HOME/denied-until" 2>&1)"
-  grep -q '^scheduled #[0-9]*: claude --agent helper "Review ~/.claude/run-agent/denied.log: for each entry propose the allow rule, then remove the PermissionDenied hook from settings.json and this note" --name "helper: repo ([a-z0-9-]*)" ([a-z0-9-]*, default) at .* ET (one week after install ('"$(date -d '+7 days' +%Y-%m-%d)"'), in 16[78]h [0-9]*m)$' "$T/inst.out" \
-    && ok "denied: review job scheduled one week out with the exact helper prompt" || bad "denied: review job" "$(cat "$T/inst.out")"
-  grep -q '^already scheduled: #[0-9]*  claude --agent helper "Review' "$T/inst.out" && ok "denied: a second --install-denied schedules nothing more" || bad "denied: idempotent" "$(cat "$T/inst.out")"
-  id=$(sed -n 's/^scheduled #\([0-9]*\):.*/\1/p' "$T/inst.out" | head -1)
-  [ "$(python3 "$J" get "$id" target)" = window ] && grep -q "^#$id  claude --agent helper" <<<"$("$S" --jobs)" && ok "denied: --jobs lists it, opens in a new window" || bad "denied: jobs/window" "$(python3 "$J" get "$id" target; "$S" --jobs)"
-  "$S" --cancel "$id" >/dev/null 2>&1; rm -f "$RUN_AGENT_HOME/denied-until"
 else
   echo "SKIP tmux checks (tmux not installed)"
 fi
@@ -772,15 +762,8 @@ slay="cd $T/slay-the-spire-advisor; $HOOK_RA --next evaluator \".\"; export PATH
 python3 -c "
 import json,sys; a=json.load(open(sys.argv[1]))['permissions']['allow']
 want=['Bash(~/.claude/skills/run-agent/scripts/run-agent.sh *)','Bash(~/files/claude-config/skills/run-agent/scripts/run-agent.sh *)','Bash(bash ~/.claude/skills/run-agent/scripts/*)','Bash(bash ~/files/claude-config/skills/run-agent/scripts/*)','Bash(~/.local/bin/run-agent *)','Bash(run-agent *)']
-assert all(w in a for w in want), a; assert not any(r.startswith('Bash(*') for r in a), a
-h=json.load(open(sys.argv[1]))['hooks']['PermissionDenied'][0]['hooks'][0]; assert h['command'].endswith('run-agent.sh --denied'), h" "$REPO/settings.json" \
-  && ok "rules: settings.json holds the six rules and the PermissionDenied hook" || bad "rules: settings.json"
-# (R2) --denied: the PermissionDenied hook appends run-agent denials to denied.log, ignores the rest, prints nothing
-DL="$RUN_AGENT_HOME/denied.log"; rm -f "$DL"
-out=$(printf '{"tool_name":"Bash","tool_input":{"command":"x run-agent.sh --jobs","description":"d"},"reason":"[Self-Modification]"}' | "$S" --denied 2>&1); rc=$?
-[ "$rc" = 0 ] && [ -z "$out" ] && grep -q "^20[0-9-]* [0-9:]* [AP]M ET  Bash  x run-agent.sh --jobs  \[Self-Modification\]$" "$DL" && ok "denied: a run-agent denial -> one denied.log line (ET time, tool, command, reason), nothing printed" || bad "denied: logged" "rc=$rc out=$out $(cat "$DL" 2>&1)"
-printf '{"tool_name":"Bash","tool_input":{"command":"rm -rf x"},"reason":"r"}' | "$S" --denied; echo garbage | "$S" --denied; rc=$?
-[ "$rc" = 0 ] && [ "$(wc -l < "$DL")" = 1 ] && ok "denied: other denials and bad input are ignored, exit 0" || bad "denied: ignored" "rc=$rc $(cat "$DL")"
+assert all(w in a for w in want), a; assert not any(r.startswith('Bash(*') for r in a), a" "$REPO/settings.json" \
+  && ok "rules: settings.json holds the six rules" || bad "rules: settings.json"
 # (R11) --clean drops done/ and logs/ files older than 30 days; --jobs warns past 50 MB
 mkdir -p "$RUN_AGENT_HOME/done" "$RUN_AGENT_HOME/logs"
 echo '{}' > "$RUN_AGENT_HOME/done/900.json"; touch -d '40 days ago' "$RUN_AGENT_HOME/done/900.json" "$RUN_AGENT_HOME/logs/900.log"; echo '{}' > "$RUN_AGENT_HOME/done/901.json"

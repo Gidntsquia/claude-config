@@ -54,8 +54,6 @@ USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--target split|win
   --cwd <dir>, -C <dir>  start the new session in <dir> (must exist; <folder> = its basename);
                          outside tmux the printed command starts with cd '\''<dir>'\'' &&
   --clean                delete done/*.json and logs/* older than 30 days under ~/.claude/run-agent
-  --denied               PermissionDenied hook: append denials whose command names run-agent to denied.log
-  --install-denied       write denied-until (one week) and schedule the helper review job once (install.sh)
   --resolve <dir>        print "<absolute dir><TAB>exists|missing" by the --cwd rules (exit 2 on a
                          bare name found nowhere, or a path that is a file); creates nothing'
 # Built-in subagents that `claude --agent` accepts (checked 2026-10-14; Bash and claude-code-guide are refused).
@@ -259,52 +257,6 @@ claude_bin() { command -v claude 2>/dev/null || echo "$HOME/.local/bin/claude"; 
 # failures: jobs that failed or were skipped since a human last saw them, one line each; a human call marks them seen.
 show_failures() { python3 "$HERE/jobs.py" failures $([ -z "$(from_agent)" ] && echo --mark) 2>/dev/null || true; }
 
-# denied: the PermissionDenied hook. stdin = the hook JSON; a denial whose command names run-agent is appended to
-# denied.log as "<ET time>  <tool>  <command>  <reason>"; anything else is ignored. Prints nothing (the model never
-# sees this hook). Review and removal are the one-week helper job that --install-denied schedules.
-denied() {
-  local py
-  store_guard; mkdir -p "$STATE"
-  py=$(cat <<'PY'
-import json, os, sys, time
-try:
-    d = json.load(sys.stdin)
-except Exception:
-    sys.exit(0)
-ti = d.get("tool_input") or {}
-cmd = ti.get("command") if isinstance(ti, dict) and isinstance(ti.get("command"), str) else json.dumps(ti, ensure_ascii=False)
-if "run-agent" not in cmd:
-    sys.exit(0)
-os.environ["TZ"] = "America/New_York"; time.tzset()
-stamp = time.strftime("%Y-%m-%d %I:%M %p ET").lstrip("0")
-line = f"{stamp}  {d.get('tool_name', '?')}  {cmd.replace(chr(10), ' ')}  {str(d.get('reason', '')).replace(chr(10), ' ')}"
-with open(sys.argv[1], "a", encoding="utf-8") as f:
-    f.write(line + "\n")
-PY
-)
-  python3 -c "$py" "$STATE/denied.log" 2>/dev/null || true
-}
-
-# install_denied: idempotent. Writes denied-until ("denied-until: <date>", one week out) and schedules the review
-# job once: helper, in its own new tmux window, one week ahead. Needs tmux for the window; outside tmux the job
-# still fires into a new tmux session. Prints the scheduled line (or "already scheduled").
-install_denied() {
-  local at d jobs
-  store_guard; mkdir -p "$STATE"
-  if [ -f "$STATE/denied-until" ]; then
-    d=$(sed -n 's/^denied-until: //p' "$STATE/denied-until" | head -n1)
-    at=$(date -d "$d 09:00" +%s 2>/dev/null || date -j -f '%Y-%m-%d %H:%M' "$d 09:00" +%s 2>/dev/null || echo "")
-  fi
-  if [ -z "${at:-}" ]; then
-    at=$(( $(date +%s) + 7 * 86400 ))
-    d=$(date -d "@$at" +%Y-%m-%d 2>/dev/null || date -r "$at" +%Y-%m-%d)
-    printf 'denied-until: %s\n' "$d" > "$STATE/denied-until"
-  fi
-  jobs=$(python3 "$HERE/jobs.py" list 2>/dev/null | grep -F 'Review ~/.claude/run-agent/denied.log' || true)
-  if [ -n "$jobs" ]; then echo "already scheduled: $jobs"; return 0; fi
-  RUN_AGENT_HUMAN=1 "$BASH_SOURCE" helper "Review ~/.claude/run-agent/denied.log: for each entry propose the allow rule, then remove the PermissionDenied hook from settings.json and this note" \
-    --target window --at "$at" --at-text "one week after install ($d)"
-}
 
 # fire_waiting: an agent's scheduled job whose pane was gone at fire time waits (jobs.log `waiting: no pane`) for a
 # human run-agent call on the same tmux server; that call opens it in a brand-new window (the human may open windows).
@@ -342,8 +294,6 @@ case "${1:-}" in
   --jobs) store_guard; fire_waiting; exec python3 "$HERE/jobs.py" list ;;
   --clean) store_guard; exec python3 "$HERE/jobs.py" clean ;;
   --failures) store_guard; shift; exec python3 "$HERE/jobs.py" failures "$@" ;;
-  --denied) denied; exit 0 ;;
-  --install-denied) install_denied; exit $? ;;
   --health) store_guard; exec python3 "$HERE/jobs.py" health ;;
   --cancel) store_guard; shift; exec python3 "$HERE/jobs.py" cancel "$@" ;;
   --revive) revive; exit 0 ;;
