@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-19: The PermissionDenied hook was removed from `settings.json` and the `denied-until` note was deleted, now that the review of the denied-command log is finished. No allow rule was added.
 - The assistant's agent file moved from `agents/assistant.md` to `assistant/assistant.md`, next to its server and hook, so it is no longer installed for every folder. It starts only in a project whose `.claude/agents/assistant.md` is a link to it; the frontmatter starts `mcp/server.py` and `hooks/guard.py` beside the link's target, and `install.sh --check` tests that.
 - The assistant's guard hook no longer denies Bash commands that name `mcp/`, `scripts/hooks/` or `.claude/agents/`. The tmux, background, pet-pane, own-pane, judgement-menu and force rules stay.
 

@@ -79,17 +79,6 @@
         ]
       }
     ],
-    "PermissionDenied": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/skills/run-agent/scripts/run-agent.sh --denied",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash|Monitor",
