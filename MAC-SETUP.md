@@ -14,7 +14,17 @@ What stayed on the PC, and why, is in [LEFT-BEHIND.md](https://github.com/Gidnts
 - `mac-handoff` shares no history with `main`. Never merge it. Delete it when the trip is over: `git push origin --delete mac-handoff`.
 - The memory notes and `archive/README.txt` name PC paths (`/home/jaxon/files/claude-config`). On the Mac read them as `~/files/claude-config`.
 - Rerunning `./install.sh` with `--settings replace` rewrites `~/.claude/settings.json` from the repo copy. Run step 13 again after any rerun.
-- No step failed in the rehearsal because of tracked code.
+- Step 9 prints `314 passed, 1 failed` on `main` at 659e035, not `315 passed, 0 failed`. The cause is tracked code, which this handoff leaves unchanged: commit 30f0074 (2026-11-19, 10:41 PM ET, from another session) removed the PermissionDenied hook from `settings.json`, and `skills/run-agent/scripts/test.sh:772-777` still checks for it. The error text:
+
+  ```
+      h=json.load(open(sys.argv[1]))['hooks']['PermissionDenied'][0]['hooks'][0]; assert h['command'].endswith('run-agent.sh --denied'), h
+  KeyError: 'PermissionDenied'
+  FAIL rules: settings.json
+  ```
+
+  Every other test passes. Dropping that one assertion from `test.sh` is the first fix to make on the Mac. The tagged pre-release `v1.3.0-beta.4` still gives `315 passed, 0 failed`.
+- Step 9 needs a git name and email (step 3). Without them 5 handoff tests fail with `Author identity unknown` and `fatal: empty ident name`. The rehearsal skipped step 3 as Mac only and passed a throwaway name and email through `GIT_AUTHOR_*` and `GIT_COMMITTER_*` instead.
+- `main` moved during the handoff, from 44b2598 to 659e035. The second new commit fixed `./install.sh --check` stopping without its last line in a fresh home. A fresh clone has both commits.
 
 ## Tools
 
@@ -105,6 +115,8 @@ bash skills/run-agent/scripts/test.sh 2>&1 | tail -1
 ```
 
 You should see: `315 passed, 0 failed`
+
+Until the test in "Known before you start" is fixed, the line reads `314 passed, 1 failed` and the one `FAIL` line is `FAIL rules: settings.json`.
 
 ## Handoff files
 

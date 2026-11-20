@@ -8,7 +8,7 @@ Setup steps for the Mac: [MAC-SETUP.md](https://github.com/Gidntsquia/claude-con
 
 | Item | Size | Status |
 |---|---|---|
-| `main` at 44b2598 | 413 tracked files | on GitHub: Gidntsquia/claude-config, branch `main` (local and origin are the same commit) |
+| `main` at 659e035 (it was 44b2598 when the handoff started; another session pushed 2 commits at 10:41 and 10:49 PM ET) | 413 tracked files | on GitHub: Gidntsquia/claude-config, branch `main` (local and origin are the same commit) |
 | 10 local tags (pre-trim-2026-10-08, v1.2.1, v1.3.0-beta.1 to beta.4 among them) | 10 tags | on GitHub: Gidntsquia/claude-config, all 10 tags are on origin |
 | Branch `pr2` (0b2cdaa) | 1 branch | on GitHub: contained in origin/main |
 | Stashes, extra worktrees | none exist | stays on this PC: nothing to carry |
