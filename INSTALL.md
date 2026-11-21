@@ -1,6 +1,6 @@
 # Installing claude-config
 
-For a Claude session installing this repo on a new machine, started by a message like "Install https://github.com/Gidntsquia/claude-config following its INSTALL.md". Run the steps in order and stop only where it says STOP. Never edit a file in the user's `~/.claude`, shell rc files or terminal settings by hand: `./install.sh` makes every change, keeps a `<name>.pre-link` copy of anything it replaces, and is safe to rerun.
+For a Claude session installing this repo on a new machine, started by a message like "Install https://github.com/Gidntsquia/claude-config following its INSTALL.md". Run the steps in order and stop only where it says STOP. Never edit a file in the user's `~/.claude`, shell rc files or terminal settings by hand: `./install.sh` makes every change, leaves the user's own files in place unless a flag says to replace them, and is safe to rerun.
 
 ## 1. Check the tools
 
@@ -34,7 +34,7 @@ Ask all four in one AskUserQuestion call. The first option of each is the defaul
 1. **Projects folder**: where do your projects live? `~/files` (Recommended), `~/code`, `~/Projects`. "Other" lets them type a path. → `--projects <folder>`
 2. **Terminal setup**: open new terminal tabs as tmux with 4 Claude panes in the projects folder, with the starship prompt and a Nerd Font check, through a Windows Terminal (WSL) or iTerm2 (macOS) "Claude tmux" profile? Options: "Yes, and make it my default profile", "Yes, keep my default profile", "No". Put the first option first and mark it Recommended when there is no `~/.tmux.conf` and no custom terminal profile (on WSL the distro's Windows Terminal profile has no `commandline`; on macOS `~/Library/Application Support/iTerm2/DynamicProfiles` is empty or missing); otherwise put "No" first and mark it Recommended. → `--terminal --default-profile`, `--terminal`, or `--no-terminal`. On plain Linux there is no profile, so offer "Yes" (`--terminal`) and "No".
 3. **Status line**: Jaxon's squid (Recommended when `settings.json` has no `statusLine`), the plane (Jaxon's squid with a plane mascot and easter eggs), or keep mine (Recommended when they have one). → `--statusline squid|plane|keep`
-4. **settings.json**: merge (Recommended: your values stay, the repo adds only keys you don't have, and permission lists are combined), keep mine (no change), or replace (link the repo's file; yours is kept as `settings.json.pre-link`). → `--settings merge|keep|replace`
+4. **settings.json**: merge (Recommended: your values stay, the repo adds only keys you don't have, and permission lists are combined), keep mine (no change), or replace (use the repo's file; yours is deleted and no copy is kept). → `--settings merge|keep|replace`
 
 Agents and skills are always installed. If the user picked the terminal setup and `tmux` is missing, install it now (step 1).
 
@@ -44,13 +44,13 @@ Agents and skills are always installed. If the user picked the terminal setup an
 ./install.sh --projects <folder> <terminal flags> --statusline <choice> --settings <choice>
 ```
 
-If it exits 3, some of the user's own agents or skills have the same name as the repo's; it printed each one as `clash: agents/<name>.md` or `clash: skills/<name>`. Ask one AskUserQuestion per name (up to four per call):
+If the user's own agents, skills or commands have the same name as the repo's, theirs stay and it printed each one as `kept yours: <path> (repo's not installed)`. Ask one AskUserQuestion per name (up to four per call):
 
-- **Keep mine** (Recommended): yours stays; the repo's is added as `<name>-claude-config` (`claude --agent <name>-claude-config`). → `<name>=keep`
-- **Use Jaxon's**: yours moves to `<name>.pre-link.md` (skills: `<name>.pre-link`). → `<name>=replace`
-- **Skip**: the repo's is not installed. → `<name>=skip`
+- **Keep mine, skip Jaxon's** (Recommended): nothing more to do. → `<name>=skip`
+- **Keep both**: yours stays; the repo's is added as `<name>-claude-config` (`claude --agent <name>-claude-config`). → `<name>=keep`
+- **Use Jaxon's**: yours is deleted and no copy is kept. Say so in the option's description. → `<name>=replace`
 
-Rerun the same command with `--agent-clash <name>=<answer>,<name>=<answer>` added. Remember every `<name>=keep` for the tour.
+If any answer is not the first, rerun the same command with `--agent-clash <name>=<answer>,<name>=<answer>` added. Remember every `<name>=keep` for the tour.
 
 If it exits 1 or 2, show the user the last lines it printed and STOP.
 

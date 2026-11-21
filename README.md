@@ -27,7 +27,7 @@ cd ~/.claude-config
 ./install.sh --check   # Prints one PASS/FAIL line per item
 ```
 
-`./install.sh --help` lists every flag. Your choices are saved in `~/.claude/claude-config.json`, so a later `./install.sh` with no flags applies them again. A file it replaces is kept as `<name>.pre-link`. If you already have an agent or skill with one of this repo's names, it stops and asks (`--agent-clash keep|replace|skip`).
+`./install.sh --help` lists every flag. Your choices are saved in `~/.claude/claude-config.json`, so a later `./install.sh` with no flags applies them again. It makes no backup copies. If you already have an agent or skill with one of this repo's names, yours stays and the repo's is not installed; `--agent-clash keep|replace|skip` changes that.
 
 IMPORTANT: never add `.credentials.json`, `history.jsonl`, `projects/`, or any other session data. `~/.claude/skills/synced` is managed by Claude and stays out of the repo.
 

@@ -7,7 +7,7 @@ Usage: wt-profile.py <settings.json> <distro> <commandline> <font face> [--defau
 --default also makes that profile the one new Windows Terminal windows open with (defaultProfile).
 --check exits 0 when the distro's profile runs <commandline>, 1 otherwise; it changes nothing.
 """
-import json, shutil, sys
+import json, sys
 
 args = sys.argv[1:]
 check = "--check" in args
@@ -37,7 +37,6 @@ if done and (not make_default or s.get("defaultProfile") == guid):
     print(f"Windows Terminal {distro} profile already runs tmux-quad in {font}" + (" and is the default" if make_default else ""))
     sys.exit()
 
-shutil.copy(path, path + ".pre-link")
 for p in hits:
     p["commandline"] = cmd
     p.setdefault("font", {})["face"] = font
@@ -47,6 +46,6 @@ if make_default and guid:
 with open(path, "w", encoding="utf-8") as f:
     json.dump(s, f, indent=4)
     f.write("\n")
-print(f"Windows Terminal {distro} profile now runs tmux-quad in {font} (backup: settings.json.pre-link)")
+print(f"Windows Terminal {distro} profile now runs tmux-quad in {font}")
 if make_default and guid and old_default != guid:
     print(f"  and is the default profile; to undo, pick your old default in Windows Terminal > Settings > Startup (was {old_default})")

@@ -18,11 +18,32 @@ For a Claude (or a person) updating an existing install to the latest release. R
 5. Keep the user's changes: if `git -C "$REPO" status --porcelain` prints anything, run `git -C "$REPO" stash push --include-untracked -m "pre-update $(date +%F)"`. Note whether you stashed.
 6. Move to the release. If the branch is `main` with no local commits (`git -C "$REPO" rev-list origin/main..HEAD` is empty): `git -C "$REPO" merge --ff-only "$TAG"`. If the user has local commits: `git -C "$REPO" merge "$TAG"`. If that conflicts, resolve each file by keeping the user's lines and adding the release's new lines (for `settings.json`, keep the user's values and add new keys); if you cannot tell which is right for a line, STOP and ask the user about that one line.
 7. If you stashed: `git -C "$REPO" stash pop`. Resolve conflicts the same way.
-8. Relink: `cd "$REPO" && ./install.sh`. It reapplies the choices saved in `~/.claude/claude-config.json` and is safe to rerun. A file it replaces is kept as `<name>.pre-link`, not deleted. If it exits 3 (one of the user's agents or skills has a repo name), follow INSTALL.md step 5 for those names.
+8. Relink: `cd "$REPO" && ./install.sh`. It reapplies the choices saved in `~/.claude/claude-config.json` and is safe to rerun. It makes no backup copies. If one of the user's own agents, skills or commands has a repo name, theirs stays and the run prints `kept yours: <path> (repo's not installed)`; INSTALL.md step 5 says how to choose otherwise.
    - 1.2.0 → 1.2.1: run `./install.sh` and it reapplies your saved choices; if the file is missing, follow INSTALL.md's questions once (steps 3 to 5), then run `./install.sh --check`.
-   - 1.2.1 → 1.3: first run `claude update` until `claude --version` prints 2.1.296 or newer (usage-guard needs it), and install `uv` if `command -v uv` prints nothing (`curl -LsSf https://astral.sh/uv/install.sh | sh`; the run-agent and assistant MCP servers start with it). The 1.3 pre-release is `v1.3.0-beta.4`, which step 3 skips, so to install it set `TAG=v1.3.0-beta.4` by hand and continue from step 4. Then run `./install.sh`: it registers the run-agent MCP server. If it printed that `claude` is not on PATH, run `claude mcp add --transport stdio --scope user run-agent -- ~/.claude/skills/run-agent/mcp/server.py` once `claude` is installed. If the saved choice is `--settings keep`, add `$REPO/mods/defer-artifact` to `env.CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json` (after any directories already there, `:`-separated) to load the defer-artifact mod. Then run `./install.sh --check`.
+   - 1.2.1 → 1.3: first run `claude update` until `claude --version` prints 2.1.296 or newer (usage-guard needs it), and install `uv` if `command -v uv` prints nothing (`curl -LsSf https://astral.sh/uv/install.sh | sh`; the run-agent and assistant MCP servers start with it). The 1.3 pre-release is `v1.3.0-beta.5`, which step 3 skips, so to install it set `TAG=v1.3.0-beta.5` by hand and continue from step 4. Then run `./install.sh`: it registers the run-agent MCP server. If it printed that `claude` is not on PATH, run `claude mcp add --transport stdio --scope user run-agent -- ~/.claude/skills/run-agent/mcp/server.py` once `claude` is installed. If the saved choice is `--settings keep`, add `$REPO/mods/defer-artifact` to `env.CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json` (after any directories already there, `:`-separated) to load the defer-artifact mod. Then run `./install.sh --check`.
 9. Verify: `cd "$REPO" && ./install.sh --check` ends with `all checks passed`, and `git -C "$REPO" describe --tags --exact-match` prints `$TAG`.
 10. Tell the user: the old and new version, what you kept from their changes (and the stash name if a pop was skipped), and that running Claude Code sessions must be restarted to pick up the new agents and settings.
+
+## Coming from an install before v1.3
+
+An install from September 2026 linked whole folders (`~/.claude/agents`, `commands`, `hooks`) into the clone, and iTerm2 could be set to load its preferences from the clone's `iterm2/` folder, so iTerm2 rewrote files there. Do these three things in one go, with no new Claude session or terminal tab in between:
+
+1. Discard the local `iterm2/` edits: `git -C "$REPO" restore iterm2/`. iTerm2 wrote them, the user did not, and the pull stops on them. This is the one place a discard is right; every other local change follows steps 5 to 7.
+2. Pull: steps 3 to 7 above.
+3. Run `cd "$REPO" && ./install.sh` at once. The pull moved or removed files the old links point at, the usage-guard hook among them, and a session started before the installer runs meets those broken links. The installer makes `~/.claude/hooks` a folder of its own, removes links to files the repo no longer has (it prints `removed <path>`), and tells iTerm2 to stop loading preferences from the clone. Restart iTerm2 afterwards.
+
+Then `./install.sh --check`. A `WARN leftover from an older install` line names a `.pre-link` copy an older installer made; delete it once the user has looked at it.
+
+## Moving the clone
+
+Move the folder, then run the installer from the new path:
+
+```
+mv "$REPO" <new path>
+cd <new path> && ./install.sh
+```
+
+The installer points every link under `~/.claude` at the new path and prints `relinked <path> (was <old target>, now missing)` for each, rewrites the paths in `~/.claude/settings.json` (unless the saved choice is `--settings keep`), and saves the new `repo` in `~/.claude/claude-config.json`. Run it before the next Claude session starts: until then the links, the hooks among them, point at the old path. Then `./install.sh --check`.
 
 ## Rules
 

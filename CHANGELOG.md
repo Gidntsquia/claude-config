@@ -1,10 +1,32 @@
 # Changelog
 
-## Unreleased
+## v1.3.0-beta.5 — 2026-11-21
 
-- 2026-11-19: The PermissionDenied hook was removed from `settings.json` and the `denied-until` note was deleted, now that the review of the denied-command log is finished. No allow rule was added.
-- 2026-11-19: The code behind that hook is gone too: `run-agent.sh --denied` and `--install-denied`, their tests, the hook check in `install.sh --check` and the install step that scheduled the review. `install.sh --check` had exited 2 without a FAIL line once the `denied-until` note was deleted. `~/.claude/run-agent/denied.log` is left on disk.
-- The assistant's agent file moved from `agents/assistant.md` to `assistant/assistant.md`, next to its server and hook, so it is no longer installed for every folder. It starts only in a project whose `.claude/agents/assistant.md` is a link to it; the frontmatter starts `mcp/server.py` and `hooks/guard.py` beside the link's target, and `install.sh --check` tests that.
+This pre-release fixes what went wrong when a September install on a Mac was updated and its clone moved, and tests `install.sh` against four kinds of Mac. v1.2.1 stays the latest release until 1.3 is promoted.
+
+### Install 🧰
+
+- `install.sh` never makes a `.pre-link` copy. Your own agent, skill or command with one of this repo's names stays, and the run prints `kept yours: <path> (repo's not installed)` and exits 0. `--agent-clash replace` and `--settings replace` delete yours with no copy. Exit code 3 is gone.
+- After you move the clone, a plain `./install.sh` from the new folder points every link under `~/.claude` at it and prints `relinked <path> (was <old target>, now missing)`. A link to a file the repo no longer has is removed, and the old path leaves `settings.json`.
+- An install from before v1.3 had `~/.claude/hooks` as one link into the clone, so the installer wrote into the clone. It now makes `hooks` and `skills` real folders first and refuses to link anything that resolves inside the clone. `git status` in the clone is the same before and after a run.
+- A link that can't be made prints `install: could not link <dst>: <error>`. Before, the run ended with exit 1 and no message.
+- With python3 or tmux missing, `install.sh` names each one with its install command and exits before it changes a file. On a Mac without the Xcode tools it no longer runs the `/usr/bin/python3` stub that opens the install dialog.
+- `--check` fails on a personal path only in a tracked file, and an untracked one prints `WARN`. It prints `WARN` for each `.pre-link` copy an older installer left under `~/.claude`, `SKIP` for a file of yours it left alone, and one `SKIP` for the hook checks when your choice is `--settings keep`.
+- The iTerm2 default profile from before `--default-profile` is saved in `~/.claude/claude-config.json` as `itermDefault`. The Windows Terminal script no longer writes `settings.json.pre-link`.
+- `UPDATING.md` has two new sections, "Coming from an install before v1.3" and "Moving the clone".
+- `test/install-scenarios.sh` has five more scenarios: the September layout with the iTerm2 preferences setting, a moved clone, a home with its own agents, skills, commands, hooks and settings, a stock Mac PATH under `/bin/bash`, and a clone and projects folder with spaces in their names. `SCN_ONLY=<name>` runs one.
+- The install workflow also starts by hand (`workflow_dispatch`) and runs the run-agent tests on Ubuntu and macOS.
+
+### run-agent 🔁
+
+- `test.sh` passes on macOS with the same count as on Linux, 309. The scripts no longer need GNU `date -d`, `realpath -m`, `readlink -f`, `mapfile` or `/proc`; `proc.py` reads other processes through `sysctl` and `ps` on macOS.
+- On macOS a scheduled run lost its `until` time and its folder, because bash 3.2 kept two arguments as one word. Both are recorded now.
+- A scheduled run started from a stripped environment (cron, launchd) finds Homebrew's tmux.
+- The PermissionDenied hook is removed from `settings.json`, with `run-agent.sh --denied` and `--install-denied`, their tests, the hook check in `install.sh --check` and the install step that scheduled the review. The review of the denied-command log is finished and no allow rule was added. `~/.claude/run-agent/denied.log` is left on disk.
+
+### Agents 🤖
+
+- The assistant's agent file moved from `agents/assistant.md` to `assistant/assistant.md`, next to its server and hook, so it is no longer installed for every folder. It starts only in a project whose `.claude/agents/assistant.md` is a link to it, and `install.sh --check` tests that.
 - The assistant's guard hook no longer denies Bash commands that name `mcp/`, `scripts/hooks/` or `.claude/agents/`. The tmux, background, pet-pane, own-pane, judgement-menu and force rules stay.
 
 ## v1.3.0-beta.4 — 2026-11-18
