@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Install this repo's Claude Code setup into ~/.claude. Existing files are kept unless a flag says otherwise.
+# Install this repo's Claude Code setup into ~/.claude. Your own files stay unless a flag says otherwise; no backup
+# copy (.pre-link) is ever made, and nothing inside the clone is changed.
 # Run ./install.sh --help for the flags; INSTALL.md is the guided version a Claude session follows.
 set -euo pipefail
 
@@ -12,13 +13,16 @@ usage: ./install.sh [flags]          (no flags: reuse the choices saved in ~/.cl
   --default-profile | --no-default-profile
                                      with --terminal: make that profile the one new terminal windows open with
   --statusline squid|plane|keep      the squid or plane status line, or keep yours (default: squid when you have none)
-  --settings merge|keep|replace      settings.json: add only the keys you lack (default), leave it, or link the repo's
+  --settings merge|keep|replace      settings.json: add only the keys you lack (default), leave it, or use the
+                                     repo's (yours is deleted, no copy kept)
   --agent-clash keep|replace|skip    what to do when ~/.claude/agents or ~/.claude/skills already has one of this
-                                     repo's names: keep yours (repo copy added as <name>-claude-config), use the
-                                     repo's (yours moved to <name>.pre-link), or skip it. Per name: planner=keep,worker=skip
+                                     repo's names. Without the flag yours stays and the repo's is not installed
+                                     (same as skip). keep: yours stays, repo copy added as <name>-claude-config.
+                                     replace: yours is deleted (no copy kept) and the repo's is linked.
+                                     Per name: planner=keep,worker=replace
   --check                            print one PASS/FAIL line per installed item; exit 1 on any FAIL
   --help                             this text
-Exit codes: 0 ok, 1 error or a FAIL in --check, 2 bad flag, 3 an agent or skill name clash needs --agent-clash.
+Exit codes: 0 ok, 1 error or a FAIL in --check, 2 bad flag.
 EOF
 }
 
@@ -40,9 +44,22 @@ OS="${CLAUDE_CONFIG_INSTALL_OS:-$OS}"  # tests only: pretend to be linux|wsl|mac
 [ "$OS" = windows ] && export MSYS=winsymlinks:nativestrict
 # Windows Python reads files as cp1252 by default; settings.json and the agents are UTF-8 (em dashes, emoji).
 export PYTHONUTF8=1
+# What to type to get a missing tool, per system.
+how_python() { case "$OS" in mac) echo "xcode-select --install   (or: brew install python)" ;; windows) echo "winget install Python.Python.3.12" ;; *) echo "sudo apt-get install -y python3" ;; esac; }
+how_tmux() { case "$OS" in mac) echo "brew install tmux   (Homebrew: https://brew.sh)" ;; *) echo "sudo apt-get install -y tmux" ;; esac; }
 PY=""
-for p in python3 python; do command -v "$p" >/dev/null 2>&1 && "$p" -c 'import json' >/dev/null 2>&1 && { PY="$p"; break; }; done
-[ -n "$PY" ] || { echo "install.sh: needs python3 (for the settings merge); install it and rerun" >&2; exit 1; }
+for p in python3 python; do
+  command -v "$p" >/dev/null 2>&1 || continue
+  # A stock Mac has /usr/bin/python3 as a stub that opens an "install developer tools" window; do not start it.
+  if [ "$OS" = mac ] && [ "$(command -v "$p")" = "/usr/bin/$p" ] && ! xcode-select -p >/dev/null 2>&1; then continue; fi
+  "$p" -c 'import json' >/dev/null 2>&1 && { PY="$p"; break; }
+done
+if [ -z "$PY" ]; then
+  echo "install.sh: python3 is missing (the settings merge needs it). Install it with: $(how_python)" >&2
+  case " $* " in *" --terminal "*) [ "$OS" = windows ] || command -v tmux >/dev/null 2>&1 || echo "install.sh: tmux is missing (--terminal needs it). Install it with: $(how_tmux)" >&2 ;; esac
+  echo "install.sh: nothing was changed; install what is listed and rerun" >&2
+  exit 1
+fi
 
 # readlink -f keeps Git Bash's /c/... form (Windows python would print C:\...); old macOS lacks it, so python is the fallback.
 resolve() { readlink -f "$1" 2>/dev/null || "$PY" -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
@@ -105,6 +122,11 @@ fill SETTINGS settings "$d_settings"
 fill CLASH agentClash ""
 PROJECTS="$(expand "$PROJECTS")"
 [ -n "$reused" ] && echo "reusing saved choices from $CFG:$reused"
+if [ -z "$CHECK" ] && [ "$TERMINAL" = true ] && [ "$OS" != windows ] && ! command -v tmux >/dev/null 2>&1; then
+  echo "install.sh: tmux is missing (--terminal needs it). Install it with: $(how_tmux)" >&2
+  echo "install.sh: nothing was changed; install it and rerun, or pass --no-terminal" >&2
+  exit 1
+fi
 
 # settings_rules <file>: rewrite the repo's two `~/files/claude-config/...` run-agent allow rules to this clone's
 # absolute path ($R). Claude Code matches Bash rules on the literal command text, so a `~` rule never matches the
@@ -115,7 +137,7 @@ PROJECTS="$(expand "$PROJECTS")"
 settings_rules() {
   local rn="$R"; [ "$OS" = windows ] && command -v cygpath >/dev/null 2>&1 && rn="$(cygpath -m "$R")"
   "$PY" - "$1" "$R" "$C/settings.json" "$OS" "$rn" <<'PYEOF'
-import json, os, sys
+import json, os, re, sys
 f, repo, installed, osname, native = sys.argv[1:6]
 s = json.load(open(f))
 sep = ";" if osname == "windows" else ":"
@@ -128,8 +150,15 @@ except Exception:
     pass
 mods = [native.rstrip("/") + "/mods/" + m for m in sorted(os.listdir(os.path.join(repo, "mods")))
         if os.path.isfile(os.path.join(repo, "mods", m, ".claude-plugin", "plugin.json"))] if os.path.isdir(os.path.join(repo, "mods")) else []
+def stale(path):
+    """a path this installer wrote for a clone that has since moved or been deleted"""
+    return os.path.isabs(os.path.expanduser(path)) and not os.path.exists(os.path.expanduser(path))
+modnames = {m.rsplit("/", 1)[1] for m in mods}
 dirs = []
 for d in dirs_in(s.get("env", {}).get("CLAUDE_CODE_PLUGIN_DIRS")) + prior + dirs_in(os.environ.get("CLAUDE_CODE_PLUGIN_DIRS")) + mods:
+    parts = d.replace("\\", "/").rstrip("/").rsplit("/", 2)
+    if len(parts) == 3 and parts[1] == "mods" and parts[2] in modnames and d not in mods and stale(d):
+        continue   # this mod under the clone's old path
     if d not in dirs:
         dirs.append(d)
 if dirs:
@@ -140,6 +169,9 @@ for r in allow:
     for pre in ("Bash(~/files/claude-config/", "Bash(bash ~/files/claude-config/"):
         if r.startswith(pre):
             r = pre.replace("~/files/claude-config", repo) + r[len(pre):]
+    old = re.match(r"Bash\((?:bash )?(.+)/skills/run-agent/scripts/(?:run-agent\.sh )?\*\)$", r)
+    if old and old.group(1) not in (repo, "~/.claude") and stale(old.group(1)):
+        continue   # a rule for the clone's old path
     if r not in out:
         out.append(r)
 s["permissions"]["allow"] = out
@@ -175,9 +207,11 @@ if [ -n "$CHECK" ]; then
   pass() { echo "PASS $*"; }
   fail() { echo "FAIL $*"; fails=$((fails + 1)); }
   skip() { echo "SKIP $*"; }
+  warn() { echo "WARN $*"; }
   linked() {  # linked <path> <label>: path is a symlink resolving into the clone (or, on Windows without symlinks, a copy)
     if in_clone "$1"; then pass "$2 -> $(resolve "$1")"
     elif [ "$OS" = windows ] && [ -e "$1" ] && [ -n "${3:-}" ] && diff -rq "$1" "$3" >/dev/null 2>&1; then pass "$2 (copy of $3)"
+    elif [ -e "$1" ] && [ ! -L "$1" ]; then skip "$2: $1 is yours (kept; repo's not installed)"
     else fail "$2: $1 is not a link into $R"; fi
   }
   if [ -f "$CFG" ] && [ "$(saved repo)" = "$R" ]; then pass "$CFG names this clone ($R)"
@@ -232,13 +266,20 @@ if [ -n "$CHECK" ]; then
     n="$(bash "$C/statusline.sh" --preview "$STATUSLINE" 2>/dev/null | wc -l | tr -d ' ')" || n=0
     if [ "${n:-0}" -gt 0 ]; then pass "statusline.sh --preview $STATUSLINE ($n lines)"; else fail "statusline.sh --preview $STATUSLINE printed nothing"; fi
   fi
-  if out="$(bash "$R/bin/find-personal-paths.sh" "$R")"; then pass "no personal paths in the clone"
-  else fail "personal paths in: $(echo "$out" | tr '\n' ' ')"; fi
+  # tracked files fail; a file git does not track (yours, never pushed) is only listed
+  if out="$(bash "$R/bin/find-personal-paths.sh" "$R")"; then pass "no personal paths in the clone's tracked files"
+  else fail "personal paths in: $(echo "$out" | grep -v '^WARN ' | tr '\n' ' ')"; fi
+  w="$(echo "$out" | sed -n 's/^WARN //p' | tr '\n' ' ')"
+  [ -n "$w" ] && warn "personal paths in untracked files (not pushed, so not a failure): $w"
+  # a leftover backup from an older install.sh: a .pre-link skill or agent still loads in every session
+  while IFS= read -r l; do [ -n "$l" ] && warn "leftover from an older install, safe to delete: $l"; done < <(find "$C" -maxdepth 3 -name '*.pre-link*' 2>/dev/null | grep -v -e "^$C/projects/" -e "^$C/file-history/" || true)
   if [ "$OS" != windows ]; then
     if in_clone "$HOME/.local/bin/run-agent"; then pass "run-agent shell command (~/.local/bin/run-agent)"
     else fail "run-agent shell command missing (rerun install.sh)"; fi
     if in_clone "$HOME/.local/bin/guard" && [ -f "$C/hooks/usage-guard/usage_guard.py" ]; then pass "usage-guard (~/.claude/hooks/usage-guard, ~/.local/bin/guard)"
     else fail "usage-guard links missing (rerun install.sh)"; fi
+    if [ "$SETTINGS" = keep ]; then skip "usage-guard hooks, /run-agent hook and run-agent allow rules (settings.json kept; copy them from $R/settings.json to use them)"
+    else
     if grep -qs 'usage-guard/usage_guard.py' "$C/settings.json"; then pass "usage-guard hooks in settings.json"
     else fail "usage-guard hooks missing from ~/.claude/settings.json (rerun install.sh)"; fi
     # a typed /run-agent runs through this hook with no model turn (zero tokens); the skill is the fallback
@@ -261,12 +302,13 @@ PYEOF
       OK*) pass "run-agent allow rules (6): ${rules#OK }" ;;
       *) fail "run-agent allow rule missing: ${rules#MISSING } (rerun install.sh)" ;;
     esac
+    fi
     if mcp_registered; then pass "run-agent MCP server registered (user scope, $(mcp_server))"
     else fail "run-agent MCP server not registered in ~/.claude.json (run: $(mcp_add_cmd))"; fi
     command -v uv >/dev/null 2>&1 || echo "NOTE uv is not on PATH: the run-agent and assistant MCP servers start with uv (https://docs.astral.sh/uv/)"
     # runs that failed or were skipped since a human last looked (run-agent jobs marks them seen)
-    while IFS= read -r l; do [ -n "$l" ] && echo "NOTE scheduled run $l"; done < <(bash "$C/skills/run-agent/scripts/run-agent.sh" --failures 2>/dev/null)
-    if out="$(bash "$C/skills/run-agent/scripts/run-agent.sh" --health 2>&1)"; then pass "scheduled /run-agent runs: $(grep -c '^ok' <<<"$out" || true) pending, every runner sleeping"
+    while IFS= read -r l; do [ -n "$l" ] && echo "NOTE scheduled run $l"; done < <(bash "$R/skills/run-agent/scripts/run-agent.sh" --failures 2>/dev/null)
+    if out="$(bash "$R/skills/run-agent/scripts/run-agent.sh" --health 2>&1)"; then pass "scheduled /run-agent runs: $(grep -c '^ok' <<<"$out" || true) pending, every runner sleeping"
     else fail "a scheduled /run-agent run's runner is dead or errored: $(grep '^FAIL' <<<"$out" | head -1) (cancel it or run run-agent.sh --revive)"; fi
   fi
   if [ "$TERMINAL" = true ] && [ "$OS" != windows ]; then
@@ -315,36 +357,60 @@ clash_mode() {  # clash_mode <name>: keep|replace|skip from --agent-clash, or em
   done
   echo "$mode"
 }
-link() {  # link <src> <dst>: replace a link, move a real file to <dst>.pre-link
-  local src="$1" dst="$2"
+# link <src> <dst>: make <dst> a link to <src>. A link already there is replaced; a real file of yours stays where it
+# is and the repo's is not installed. It never writes inside the clone and never fails without saying why.
+link() {
+  local src="$1" dst="$2" rdst err
+  rdst="$(resolve "$(dirname "$dst")")/$(basename "$dst")"
+  case "$rdst" in "$R"|"$R"/*)
+    echo "install: refusing to link $dst: it resolves to $rdst, inside the clone ($R). Remove the link at $(dirname "$dst") and rerun." >&2; exit 1 ;;
+  esac
   if [ -L "$dst" ]; then rm "$dst"
   elif [ -e "$dst" ] && in_clone "$dst" "$src"; then rm -rf "$dst"  # Windows: our own earlier copy
-  elif [ -e "$dst" ]; then mv "$dst" "$dst.pre-link"; fi
-  ln -s "$src" "$dst" 2>/dev/null || { [ "$OS" = windows ] && cp -R "$src" "$dst" && echo "  (copied $dst: this Windows account cannot make symlinks; rerun install.sh after updates)"; }
+  elif [ -e "$dst" ]; then echo "  kept yours: $dst (repo's not installed)"; return 0; fi
+  if err="$(ln -s "$src" "$dst" 2>&1)"; then return 0; fi
+  if [ "$OS" = windows ] && cp -R "$src" "$dst" 2>/dev/null; then
+    echo "  (copied $dst: this Windows account cannot make symlinks; rerun install.sh after updates)"; return 0
+  fi
+  echo "install: could not link $dst: ${err:-ln -s failed}" >&2; exit 1
 }
-backup() { local f="$1" b="$2"; [ -e "$b" ] && b="$b.$(date +%Y%m%d%H%M%S)"; mv "$f" "$b"; echo "  moved your $(basename "$f") to $b"; }
 
-# 1. Clashes first, before anything changes.
-clashes=""
-if ! agents_whole; then
-  for a in $(repo_agents); do
-    f="$C/agents/$a.md"
-    { [ -e "$f" ] || [ -L "$f" ]; } && ! in_clone "$f" "$R/agents/$a.md" && [ -z "$(clash_mode "$a")" ] && clashes="$clashes agents/$a.md"
-  done
-fi
-for s in $(repo_skills); do
-  d="$C/skills/$s"
-  { [ -e "$d" ] || [ -L "$d" ]; } && ! in_clone "$d" "$R/skills/$s" && [ -z "$(clash_mode "$s")" ] && clashes="$clashes skills/$s"
-done
-if [ -n "$clashes" ]; then
-  echo "These are already in $C and are yours (not links into $R):"
-  for c in $clashes; do echo "  clash: $c"; done
-  echo "Rerun with --agent-clash keep|replace|skip (or per name, e.g. --agent-clash planner=keep,worker=replace)."
-  exit 3
-fi
-
-mkdir -p "$C/skills" "$PROJECTS"
 echo "installing claude-config $VERSION from $R into $C ($OS)"
+mkdir -p "$C" "$PROJECTS"
+
+# 1. Links left by an earlier install: a clone that has since moved, or the layout before v1.3.
+#    A link under ~/.claude whose target ends in its own path below ~/.claude (skills/<name> -> .../skills/<name>) and is
+#    now missing, or sits in another clone of this repo, came from this installer. It is pointed at this clone, or
+#    removed when this repo no longer has that file. Nothing of yours matches: your files are not such links.
+for p in "$C"/* "$C"/skills/* "$C"/agents/* "$C"/hooks/* "$C"/local-tools/*; do
+  [ -L "$p" ] || continue
+  if [ -e "$p" ] && in_clone "$p"; then continue; fi   # a working link into this clone
+  t="$(readlink "$p")"; rel="${p#"$C"/}"
+  case "$t" in */"$rel") root="${t%/"$rel"}" ;; *) continue ;; esac
+  if [ -e "$p" ]; then
+    { [ -f "$root/install.sh" ] && [ -d "$root/skills/run-agent" ]; } || continue   # a live link of yours
+    was="was $t, another clone"
+  else was="was $t, now missing"; fi
+  rm "$p"
+  if [ -e "$R/$rel" ]; then
+    err="$(ln -s "$R/$rel" "$p" 2>&1)" || { echo "install: could not link $p: $err" >&2; exit 1; }
+    echo "  relinked $p ($was)"
+  else echo "  removed $p ($was; this repo has no $rel any more)"; fi
+done
+#    Folders this script fills one item at a time must be real folders. Before v1.3 ~/.claude/hooks was one link to
+#    the clone's hooks/, and filling it wrote into the clone.
+for d in skills hooks; do
+  if [ -L "$C/$d" ] && { in_clone "$C/$d" || [ ! -e "$C/$d" ]; }; then
+    rm "$C/$d"; echo "  $C/$d was a link (older layout); it is now a folder of its own"
+  fi
+done
+mkdir -p "$C/skills"
+
+ITERM_OLD="$(saved itermDefault)"
+if [ -f "$C/claude-config.iterm-default.pre-link" ]; then
+  [ -n "$ITERM_OLD" ] || ITERM_OLD="$(head -1 "$C/claude-config.iterm-default.pre-link")"
+  rm "$C/claude-config.iterm-default.pre-link"
+fi
 
 # 2. Agents.
 if agents_whole; then
@@ -357,8 +423,9 @@ else
     case "$(clash_mode "$a")" in
       keep)    sed "s/^name: *$a *\$/name: $a-claude-config/" "$R/agents/$a.md" > "$C/agents/$a-claude-config.md"
                echo "  agent $a: kept yours; the repo's is $a-claude-config (claude --agent $a-claude-config)" ;;
-      replace) backup "$f" "$C/agents/$a.pre-link.md"; link "$R/agents/$a.md" "$f"; echo "  agent $a: now the repo's" ;;
+      replace) rm -f "$f"; link "$R/agents/$a.md" "$f"; echo "  agent $a: now the repo's (yours deleted)" ;;
       skip)    echo "  agent $a: kept yours, repo's skipped" ;;
+      *)       echo "  kept yours: $f (repo's not installed)" ;;
     esac
   done
   for d in report-writer evals; do  # folders the report-writer agent reads
@@ -375,8 +442,9 @@ for s in $(repo_skills); do
              for f in "$R/skills/$s"/*; do [ "$(basename "$f")" = SKILL.md ] || link "$f" "$k/$(basename "$f")"; done
              sed "s/^name: *$s *\$/name: $s-claude-config/" "$R/skills/$s/SKILL.md" > "$k/SKILL.md"
              echo "  skill $s: kept yours; the repo's is /$s-claude-config" ;;
-    replace) backup "$d" "$d.pre-link"; link "$R/skills/$s" "$d"; echo "  skill $s: now the repo's" ;;
+    replace) rm -rf "$d"; link "$R/skills/$s" "$d"; echo "  skill $s: now the repo's (yours deleted)" ;;
     skip)    echo "  skill $s: kept yours, repo's skipped" ;;
+    *)       echo "  kept yours: $d (repo's not installed)" ;;
   esac
 done
 echo "  skills: $(repo_skills | tr '\n' ' ')"
@@ -395,9 +463,7 @@ case "$SETTINGS" in
   replace)
     # a generated copy, not a link: the installed file names this clone's absolute path in the run-agent allow
     # rules (settings_rules), which the committed repo file must not carry. Rerun install.sh after editing the repo's.
-    if [ -L "$C/settings.json" ]; then rm "$C/settings.json"
-    elif [ -f "$C/settings.json" ] && [ ! -e "$C/settings.json.pre-link" ] && ! grep -qs 'run-agent.sh" --hook\|run-agent.sh --hook' "$C/settings.json"; then
-      cp "$C/settings.json" "$C/settings.json.pre-link"; echo "  your original settings.json is kept as settings.json.pre-link"; fi
+    [ -L "$C/settings.json" ] && rm "$C/settings.json"   # an older install linked it; a real file of yours is overwritten, no copy kept
     settings_generate "$C/settings.json"
     echo "  settings.json: generated from the repo's, run-agent allow rules naming $R (rerun install.sh after editing the repo's)" ;;
   keep)    echo "  settings.json: left as it is"
@@ -414,8 +480,7 @@ case "$SETTINGS" in
       echo "  your settings.json has its own statusLine, which the merge keeps. To use this repo's, set it to:"
       echo "      \"statusLine\": {\"type\": \"command\", \"command\": \"bash ~/.claude/statusline.sh\"}"
     fi
-    if [ -L "$C/settings.json" ]; then rm "$C/settings.json"
-    elif [ -f "$C/settings.json" ] && [ ! -e "$C/settings.json.pre-link" ]; then cp "$C/settings.json" "$C/settings.json.pre-link"; echo "  your original settings.json is kept as settings.json.pre-link"; fi
+    [ -L "$C/settings.json" ] && rm "$C/settings.json"
     mv "$tmp" "$C/settings.json" ;;
 esac
 
@@ -475,7 +540,6 @@ elif [ "$TERMINAL" = true ]; then
   case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *)
     grep -qs '.local/bin' "$RC" || { printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$RC"; echo "  added ~/.local/bin to PATH in $RC"; } ;;
   esac
-  command -v tmux >/dev/null 2>&1 || echo "  tmux is not installed: $([ "$OS" = mac ] && echo 'brew install tmux' || echo 'sudo apt install tmux')"
   link "$R/wsl/tmux.conf" "$HOME/.tmux.conf"
   # Starship prompt (gruvbox-rainbow preset). The terminal needs a Nerd Font for the glyphs.
   if ! command -v starship >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/starship" ]; then
@@ -529,7 +593,7 @@ elif [ "$TERMINAL" = true ]; then
       if [ "$DEFPROF" = true ]; then
         old="$(defaults read com.googlecode.iterm2 'Default Bookmark Guid' 2>/dev/null || true)"
         if [ "$old" != claude-config-claude-tmux ]; then
-          [ -n "$old" ] && echo "$old" > "$C/claude-config.iterm-default.pre-link"
+          [ -n "$old" ] && ITERM_OLD="$old"   # saved in claude-config.json (step 10) as itermDefault
           defaults write com.googlecode.iterm2 'Default Bookmark Guid' -string claude-config-claude-tmux
           echo "  iTerm2: \"Claude tmux\" is now the default profile (restart iTerm2). To undo:"
           if [ -n "$old" ]; then echo "      defaults write com.googlecode.iterm2 'Default Bookmark Guid' -string '$old'"
@@ -558,13 +622,16 @@ if [ "$OS" = wsl ]; then
   echo "  WSL: local-tools and CLAUDE.local.md"
 fi
 
-# 10. Save the choices so a plain ./install.sh (or an update) reapplies them.
-"$PY" - "$CFG" <<EOF
+# 10. Save the choices so a plain ./install.sh (or an update) reapplies them. itermDefault is the iTerm2 default
+#     profile from before --default-profile (older versions kept it in claude-config.iterm-default.pre-link).
+"$PY" - "$CFG" "$ITERM_OLD" <<EOF
 import json, sys
-json.dump({"projects": """$PROJECTS""", "terminal": $([ "$TERMINAL" = true ] && echo True || echo False),
-           "defaultProfile": $([ "$DEFPROF" = true ] && echo True || echo False), "statusline": "$STATUSLINE",
-           "settings": "$SETTINGS", "agentClash": "$CLASH", "repo": """$R""", "version": "$VERSION"},
-          open(sys.argv[1], "w"), indent=2)
+d = {"projects": """$PROJECTS""", "terminal": $([ "$TERMINAL" = true ] && echo True || echo False),
+     "defaultProfile": $([ "$DEFPROF" = true ] && echo True || echo False), "statusline": "$STATUSLINE",
+     "settings": "$SETTINGS", "agentClash": "$CLASH", "repo": """$R""", "version": "$VERSION"}
+if sys.argv[2]:
+    d["itermDefault"] = sys.argv[2]
+json.dump(d, open(sys.argv[1], "w"), indent=2)
 open(sys.argv[1], "a").write("\n")
 EOF
 echo "  choices saved in $CFG"
