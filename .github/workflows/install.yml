@@ -3,6 +3,7 @@ name: install
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 jobs:
   install:
@@ -40,6 +41,10 @@ jobs:
 
       - name: claude doctor
         run: claude --version && claude doctor < /dev/null
+
+      - name: run-agent tests (Linux, macOS)
+        if: runner.os != 'Windows'
+        run: bash skills/run-agent/scripts/test.sh
 
       - name: Install scenarios with --terminal (Linux, macOS)
         if: runner.os != 'Windows'
