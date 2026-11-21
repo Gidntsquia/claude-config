@@ -3,7 +3,13 @@
 # (or a tmux popup). Outside tmux it prints the command to run.
 # A first word that is one of run-agent.sh's own flags (--jobs, --next, --cancel, --handoff, --help, ...) goes to the
 # script as it is: `run-agent --jobs` lists the jobs instead of asking "which agent?" in a popup.
-SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+# Follow the ~/.local/bin link to the clone by hand: `readlink -f` is missing on macOS before 12.3.
+SELF="${BASH_SOURCE[0]}"
+while [ -L "$SELF" ]; do
+  d="$(cd "$(dirname "$SELF")" && pwd -P)"; SELF="$(readlink "$SELF")"
+  case "$SELF" in /*) ;; *) SELF="$d/$SELF" ;; esac
+done
+SELF="$(cd "$(dirname "$SELF")" && pwd -P)/$(basename "$SELF")"
 S="$(dirname "$SELF")/../skills/run-agent/scripts/run-agent.sh"
 case "${1:-}" in --*) exec "$S" "$@" ;; esac
 exec "$S" --cli "$@"

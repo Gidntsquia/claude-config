@@ -99,7 +99,19 @@ out=$("$S" --resolve "~/no-such-run-agent-dir-$$" 2>&1)
 # ---------------------------------------------------------------- --parse suite
 # Frozen clock: 2026-10-22 18:00 ET; fake usage API with the window resetting at 8:20 PM ET.
 export RUN_AGENT_TZ=America/New_York
-export RUN_AGENT_NOW=$(TZ=America/New_York date -d '2026-10-22 18:00' +%s)
+# ep '<YYYY-MM-DD HH:MM>': that New York wall-clock time as an epoch. python3 zoneinfo, not GNU `date -d`
+# (BSD date on macOS has no -d), so the frozen clock is the same on Linux, macOS and Git Bash.
+# mtime <epoch> <file>...: set the files' modification time (GNU `touch -d @N`; BSD touch has no such form)
+mtime() { python3 -c 'import os, sys
+for f in sys.argv[2:]:
+    open(f, "a").close(); os.utime(f, (int(sys.argv[1]),) * 2)' "$@"; }
+# pargs <pid>: the process's arguments, one per line (Linux /proc, macOS sysctl)
+pargs() { python3 "$(dirname "$S")/proc.py" argv "$1"; }
+# wc: BSD wc pads its count with spaces, GNU does not
+wc() { command wc "$@" | tr -d ' '; }
+export RUN_AGENT_TEST_PID=$$   # proc.py: on macOS a fake claude counts as the test's own when it runs below this script
+ep() { python3 -c 'import sys, datetime, zoneinfo; print(int(datetime.datetime.strptime(sys.argv[1], "%Y-%m-%d %H:%M").replace(tzinfo=zoneinfo.ZoneInfo("America/New_York")).timestamp()))' "$1"; }
+export RUN_AGENT_NOW=$(ep '2026-10-22 18:00')
 export RUN_AGENT_USAGE_FILE="$T/usage.json"
 printf '{"five_hour":{"utilization":29.0,"resets_at":"2026-10-23T00:20:00.251269+00:00"}}' > "$T/usage.json"
 export RUN_AGENT_HOME="$T/home"
@@ -202,7 +214,6 @@ pcheck "time: dry with model, effort, at" 'worker fable low effort at 9pm dry' "
 pcheck "time: dry run alone fetches the reset" 'worker dry run' "{\"dry\":1,$RESET}"
 pcheck "time: --dry-run" 'worker --dry-run' "{\"dry\":1,$RESET}"
 # day / relative phrases (Amendment 2026-10-29: the three sessions' exact inputs first). Frozen clock Thu 10-22 6 PM.
-ep() { TZ=America/New_York date -d "$1" +%s; }
 tcheck() {  # tcheck <label> <raw> <epoch> <at_text> <derive or ""> [<extra json>]: an at + at_shown + run (+ --at-shown)
   local label="$1" raw="$2" at="$3" text="$4" derive="$5" extra="${6:-}" shown run
   shown="$(python3 "$(dirname "$S")/parse.py" --fmt "$at") (${derive:-$text}, $(python3 -c "import sys; sys.path.insert(0,sys.argv[1]); from parse import fmt_in; print(fmt_in(int(sys.argv[2]), int(sys.argv[3])))" "$(dirname "$S")" "$at" "$RUN_AGENT_NOW"))"
@@ -253,11 +264,11 @@ t0=$(date +%s); out=$(env -u RUN_AGENT_NO_RETRY RUN_AGENT_USAGE_FILE="status:429
 [ "$out" = "8:20 PM ET (cached)" ] && [ "$dt" -ge 3 ] && [ "$dt" -le 8 ] && ok "reset: 429 retried (1 s + 3 s) then cached ($dt s)" || bad "reset: 429 retry" "$out after $dt s"
 # estimate from session activity: a session that started 2026-10-22 14:30 ET and is still running -> window 2:30-7:30 PM
 mkdir -p "$T/proj/x" "$T/proj-empty"
-printf '{"type":"x","timestamp":"2026-10-22T18:30:00.000Z"}\n' > "$T/proj/x/a.jsonl"; touch -d "@$RUN_AGENT_NOW" "$T/proj/x/a.jsonl"
+printf '{"type":"x","timestamp":"2026-10-22T18:30:00.000Z"}\n' > "$T/proj/x/a.jsonl"; mtime "$RUN_AGENT_NOW" "$T/proj/x/a.jsonl"
 out=$(RUN_AGENT_HOME="$T/home-nocache" RUN_AGENT_PROJECTS="$T/proj" RUN_AGENT_USAGE_FILE="status:429" python3 "$(dirname "$S")/parse.py" --reset-shown)
 [ "$out" = "7:30 PM ET (estimated from session activity)" ] && ok "reset: no cache -> estimated from transcripts (session 2:30 PM, running) = 7:30 PM" || bad "reset: estimate" "$out"
 # a session that ran 6:00-11:30 AM and nothing since: that window closed; now + 5 h, labelled assumed
-printf '{"type":"x","timestamp":"2026-10-22T10:00:00.000Z"}\n' > "$T/proj/x/a.jsonl"; touch -d "@$(( RUN_AGENT_NOW - 6*3600 - 1800 ))" "$T/proj/x/a.jsonl"
+printf '{"type":"x","timestamp":"2026-10-22T10:00:00.000Z"}\n' > "$T/proj/x/a.jsonl"; mtime "$(( RUN_AGENT_NOW - 6*3600 - 1800 ))" "$T/proj/x/a.jsonl"
 out=$(RUN_AGENT_HOME="$T/home-nocache" RUN_AGENT_PROJECTS="$T/proj" RUN_AGENT_USAGE_FILE="status:429" python3 "$(dirname "$S")/parse.py" --reset-shown)
 [ "$out" = "11:00 PM ET (assumed: no window open, next message starts one)" ] && ok "reset: old sessions only -> now + 5 h, assumed" || bad "reset: assumed (old)" "$out"
 out=$(RUN_AGENT_HOME="$T/home-nocache" RUN_AGENT_PROJECTS="$T/proj-empty" RUN_AGENT_USAGE_FILE="status:429" python3 "$(dirname "$S")/parse.py" --reset-shown)
@@ -525,8 +536,8 @@ EOF
   wait_for 3 bash -c "[ \"\$(python3 '$J' get $id pid)\" != 0 ]"
   pid=$(python3 "$J" get "$id" pid)
   grep -q "^#$id  .*\[sleeping (pid $pid)\]$" <<<"$("$S2" --jobs)" && ok "loop: --jobs shows sleeping (pid N)" || bad "loop: sleeping state" "$("$S2" --jobs)"
-  tr -d '\0' < "/proc/$pid/cmdline" | grep -q 'exec bash "$r" "$id"' && [ "$(tr '\0' ' ' < "/proc/$pid/cmdline" | grep -o 'runner.sh' | head -1)" = runner.sh ] \
-    && ok "loop: the sleeper is the fixed bash -c loop, named runner.sh" || bad "loop: sleeper cmdline" "$(tr '\0' ' ' < "/proc/$pid/cmdline")"
+  pargs "$pid" | grep -q 'exec bash "$r" "$id"' && [ "$(pargs "$pid" | grep -o 'runner.sh' | head -1)" = runner.sh ] \
+    && ok "loop: the sleeper is the fixed bash -c loop, named runner.sh" || bad "loop: sleeper cmdline" "$(pargs "$pid")"
   cp "$C2/runner.sh" "$T/runner.bak"
   printf 'sleep -1\nreturn\n}\n}\nthis is junk\n' > "$C2/runner.sh"; sleep 1
   { echo '# restored'; cat "$T/runner.bak"; } > "$C2/runner.sh"   # shifted lines: the old incremental-read bug
@@ -655,7 +666,7 @@ grep -q "^command: claude --agent worker" <<<"$out" && grep -q "^dir: " <<<"$out
 out=$("$(dirname "$S")/../../../bin/run-agent" --jobs </dev/null 2>&1); o2=$("$(dirname "$S")/../../../bin/run-agent" --next evaluator "." </dev/null 2>&1)
 [ "$out" = "no scheduled runs" ] && grep -q '^/run-agent evaluator "\."$' <<<"$o2" && ok "bin/run-agent: --jobs and --next go to the script as flags (no which-agent question)" || bad "bin/run-agent flags" "$out | $o2"
 out=$("$S" --next planner "Replan based on plans/EVAL.md")
-mapfile -t nl <<<"$out"
+nl=(); while IFS= read -r _l; do nl+=("$_l"); done <<<"$out"
 [ "${#nl[@]}" = 3 ] && [[ "${nl[0]}" == Next,*replan* ]] && [[ "${nl[0]}" == *: ]] && [ "${#nl[0]}" -le 60 ] \
   && [[ "${nl[1]}" == '/run-agent planner "Replan based on plans/EVAL.md"'* ]] && [[ "${nl[1]}" != *claude* ]] \
   && [[ "${nl[2]}" == 'Without run-agent: claude --agent planner "Replan based on plans/EVAL.md"'* ]] \
@@ -674,7 +685,7 @@ out=$( (exec -a claude bash -c "'$S' --next helper 'Replan based on plans/EVAL.m
 grep -qx '/run-agent helper "Replan based on plans/EVAL.md"' <<<"$out" && grep -qx 'Without run-agent: claude --agent helper "Replan based on plans/EVAL.md"' <<<"$out" && ! grep -q -- '--model\|--effort\|opus\|high' <<<"$out" \
   && ok "next helper: no model/effort even from an opus high session" || bad "next: helper flags" "$out"
 # the confirm state machine (--step): the script applies the answers, haiku only asks
-export RUN_AGENT_NOW=$(TZ=America/New_York date -d '2026-10-22 18:00' +%s)
+export RUN_AGENT_NOW=$(ep '2026-10-22 18:00')
 printf '{"five_hour":{"utilization":29.0,"resets_at":"2026-10-23T00:20:00.251269+00:00"}}' > "$RUN_AGENT_USAGE_FILE"
 for i in $(python3 "$(dirname "$S")/jobs.py" pending); do "$S" --cancel "$i" >/dev/null 2>&1; done
 out=$("$S" --step 'worker zzqx confirm')
@@ -766,7 +777,7 @@ assert all(w in a for w in want), a; assert not any(r.startswith('Bash(*') for r
   && ok "rules: settings.json holds the six rules" || bad "rules: settings.json"
 # (R11) --clean drops done/ and logs/ files older than 30 days; --jobs warns past 50 MB
 mkdir -p "$RUN_AGENT_HOME/done" "$RUN_AGENT_HOME/logs"
-echo '{}' > "$RUN_AGENT_HOME/done/900.json"; touch -d '40 days ago' "$RUN_AGENT_HOME/done/900.json" "$RUN_AGENT_HOME/logs/900.log"; echo '{}' > "$RUN_AGENT_HOME/done/901.json"
+echo '{}' > "$RUN_AGENT_HOME/done/900.json"; mtime "$(( $(date +%s) - 40*86400 ))" "$RUN_AGENT_HOME/done/900.json" "$RUN_AGENT_HOME/logs/900.log"; echo '{}' > "$RUN_AGENT_HOME/done/901.json"
 out=$("$S" --clean 2>&1)
 [ ! -e "$RUN_AGENT_HOME/done/900.json" ] && [ ! -e "$RUN_AGENT_HOME/logs/900.log" ] && [ -e "$RUN_AGENT_HOME/done/901.json" ] && grep -q "^removed 2 file(s) older than 30 days" <<<"$out" && ok "clean: removes done/logs files older than 30 days, keeps newer" || bad "clean" "$out $(ls "$RUN_AGENT_HOME/done" "$RUN_AGENT_HOME/logs")"
 truncate -s 60M "$RUN_AGENT_HOME/logs/big.log"
@@ -774,7 +785,7 @@ grep -q "^state dir 60 MB, trim with run-agent clean$" <<<"$("$S" --jobs 2>&1)" 
 rm -f "$RUN_AGENT_HOME/logs/big.log"
 [ ! -e "$HOME/.claude/run-agent/runner.log" ] && ! grep -q 'runner\.log' "$(dirname "$S")"/run-agent.sh "$(dirname "$S")"/runner.sh "$(dirname "$S")"/*.py && ok "runner.log: gone and nothing writes it" || bad "runner.log" "$(grep -n 'runner\.log' "$(dirname "$S")"/run-agent.sh "$(dirname "$S")"/runner.sh "$(dirname "$S")"/*.py)"
 # (R5) the confirm question and texts name the default model; a typed model is shown as typed
-export RUN_AGENT_NOW=$(TZ=America/New_York date -d '2026-10-22 18:00' +%s)
+export RUN_AGENT_NOW=$(ep '2026-10-22 18:00')
 printf '{"five_hour":{"utilization":29.0,"resets_at":"2026-10-23T00:20:00.251269+00:00"}}' > "$RUN_AGENT_USAGE_FILE"
 out=$("$S" --step 'worker 1 hour before the window confirm'); grep -q 'model: sonnet (default; type fable/opus to change)' <<<"$out" && grep -q '(sonnet, default)' <<<"$out" \
   && ok "step: no model typed -> 'model: sonnet (default; type fable/opus to change)' and (sonnet, default)" || bad "step: default model" "$out"
@@ -796,7 +807,7 @@ if command -v tmux >/dev/null 2>&1; then
     tmux -S "$TS" send-keys -t "$caller" "PATH=$T/fakebin:\$PATH '$S' --relaunch 'planner \"Plan $p\" in $T split' >> '$T/split.out' 2>&1" Enter
     wait_for 8 bash -c "[ \$(grep -c '^opened' '$T/split.out') -ge \$1 ]" _ $(( $(printf 'ABCD' | sed "s/$p.*//" | wc -c) + 1 ))
   done
-  wins=$(tmux -S "$TS" list-windows -t sp -F '#{window_panes}' | paste -sd' ')
+  wins=$(tmux -S "$TS" list-windows -t sp -F '#{window_panes}' | paste -sd' ' -)
   [ "$(tmux -S "$TS" list-panes -t sp:0 -F '#{pane_id}')" = "$caller" ] && [ "$wins" = "1 1 1 1 1" ] \
     && [ "$(grep -c '^opened ' "$T/split.out")" = 4 ] && ! grep -q 'confirm there' "$T/split.out" \
     && ok "split: four launches give four new one-pane windows at once (no confirm), caller window unchanged" || bad "split: new windows" "windows=$wins $(cat "$T/split.out")"
@@ -833,7 +844,7 @@ EOF
   wait_for 5 bash -c "! tmux -S '$TG' list-panes -t gp:1 -F '#{pane_current_path}' | grep -q 'repo/sub'"   # each pane's cd has run
   panes=$(tmux -S "$TG" list-panes -t gp:1 -F '#{pane_left},#{pane_top} #{pane_current_path}' 2>/dev/null)
   lefts=$(cut -d, -f1 <<<"$panes" | sort -u | wc -l); tops=$(cut -d' ' -f1 <<<"$panes" | cut -d, -f2 | sort -u | wc -l)
-  dirs=$(awk '{print $2}' <<<"$panes" | xargs -n1 basename 2>/dev/null | sort | paste -sd' ')
+  dirs=$(awk '{print $2}' <<<"$panes" | xargs -n1 basename 2>/dev/null | sort | paste -sd' ' -)
   [ "$(tmux -S "$TG" list-panes -t gp:0 -F '#{pane_id}')" = "$caller" ] && [ "$(wc -l <<<"$panes")" = 4 ] \
     && [ "$lefts" = 2 ] && [ "$tops" = 2 ] && [ "$dirs" = "ga gb gc gd" ] \
     && [ "$(tmux -S "$TG" list-windows -t gp | wc -l)" = 2 ] \
@@ -867,6 +878,10 @@ EOF
   # parent holding that pane's real TMUX/TMUX_PANE and no RUN_AGENT_TEST, like a live session). As its children it
   # runs the four hook inputs with env -u TMUX -u TMUX_PANE, the bare `worker` one last. $2 = 1: with the flag, as
   # this script runs them. $2 = 0: without it, which is how the pane was lost.
+  # macOS hides the environment of Apple's own binaries (/bin/bash) from other processes, and the real claude is
+  # not one of them: there the canary runs a re-signed copy of bash, whose environment can be read like claude's.
+  CBASH=bash
+  if [ "$(uname)" = Darwin ]; then cp /bin/bash "$T/cbash" && codesign -s - -f "$T/cbash" >/dev/null 2>&1 && CBASH="$T/cbash"; fi
   cat > "$T/canary.sh" <<EOF
 #!/usr/bin/env bash
 out="\$1"; flag="\$2"; cd '$T/repo/sub'
@@ -880,7 +895,7 @@ EOF
   canary() {  # canary <name> <flag>: sets C_BEFORE, C_AFTER (pane pid, empty = pane gone), C_DEAD; outputs in $T/<name>.N
     local name="$1" flag="$2" i
     env TMUX= tmux -L "$SOCK" -f /dev/null new-session -d -x 200 -y 60 -s "$name" -c "$T/repo/sub" \
-      "env -u RUN_AGENT_TEST -u RUN_AGENT_TEST_DIR -u RUN_AGENT_FROM -u RUN_AGENT_HUMAN PATH='$T/bin:$PATH' RA_OUT='$T/$name.claude' RUN_AGENT_HOME='$RUN_AGENT_HOME' RUN_AGENT_AGENTS_DIR='$T/agents' RUN_AGENT_USAGE_FILE='${RUN_AGENT_USAGE_FILE:-}' SHELL='$T/bin/sh-norc' bash -c 'exec -a claude bash \"\$@\"' _ '$T/canary.sh' '$T/$name' $flag"
+      "env -u RUN_AGENT_TEST -u RUN_AGENT_TEST_DIR -u RUN_AGENT_FROM -u RUN_AGENT_HUMAN PATH='$T/bin:$PATH' RA_OUT='$T/$name.claude' RUN_AGENT_HOME='$RUN_AGENT_HOME' RUN_AGENT_AGENTS_DIR='$T/agents' RUN_AGENT_USAGE_FILE='${RUN_AGENT_USAGE_FILE:-}' SHELL='$T/bin/sh-norc' bash -c 'exec -a claude $CBASH \"\$@\"' _ '$T/canary.sh' '$T/$name' $flag"
     sleep 0.5
     C_BEFORE=$(tmux -L "$SOCK" display -p -t "$name" '#{pane_pid}' 2>/dev/null)
     for i in $(seq 1 80); do
@@ -894,7 +909,7 @@ EOF
   }
   hook_reason() { python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['reason'])" "$1" 2>/dev/null; }
   canary canary1 1
-  [ -n "$C_BEFORE" ] && [ "$(basename "$(tr '\0' '\n' < "/proc/$C_BEFORE/cmdline" | head -1)")" = claude ] && [ "$C_AFTER" = "$C_BEFORE" ] && [ "$C_DEAD" = 0 ] \
+  [ -n "$C_BEFORE" ] && [ "$(basename "$(pargs "$C_BEFORE" | head -1)")" = claude ] && [ "$C_AFTER" = "$C_BEFORE" ] && [ "$C_DEAD" = 0 ] \
     && [ -e "$T/canary1.done" ] && [[ "$(hook_reason "$T/canary1.4")" == "not inside tmux"* ]] && [[ "$(hook_reason "$T/canary1.1")" == "command: claude --agent worker"* ]] \
     && [ "$(hook_reason "$T/canary1.2")" = "no scheduled runs" ] && [[ "$(hook_reason "$T/canary1.3")" == "command: claude --agent planner"* ]] \
     && ok "canary: test run inside a claude tmux pane leaves it alone" \

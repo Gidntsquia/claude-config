@@ -59,6 +59,8 @@ USAGE='usage: run-agent.sh <agent> [prompt] [--cwd|-C <dir>] [--target split|win
 # Built-in subagents that `claude --agent` accepts (checked 2026-10-14; Bash and claude-code-guide are refused).
 BUILTINS=(claude general-purpose Explore Plan statusline-setup)
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# a stripped environment (cron, launchd, env -i) has no Homebrew on PATH, and that is where tmux lives on a Mac
+command -v tmux >/dev/null 2>&1 || export PATH="${PATH:-/usr/bin:/bin}:/opt/homebrew/bin:/usr/local/bin"
 # A worker's subagents are capped whatever the worker asks for (usage-guard R15, hooks/usage-guard/README.md): Sonnet,
 # three at a time, no subagents of subagents. Forced on every worker this script starts (now, scheduled, handed off),
 # for that claude process only; the shell left in the pane afterwards does not keep them. The same list is in runner.sh
@@ -70,6 +72,8 @@ WORKER_ENV="CLAUDE_CODE_SUBAGENT_MODEL=sonnet CLAUDE_CODE_MAX_CONCURRENT_SUBAGEN
 WORKER_ENV_SH='w=(); [ "$3" = worker ] && w=(env '"$WORKER_ENV"');'
 STATE="${RUN_AGENT_HOME:-$HOME/.claude/run-agent}"
 
+# rp <path>: the path with links resolved, whether or not it exists (GNU `realpath -m`; BSD realpath on macOS has no -m)
+rp() { python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
 # Test mode (RUN_AGENT_TEST=1, exported by test.sh). tm_guard <subcommand> <socket>: a tmux command that changes
 # panes runs only on the test's own servers (socket named run-agent-test-*, or under $RUN_AGENT_TEST_DIR); on any
 # other socket, the default server included, it is not run: one line on stderr, exit 2. Without the flag: no-op.
@@ -78,7 +82,7 @@ tm_guard() {
   local s="$2" d="${RUN_AGENT_TEST_DIR:-}"
   if [ -n "$s" ]; then
     case "${s##*/}" in run-agent-test|run-agent-test-*) return 0 ;; esac
-    [ -n "$d" ] && case "$(realpath -m -- "$s")" in "$(realpath -m -- "$d")"/*) return 0 ;; esac
+    [ -n "$d" ] && case "$(rp "$s")" in "$(rp "$d")"/*) return 0 ;; esac
   fi
   echo "test mode: refusing tmux $1 on ${s:-default server}" >&2
   exit 2
@@ -87,7 +91,7 @@ tm_guard() {
 store_guard() {
   [ "${RUN_AGENT_TEST:-}" = 1 ] || return 0
   if [ -n "${RUN_AGENT_HOME:-}" ]; then
-    case "$(realpath -m -- "$RUN_AGENT_HOME")/" in "$(realpath -m -- "$HOME/.claude")"/*) ;; *) return 0 ;; esac
+    case "$(rp "$RUN_AGENT_HOME")/" in "$(rp "$HOME/.claude")"/*) ;; *) return 0 ;; esac
   fi
   echo "test mode: refusing the real job store" >&2
   exit 2
@@ -179,7 +183,7 @@ revive() {
   local line id state socket spid cur TM stale
   store_guard; mkdir -p "$STATE"
   if command -v flock >/dev/null 2>&1; then exec 9>"$STATE/revive.lock"; flock -n 9 || return 0; fi
-  mapfile -t stale < <(python3 "$HERE/jobs.py" stale)
+  stale=(); while IFS= read -r line; do stale+=("$line"); done < <(python3 "$HERE/jobs.py" stale)
   for line in ${stale[@]+"${stale[@]}"}; do
     IFS=$'\t' read -r id state <<<"$line"
     if [ "$state" = overdue ]; then
@@ -218,22 +222,7 @@ from_agent() {
   if [ -n "${RUN_AGENT_FROM:-}" ]; then echo "$RUN_AGENT_FROM"; return; fi
   # test mode: a `claude` parent counts only when the test started it (its own environment carries the flag),
   # so no result depends on which session ran test.sh
-  python3 - <<'PY' 2>/dev/null
-import os
-test = os.environ.get("RUN_AGENT_TEST") == "1"
-pid = os.getppid()
-while pid > 1:
-    try:
-        argv = [a.decode(errors="replace") for a in open(f"/proc/{pid}/cmdline", "rb").read().split(b"\0") if a]
-        if argv and os.path.basename(argv[0]) == "claude" and (
-                not test or b"RUN_AGENT_TEST=1" in open(f"/proc/{pid}/environ", "rb").read().split(b"\0")):
-            if "--agent" in argv[:-1]:
-                print(argv[argv.index("--agent") + 1])
-            break
-        pid = int(open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[1])
-    except (OSError, ValueError, IndexError):
-        break
-PY
+  python3 "$HERE/proc.py" from-agent 2>/dev/null
 }
 
 # default_model <agent>: the model a `claude --agent <agent>` run gets with no --model: the agent file's
@@ -269,7 +258,7 @@ fire_waiting() {
     cwd=$(python3 "$HERE/jobs.py" get "$id" cwd); agent=$(python3 "$HERE/jobs.py" get "$id" agent)
     folder=$(python3 "$HERE/jobs.py" get "$id" folder); shown=$(python3 "$HERE/jobs.py" get "$id" shown)
     [ -d "$cwd" ] || cwd="$PWD"
-    mapfile -d '' -t cmd < <(python3 "$HERE/jobs.py" argv "$id")
+    cmd=(); while IFS= read -r -d '' _w; do cmd+=("$_w"); done < <(python3 "$HERE/jobs.py" argv "$id")   # no mapfile: macOS ships bash 3.2
     first="scheduled run #$id fired at $(python3 "$HERE/parse.py" --fmt "$(date +%s)") (was waiting: no pane): $shown"
     wrap=(bash -c 'printf "%s\n" "$1"; '"$WORKER_ENV_SH"' RUN_AGENT_FROM="$3" "${w[@]}" "${@:4}"; exec "$2"' run-agent "$first" "${SHELL:-bash}" "$agent" "${cmd[@]}")
     if open_target window "$TMUX_PANE" "$cwd" "$agent: $folder" "${wrap[@]}" >/dev/null 2>&1; then
@@ -368,7 +357,7 @@ fi
 if [ "$handoff" = 1 ]; then
   HINT="; run /run-agent worker after window to schedule it by hand"
   args=("$agent"); [ -n "$prompt" ] && args+=("$prompt"); [ -n "$dir" ] && args+=(--cwd "$dir")
-  sched=$("$BASH_SOURCE" "${args[@]}" --at 0 --at-text 'after window' --window --need-tmux -- "${flags[@]}" 2>&1) || true
+  sched=$("$BASH_SOURCE" "${args[@]}" --at 0 --at-text 'after window' --window --need-tmux -- ${flags[@]+"${flags[@]}"} 2>&1) || true
   relaunch=$(grep -m1 '^Relaunch: ' <<<"$sched" || true)
   [ -n "$relaunch" ] || relaunch="Relaunch: not scheduled — $(tail -n1 <<<"${sched:-no output from the scheduler}")$HINT"
   text=""; [ -t 0 ] || text=$(cat)
@@ -425,7 +414,7 @@ shown="claude --agent $agent"
 [ -n "$prompt" ] && { cmd+=("$prompt"); shown+=" \"$prompt\""; }
 [ ${#flags[@]} -gt 0 ] && cmd+=("${flags[@]}")
 prev=""
-for f in "${flags[@]}"; do
+for f in ${flags[@]+"${flags[@]}"}; do
   if [ "$prev" = "--name" ] || [ "$prev" = "-n" ]; then shown+=" \"$f\""; else shown+=" $f"; fi
   prev="$f"
 done
@@ -479,9 +468,12 @@ if [ -n "$at" ]; then
   fi
   mkdir -p "$STATE"
   # at_text in the job carries the derivation ("two hours before window 8:20 PM") so `jobs` names it the same way
+  # optional arguments as an array: bash 3.2 (macOS) expands the redirection below with IFS=tab, so an unquoted
+  # ${x:+--flag "$x"} stayed one word there and the job lost its until time and its directory
+  opt=(); [ -n "$until_at" ] && opt+=(--until "$until_at"); [ -n "$at_shown" ] && opt+=(--at-text-raw "$at_text")
   IFS=$'\t' read -r id jobfile < <(python3 "$HERE/jobs.py" write --run-at "$at" --at-text "$([ -n "$at_shown" ] && sed 's/^[^(]*(//; s/, in [^,]*)$//' <<<"$at_shown" || printf %s "$at_text")" --window "$window" \
-    ${until_at:+--until "$until_at"} --cwd "${dir:-$PWD}" --target "$target" --pane "$pane" --session "$session" --socket "$socket" \
-    --server-pid "$server_pid" --from-agent "$([ -n "$caller_agent" ] && echo 1 || echo 0)" ${at_shown:+--at-text-raw "$at_text"} \
+    ${opt[@]+"${opt[@]}"} --cwd "${dir:-$PWD}" --target "$target" --pane "$pane" --session "$session" --socket "$socket" \
+    --server-pid "$server_pid" --from-agent "$([ -n "$caller_agent" ] && echo 1 || echo 0)" \
     --shown "$shown" --agent "$agent" --folder "$folder" --claude-bin "$(claude_bin)" --path "${PATH:-}" --home "$HOME" \
     --shell "${SHELL:-bash}" --model-default "$model_default" -- "${cmd[@]}")
   start_runner "$id" "$at"

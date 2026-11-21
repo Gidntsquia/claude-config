@@ -41,6 +41,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import proc  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 S_REAL = os.path.join(HERE, "run-agent.sh")
 TEST = os.environ.get("RUN_AGENT_TEST") == "1"  # set by test.sh: see tmux_guard and claude_environ
@@ -694,54 +697,18 @@ def cli(words):
 
 
 # ----------------------------------------------------------------- next-step line
-def test_made(pid):
-    """test mode: a `claude` parent counts only when the test started it (its own environment carries the flag)"""
-    try:
-        return b"RUN_AGENT_TEST=1" in open(f"/proc/{pid}/environ", "rb").read().split(b"\0")
-    except OSError:
-        return False
-
-
 def claude_environ():
-    """the environment of the nearest parent claude process (Linux /proc), {} when unknown"""
+    """the environment of the nearest parent claude process, {} when unknown"""
     if TEST:  # test.sh: never learn the pane of the session that runs the tests (9 Nov 2026: it was respawned)
         return {}
-    pid = os.getppid()
-    while pid > 1:
-        try:
-            argv = [a for a in open(f"/proc/{pid}/cmdline", "rb").read().split(b"\0") if a]
-            if argv and os.path.basename(argv[0].decode(errors="replace")) == "claude":
-                raw = open(f"/proc/{pid}/environ", "rb").read().split(b"\0")
-                return dict(x.decode(errors="replace").split("=", 1) for x in raw if b"=" in x)
-            pid = int(open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[1])
-        except (OSError, ValueError, IndexError):
-            break
-    return {}
+    pid, _ = proc.parent_claude()
+    raw = proc.environ(pid) if pid else None
+    return dict(x.decode(errors="replace").split("=", 1) for x in raw or [] if b"=" in x)
 
 
 def claude_argv():
-    pid = os.getppid()
-    while pid > 1:
-        try:
-            argv = open(f"/proc/{pid}/cmdline", "rb").read().split(b"\0")
-            argv = [a.decode(errors="replace") for a in argv if a]
-            if argv and os.path.basename(argv[0]) == "claude" and (not TEST or test_made(pid)):
-                return argv
-            pid = int(open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[1])
-        except (OSError, ValueError, IndexError):
-            break
-    if TEST:
-        return []
-    try:  # macOS: no /proc
-        p = os.getppid()
-        while p > 1:
-            args = subprocess.run(["ps", "-o", "args=", "-p", str(p)], capture_output=True, text=True).stdout.strip()
-            if args and os.path.basename(args.split()[0]) == "claude":
-                return shlex.split(args) if '"' in args else args.split()
-            p = int(subprocess.run(["ps", "-o", "ppid=", "-p", str(p)], capture_output=True, text=True).stdout.strip())
-    except (OSError, ValueError):
-        pass
-    return []
+    """argv of the nearest parent claude process; in test mode only a claude the test started counts"""
+    return proc.parent_claude(test=TEST)[1]
 
 
 def next_sentence(agent, prompt, caller):

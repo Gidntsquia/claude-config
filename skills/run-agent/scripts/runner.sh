@@ -17,8 +17,12 @@
 # the error stays on screen in the pane.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# a stripped environment (cron, launchd, env -i) has no Homebrew on PATH, and that is where tmux lives on a Mac
+command -v tmux >/dev/null 2>&1 || export PATH="${PATH:-/usr/bin:/bin}:/opt/homebrew/bin:/usr/local/bin"
 J="$HERE/jobs.py"; P="$HERE/parse.py"
 
+# rp <path>: the path with links resolved, whether or not it exists (GNU `realpath -m`; BSD realpath on macOS has no -m)
+rp() { python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
 # Test mode (RUN_AGENT_TEST=1, exported by test.sh; same two functions as run-agent.sh). tm_guard <subcommand> <socket>: a tmux command that changes
 # panes runs only on the test's own servers (socket named run-agent-test-*, or under $RUN_AGENT_TEST_DIR); on any
 # other socket, the default server included, it is not run: one line on stderr, exit 2. Without the flag: no-op.
@@ -27,7 +31,7 @@ tm_guard() {
   local s="$2" d="${RUN_AGENT_TEST_DIR:-}"
   if [ -n "$s" ]; then
     case "${s##*/}" in run-agent-test|run-agent-test-*) return 0 ;; esac
-    [ -n "$d" ] && case "$(realpath -m -- "$s")" in "$(realpath -m -- "$d")"/*) return 0 ;; esac
+    [ -n "$d" ] && case "$(rp "$s")" in "$(rp "$d")"/*) return 0 ;; esac
   fi
   echo "test mode: refusing tmux $1 on ${s:-default server}" >&2
   exit 2
@@ -36,7 +40,7 @@ tm_guard() {
 store_guard() {
   [ "${RUN_AGENT_TEST:-}" = 1 ] || return 0
   if [ -n "${RUN_AGENT_HOME:-}" ]; then
-    case "$(realpath -m -- "$RUN_AGENT_HOME")/" in "$(realpath -m -- "$HOME/.claude")"/*) ;; *) return 0 ;; esac
+    case "$(rp "$RUN_AGENT_HOME")/" in "$(rp "$HOME/.claude")"/*) ;; *) return 0 ;; esac
   fi
   echo "test mode: refusing the real job store" >&2
   exit 2
@@ -91,7 +95,7 @@ main() {
   fi
 
   local cmd first TM wrap sname
-  mapfile -d '' -t cmd < <(python3 "$J" argv "$id")
+  cmd=(); while IFS= read -r -d '' _w; do cmd+=("$_w"); done < <(python3 "$J" argv "$id")   # no mapfile: macOS ships bash 3.2
   first="scheduled run #$id fired at $(fmt "$(now)"): $shown"
   TM=(tmux); [ -n "$socket" ] && TM=(tmux -S "$socket")
   local gsock="$socket"; [ -n "$gsock" ] || gsock="${TMUX:-}"; gsock="${gsock%%,*}"   # the server tmux will reach
@@ -113,29 +117,7 @@ RUN_AGENT_FROM="$3" "${w[@]}" "$bin" "${@:8}"; echo $? > "$4"; exec "$2"' run-ag
         err=$("${TM[@]}" capture-pane -p -J -t "$p" 2>/dev/null | sed '1d' | grep -v '^$' | head -n1)
         log "failed: claude did not start" "${err:-exit $rc}${where:+, $where}"; return 1
       fi
-      if python3 - "$("${TM[@]}" display -p -t "$p" '#{pane_pid}' 2>/dev/null)" <<'PY'
-import os, sys
-root = sys.argv[1]
-kids = {}
-for n in os.listdir("/proc"):
-    if n.isdigit():
-        try:
-            st = open(f"/proc/{n}/stat").read().rsplit(")", 1)[1].split()
-            kids.setdefault(st[1], []).append(n)
-        except OSError:
-            pass
-todo = [root]
-while todo:
-    p = todo.pop()
-    for c in kids.get(p, []):
-        try:
-            if open(f"/proc/{c}/comm").read().strip() == "claude":
-                sys.exit(0)
-        except OSError:
-            pass
-        todo.append(c)
-sys.exit(1)
-PY
+      if python3 "$HERE/proc.py" claude-under "$("${TM[@]}" display -p -t "$p" '#{pane_pid}' 2>/dev/null)"
       then found=1; break; fi
       sleep 1
     done

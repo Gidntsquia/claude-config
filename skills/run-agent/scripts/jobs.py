@@ -121,9 +121,13 @@ def alive(pid):
         with open(f"/proc/{pid}/cmdline", "rb") as f:
             return b"runner.sh" in f.read()
     except FileNotFoundError:
-        return not os.path.isdir("/proc")
+        if os.path.isdir("/proc"):
+            return False
     except OSError:
         return True
+    import proc  # macOS: no /proc; an unreadable command line counts as alive
+    args = proc.argv(pid)
+    return not args or any("runner.sh" in a for a in args)
 
 
 def log(jid, outcome, note=""):
