@@ -401,6 +401,12 @@ EOF
   "$S" worker '.' --at "$R" --at-text 'after window' --window --until $(( R + 60 )) >/dev/null
   usage_at $(( R + 120 ))
   wait_for 10 grep -q "  #5  skipped  " "$LOG" && ok "sched: runner re-fetches at fire time and skips past until" || bad "sched: runner skip at fire time" "$(cat "$LOG")"
+  # a new window at fire time: the API shows the next window's reset (5 h on, past until) -> fires at once, no wait, no skip
+  R=$(( $(date +%s) + 3 )); usage_at "$R"
+  keys "'$S' worker '.' --at $R --at-text 'after window' --window --until $(( R + 60 )) > /dev/null 2>&1"
+  wait_for 3 test -f "$RUN_AGENT_HOME/jobs/6.json"
+  usage_at $(( R + 18000 ))
+  wait_for 12 grep -q "  #6  fired  " "$LOG" && ok "sched: next window's reset at fire time -> fires at once" || bad "sched: next window's reset at fire time" "$(cat "$LOG")"
 
   # (4) usage API unreachable at schedule time: the cached reset stands in, job scheduled
   out=$(RUN_AGENT_USAGE_FILE="$T/none.json" "$S" worker '.' --at 0 --at-text 'after window' --window 2>&1); rc=$?
