@@ -82,7 +82,7 @@ def load(jid):
 
 
 def save(job):
-    tmp = path(job["id"]) + ".tmp"
+    tmp = f"{path(job['id'])}.{os.getpid()}.tmp"  # own name per process: two writers never share a tmp file
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(job, f, indent=1, ensure_ascii=False)
     os.replace(tmp, path(job["id"]))
@@ -95,6 +95,24 @@ def next_id():
             if n.endswith(".json") and n[:-5].isdigit():
                 ids.append(int(n[:-5]))
     return (max(ids) + 1) if ids else 1
+
+
+def create(job):
+    """Save a new job under an id no other process holds. Several callers scheduling in the same second (three
+    lanes at one limit) each read the same highest id; os.link fails when the file is there, so the loser takes
+    the next id instead of overwriting the winner's job."""
+    while True:
+        job["id"] = next_id()
+        tmp = f"{path(job['id'])}.{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(job, f, indent=1, ensure_ascii=False)
+        try:
+            os.link(tmp, path(job["id"]))
+            return job
+        except FileExistsError:
+            continue
+        finally:
+            os.unlink(tmp)
 
 
 def pending():
@@ -256,7 +274,7 @@ def main():
     ensure()
     if cmd == "write":
         o, argv = kv_args(args)
-        job = {"id": next_id(), "created": int(now_ts()), "run_at": int(o["run_at"]),
+        job = {"id": 0, "created": int(now_ts()), "run_at": int(o["run_at"]),
                "until": int(o["until"]) if o.get("until") else None, "at_text": o.get("at_text", ""),
                "window": 1 if o.get("window") == "1" else 0,
                "source": o.get("source", ""),  # after window: where run_at came from, "live" or "assumed (now + 5 h)"
@@ -268,7 +286,7 @@ def main():
                "claude_bin": o.get("claude_bin", ""),
                "env": {"PATH": o.get("path", ""), "HOME": o.get("home", ""), "SHELL": o.get("shell", "")},
                "model_default": o.get("model_default", "")}
-        save(job)
+        create(job)
         print(f"{job['id']}\t{path(job['id'])}")
     elif cmd == "setpid":
         job = load(int(args[0])); job["pid"] = int(args[1]); save(job)

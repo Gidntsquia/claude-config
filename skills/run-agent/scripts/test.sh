@@ -986,6 +986,18 @@ EOF
   [ "$rc" = 2 ] && [ "$(tail -n1 <<<"$out")" = "test mode: refusing tmux respawn-pane on /tmp/tmux-$(id -u)/default" ] && ok "guard: the default server's socket is refused" || bad "guard: default socket" "rc=$rc $out"
   tmux -L "ra-other-$$" kill-server 2>/dev/null
 fi
+# job ids: 12 schedulers started in the same instant (three lanes reaching one limit together) each get their own
+# id and their own job. Before, two read the same highest id: one job overwrote the other and the second caller
+# died on the shared tmp file (FileNotFoundError), so a lane was left without its restart.
+mkdir -p "$T/race"; : > "$T/race.err"
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  RUN_AGENT_HOME="$T/race" python3 "$(dirname "$S")/jobs.py" write --run-at $(( $(date +%s) + 600 )) --pane "%$i" -- claude --name "lane $i" > "$T/race.$i" 2>> "$T/race.err" &
+done; wait
+out=$(for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  id=$(cut -f1 "$T/race.$i"); echo "$id $(python3 -c 'import json,sys; j=json.load(open(sys.argv[1])); print(j["id"], j["pane"], j["argv"][-1])' "$T/race/jobs/$id.json" 2>&1)"
+done | awk -v ok=0 '$1 == $2 && $3 == "%" $NF { ok++ } END { print ok }' ; ls "$T/race/jobs" | grep -c '\.json$'; ls "$T/race/jobs" | grep -vc '\.json$')
+[ "$(echo $out)" = "12 12 0" ] && [ ! -s "$T/race.err" ] && ok "jobs: 12 schedulers at once -> 12 ids, each job file holds its own caller's pane and command, no tmp file left" \
+  || bad "jobs: concurrent ids" "matching/files/leftover: $(echo $out); $(head -3 "$T/race.err"); ids: $(cat "$T"/race.[0-9]* | cut -f1 | sort -n | tr '\n' ' ')"
 # job store: without RUN_AGENT_HOME (a fake HOME, so nothing real is near) every store action is refused, no file made
 mkdir -p "$T/fh3"
 for a in "--jobs" "--health" "--cancel" "--revive" "--clean" "worker . --at $(( $(date +%s) + 600 ))"; do
