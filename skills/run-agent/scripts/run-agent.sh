@@ -451,8 +451,10 @@ if [ -n "$at" ]; then
   fi
   [ -n "$at_text" ] || at_text="at $(fmt "$at")"
   if [ "$window" = 1 ]; then
-    # parse.py --reset never fails: API, else cached, else estimated from session activity, else now + 5 h
-    reset=$(python3 "$HERE/parse.py" --reset 2>/dev/null) || reset=$(( $(date +%s) + 18000 ))
+    # asked once, here; the runner fires at this time and never asks again. Live API answer rounded up to a
+    # second, else now + 5 h. Never the cache or the session estimate: either can be early.
+    IFS=$'\t' read -r reset source < <(python3 "$HERE/parse.py" --window-reset 2>/dev/null) || true
+    [ -n "${reset:-}" ] || { reset=$(( $(date +%s) + 18000 )); source="assumed (now + 5 h)"; }
     [ "$reset" -gt "$at" ] && at="$reset"
     if [ -n "$until_at" ] && [ "$reset" -gt "$until_at" ]; then
       line="skipped: reset $(fmt "$reset") is after until $(fmt "$until_at")"
@@ -470,14 +472,14 @@ if [ -n "$at" ]; then
   # at_text in the job carries the derivation ("two hours before window 8:20 PM") so `jobs` names it the same way
   # optional arguments as an array: bash 3.2 (macOS) expands the redirection below with IFS=tab, so an unquoted
   # ${x:+--flag "$x"} stayed one word there and the job lost its until time and its directory
-  opt=(); [ -n "$until_at" ] && opt+=(--until "$until_at"); [ -n "$at_shown" ] && opt+=(--at-text-raw "$at_text")
+  opt=(); [ -n "$until_at" ] && opt+=(--until "$until_at"); [ -n "${source:-}" ] && opt+=(--source "$source"); [ -n "$at_shown" ] && opt+=(--at-text-raw "$at_text")
   IFS=$'\t' read -r id jobfile < <(python3 "$HERE/jobs.py" write --run-at "$at" --at-text "$([ -n "$at_shown" ] && sed 's/^[^(]*(//; s/, in [^,]*)$//' <<<"$at_shown" || printf %s "$at_text")" --window "$window" \
     ${opt[@]+"${opt[@]}"} --cwd "${dir:-$PWD}" --target "$target" --pane "$pane" --session "$session" --socket "$socket" \
     --server-pid "$server_pid" --from-agent "$([ -n "$caller_agent" ] && echo 1 || echo 0)" \
     --shown "$shown" --agent "$agent" --folder "$folder" --claude-bin "$(claude_bin)" --path "${PATH:-}" --home "$HOME" \
     --shell "${SHELL:-bash}" --model-default "$model_default" -- "${cmd[@]}")
   start_runner "$id" "$at"
-  echo "scheduled #$id: $shown${model_default:+ ($model_default, default)} at ${at_shown:-$(fmt "$at") ($at_text, $(in_from_now "$at"))}"
+  echo "scheduled #$id: $shown${model_default:+ ($model_default, default)} at ${at_shown:-$(fmt "$at")${source:+ $source} ($at_text, $(in_from_now "$at"))}"
   [ "$need_tmux" = 1 ] && echo "Relaunch: $(fmt "$at") (job #$id)"
   exit 0
 fi

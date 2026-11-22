@@ -3,7 +3,9 @@
 run time, corrections, unsure, dry). Called by `run-agent.sh --parse '<raw>'`. Stdlib only.
 
 Also: `parse.py --reset` prints the 5-hour window reset epoch (or `error: ...`, exit 2), and
-`parse.py --fmt <epoch>` prints it as `9:40 PM ET`.
+`parse.py --fmt <epoch>` prints it as `9:40 PM ET` (`--fmt-s`: with seconds). `parse.py --window-reset` prints
+`<epoch>\t<source>` for an "after window" run: the live reset rounded up to a second (`live`), else now + 5 h
+(`assumed (now + 5 h)`); the cache and the session estimate never set it.
 
 Env: RUN_AGENT_NOW (epoch, "now" for tests), RUN_AGENT_USAGE_FILE (JSON file standing in for the usage API, or
 `status:429` for an HTTP error), RUN_AGENT_PROJECTS (transcript root for the window estimate), RUN_AGENT_NO_RETRY,
@@ -12,7 +14,9 @@ RUN_AGENT_HOME (state dir), RUN_AGENT_TZ (zone name; default the machine's local
 import json
 import os
 import re
+import math
 import shlex
+import ssl
 import subprocess
 import sys
 import time
@@ -89,8 +93,41 @@ def cache_path():
                         "usage-reset.json")
 
 
+CA_FILE = "/etc/ssl/cert.pem"            # macOS: python3 ships no CA bundle, the system one lives here
+KEYCHAIN_ITEM = "Claude Code-credentials"  # macOS login keychain: the same claudeAiOauth JSON as .credentials.json
+
+
+def oauth_token():
+    """The OAuth access token for the usage API: ~/.claude/.credentials.json (RUN_AGENT_CRED_FILE in tests); when
+    that file is missing or its expiresAt is past, the macOS Keychain item "Claude Code-credentials" (read with
+    `security`, 10 s at most, never printed). An expired file token is still returned when the Keychain has none."""
+    cred = os.environ.get("RUN_AGENT_CRED_FILE") or os.path.join(os.path.expanduser("~"), ".claude", ".credentials.json")
+    tok, fresh = None, False
+    try:
+        with open(cred, encoding="utf-8") as f:
+            o = json.load(f)["claudeAiOauth"]
+        tok = o.get("accessToken") or None
+        exp = o.get("expiresAt")
+        fresh = bool(tok) and (not exp or float(exp) / 1000 > time.time())
+    except Exception:  # noqa: BLE001
+        pass
+    if fresh:
+        return tok
+    try:
+        r = subprocess.run(["security", "find-generic-password", "-s", KEYCHAIN_ITEM, "-w"],
+                           capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL)
+        if r.returncode == 0:
+            k = json.loads(r.stdout)["claudeAiOauth"].get("accessToken")
+            if k:
+                return k
+    except Exception:  # noqa: BLE001
+        pass
+    return tok
+
+
 def fetch_reset():
-    """Return (epoch, None) from the usage API, or (None, reason). 429 is retried twice (1 s, 3 s)."""
+    """Return (epoch, None) from the usage API, or (None, reason). 429 is retried twice (1 s, 3 s).
+    TLS is verified against /etc/ssl/cert.pem when that file exists (else python's default store)."""
     path = os.environ.get("RUN_AGENT_USAGE_FILE")
     err = None
     for attempt in range(3):
@@ -102,13 +139,14 @@ def fetch_reset():
                 with open(path, encoding="utf-8") as f:
                     data = json.load(f)
             else:
-                cred = os.path.join(os.path.expanduser("~"), ".claude", ".credentials.json")
-                with open(cred, encoding="utf-8") as f:
-                    tok = json.load(f)["claudeAiOauth"]["accessToken"]
+                tok = oauth_token()
+                if not tok:
+                    return None, "no OAuth token (credentials file and Keychain)"
+                ctx = ssl.create_default_context(cafile=CA_FILE if os.path.isfile(CA_FILE) else None)
                 req = urllib.request.Request(
                     "https://api.anthropic.com/api/oauth/usage",
                     headers={"Authorization": f"Bearer {tok}", "anthropic-beta": "oauth-2025-04-20"})
-                with urllib.request.urlopen(req, timeout=15) as r:
+                with urllib.request.urlopen(req, timeout=15, context=ctx) as r:
                     data = json.load(r)
         except urllib.error.HTTPError as e:
             err = f"{type(e).__name__}: {e}"
@@ -203,6 +241,21 @@ def resolve_reset(now=None):
     if est is not None:
         return est, "estimated from session activity"
     return now + WINDOW, "assumed: no window open, next message starts one"
+
+
+ASSUMED = "assumed (now + 5 h)"
+
+
+def window_reset(now=None):
+    """(epoch, source) for an "after window" run, asked once when the run is scheduled and never again: the live
+    API reset rounded up to a whole second ("live"), else now + 5 h ("assumed (now + 5 h)"). The cached value and
+    the session estimate never set it: either can be earlier than the real reset, and a run must not fire early."""
+    now = now_ts() if now is None else now
+    ts, err = fetch_reset()
+    if ts is not None:
+        save_reset(ts)
+        return math.ceil(ts), "live"
+    return math.ceil(now + WINDOW), ASSUMED
 
 
 def edit_distance(a, b):
@@ -909,6 +962,12 @@ def main():
     if argv and argv[0] == "--reset-shown":
         ts, note = resolve_reset()
         print(fmt_et(ts) + (f" ({note})" if note else "")); return
+    if argv and argv[0] == "--window-reset":  # "<epoch>\t<live | assumed (now + 5 h)>"
+        ts, src = window_reset()
+        print(f"{ts}\t{src}"); return
+    if argv and argv[0] == "--fmt-s":  # 8:16:40 PM ET
+        d = local(float(argv[1]))
+        print(f"{d.strftime('%I').lstrip('0')}:{d.strftime('%M:%S %p')} ET"); return
     if argv and argv[0] == "--fmt":
         print(fmt_et(float(argv[1]))); return
     raw = " ".join(argv)
@@ -937,15 +996,17 @@ def main():
     # window / reset
     need_reset = p.at is not None or p.dry or p.at_kind == "relwin"
     if need_reset:
-        reset, note = resolve_reset(p.now)
+        if p.at_kind == "window":  # after window: live or now + 5 h, nothing in between
+            reset, src = window_reset(p.now)
+            note = "" if src == "live" else src
+        else:
+            reset, note = resolve_reset(p.now)
         out["reset"] = int(reset)
         out["reset_shown"] = fmt_et(reset) + (f" ({note})" if note else "")
         if note:
             out["reset_note"] = note
         if p.at_kind == "window":
             p.at = reset
-            if note:
-                p.derive = f"window reset, {note}"
         if p.at_kind == "relwin":
             p.at = reset + p.rel_offset
             p.derive += f" {fmt_et(reset).replace(' ET', '')}" + (f", {note}" if note else "")
@@ -954,7 +1015,8 @@ def main():
                 p.at = None
     if p.at is not None and p.at >= 0:
         out["at"] = int(p.at)
-        out["at_shown"] = f"{fmt_et(p.at)} ({p.derive or p.at_text}, {fmt_in(p.at, p.now)})"
+        src = f" {note}" if p.at_kind == "window" and note else ""  # after window with no live answer: assumed (now + 5 h)
+        out["at_shown"] = f"{fmt_et(p.at)}{src} ({p.derive or p.at_text}, {fmt_in(p.at, p.now)})"
     if p.until is not None:
         out["until"] = int(p.until)
         out["until_shown"] = fmt_et(p.until)

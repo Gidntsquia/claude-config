@@ -3,8 +3,9 @@
 # run-agent.sh starts (start_runner: a fixed 5-line `bash -c` that sleeps to run_at, then `exec`s this file), so
 # editing or committing this file never changes a pending job until it fires, and a job picks up fixes at fire
 # time. Everything below is one function called inside braces, so bash reads the whole file before running it.
-# Re-fetches the 5-hour window reset once for window runs (waits for it, one hour at most), then respawns the
-# recorded pane into the recorded claude command. Woke late: < 1 h late fires at once (jobs.log `fired late`),
+# Fires at the job's stored run_at and nothing else: the time was fixed when the job was scheduled, so the usage
+# API is not asked again here, the run never waits past run_at and is never skipped because the window moved.
+# Respawns the recorded pane into the recorded claude command. Woke late: < 1 h late fires at once (jobs.log `fired late`),
 # later is skipped. Target split/window (human-made jobs): a brand-new tmux window; pane gone -> a new window in
 # the recorded session; server gone -> a new detached session. A job made from an agent session (from_agent)
 # only ever respawns its own pane: pane gone -> jobs.log `waiting: no pane`, the job stays pending and fires
@@ -56,9 +57,9 @@ main() {
   fmt() { python3 "$P" --fmt "$1"; }
   log() { python3 "$J" done "$id" "$1" "${2:-}" >/dev/null; }
 
-  local run_at until_at window socket pane session cwd agent folder shown target from_agent
+  local run_at source socket pane session cwd agent folder shown target from_agent
   local claude_bin env_path env_home env_shell state_dir
-  run_at=$(field run_at); until_at=$(field until); window=$(field window)
+  run_at=$(field run_at); source=$(field source)
   socket=$(field socket); pane=$(field pane); session=$(field session); cwd=$(field cwd)
   agent=$(field agent); folder=$(field folder); shown=$(field shown); target=$(field target)
   from_agent=$(field from_agent)
@@ -82,17 +83,9 @@ main() {
   fi
   [ "$late" -gt 60 ] && outcome="fired late"
 
-  if [ "$window" = 1 ]; then
-    local fresh cap
-    if fresh=$(python3 "$P" --reset 2>/dev/null) && [ "$fresh" -gt "$run_at" ]; then
-      if [ -n "$until_at" ] && [ "$fresh" -gt "$until_at" ]; then
-        log skipped "reset $(fmt "$fresh") is after until $(fmt "$until_at")"; exit 0
-      fi
-      cap=$(( run_at + 3600 ))
-      [ "$fresh" -gt "$cap" ] && fresh=$cap
-      wait_until "$fresh"
-    fi
-  fi
+  # a job that recorded where its time came from (after window: live | assumed) logs its due time to the second
+  local due=""
+  [ -n "$source" ] && due="due $(python3 "$P" --fmt-s "$run_at") $source, woke ${late} s after"
 
   local cmd first TM wrap sname
   cmd=(); while IFS= read -r -d '' _w; do cmd+=("$_w"); done < <(python3 "$J" argv "$id")   # no mapfile: macOS ships bash 3.2
@@ -125,7 +118,7 @@ RUN_AGENT_FROM="$3" "${w[@]}" "$bin" "${@:8}"; echo $? > "$4"; exec "$2"' run-ag
       err=$("${TM[@]}" capture-pane -p -J -t "$p" 2>/dev/null | sed '1d' | grep -v '^$' | head -n1)
       log "failed: claude did not start" "${err:-no claude process after 30 s}${where:+, $where}"; return 1
     fi
-    log "$outcome${where:+ $where}"; return 0
+    log "$outcome${where:+ $where}" "$due"; return 0
   }
 
   if [ -n "$pane" ] && "${TM[@]}" display -p -t "$pane" '#{pane_id}' >/dev/null 2>&1; then

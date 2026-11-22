@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- run-agent: an `after window` run fires at the time fixed when it was scheduled. The runner no longer asks the usage API at fire time. Before, at the instant a window ended the API already named the next window's reset, five hours on, so the run slept up to an hour (logged `fired late`), or was skipped when that reset was past its `until`.
+- run-agent: the `after window` time is the usage API's reset, rounded up to a whole second; with no answer from the API it is five hours after scheduling. The last cached answer and the estimate from session files no longer set it, because either can be earlier than the real reset and start the run before the window opens. They still stand in for `N h before the window` and for the reset a dry run shows.
+- run-agent: `jobs` shows `live` or `assumed (now + 5 h)` beside an `after window` run's time, and `jobs.log` adds `(due 8:16:40 PM ET live, woke 0 s after)` when it fires.
+- run-agent on macOS: the usage API call verifies TLS with `/etc/ssl/cert.pem`, and reads the token from the Keychain item "Claude Code-credentials" when the one in `~/.claude/.credentials.json` has expired. Before, the call always failed there and every window time was an estimate.
 - With the usage-guard script missing or unreadable, the 7 hook commands in `settings.json` exit 0 and tools keep running. The first hook call of a session prints `usage-guard: script missing at <path>, guard is off; run ./install.sh`, once. Before, every Bash, Agent and Edit call was blocked until the script came back.
 
 ## v1.3.0-beta.5 — 2026-11-21

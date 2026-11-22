@@ -259,6 +259,7 @@ def main():
         job = {"id": next_id(), "created": int(now_ts()), "run_at": int(o["run_at"]),
                "until": int(o["until"]) if o.get("until") else None, "at_text": o.get("at_text", ""),
                "window": 1 if o.get("window") == "1" else 0,
+               "source": o.get("source", ""),  # after window: where run_at came from, "live" or "assumed (now + 5 h)"
                "cwd": o.get("cwd", ""), "pane": o.get("pane", ""), "session": o.get("session", ""),
                "socket": o.get("socket", ""), "server_pid": o.get("server_pid", ""),
                "agent": o.get("agent", ""), "folder": o.get("folder", ""), "target": o.get("target", ""),
@@ -314,7 +315,8 @@ def main():
             print("no scheduled runs")
         for jid in ids:
             j = load(jid)
-            line = f"#{jid}  {j['shown']}{model_note(j)}  at {fmt_et(j['run_at'])} ({j['at_text']}, {fmt_in(j['run_at'])})"
+            src = f" {j['source']}" if j.get("source") else ""
+            line = f"#{jid}  {j['shown']}{model_note(j)}  at {fmt_et(j['run_at'])}{src} ({j['at_text']}, {fmt_in(j['run_at'])})"
             if j.get("until"):
                 line += f"  until {fmt_et(j['until'])}"
             print(line + f"  [{state(j)}]")
