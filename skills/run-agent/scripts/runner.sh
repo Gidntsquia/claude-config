@@ -3,8 +3,7 @@
 # run-agent.sh starts (start_runner: a fixed 5-line `bash -c` that sleeps to run_at, then `exec`s this file), so
 # editing or committing this file never changes a pending job until it fires, and a job picks up fixes at fire
 # time. Everything below is one function called inside braces, so bash reads the whole file before running it.
-# Re-fetches the 5-hour window reset once for window runs (waits for it, one hour at most; no wait when the reset
-# is that of a new window, which means the old one is over), then respawns the
+# Re-fetches the 5-hour window reset once for window runs (waits for it, one hour at most), then respawns the
 # recorded pane into the recorded claude command. Woke late: < 1 h late fires at once (jobs.log `fired late`),
 # later is skipped. Target split/window (human-made jobs): a brand-new tmux window; pane gone -> a new window in
 # the recorded session; server gone -> a new detached session. A job made from an agent session (from_agent)
@@ -85,12 +84,7 @@ main() {
 
   if [ "$window" = 1 ]; then
     local fresh cap
-    # A reset later than run_at means the old window is still open: wait for it. Unless that reset belongs to a
-    # window that opened around run_at or later (reset - 5 h is within the last hour before run_at, or after it):
-    # then the old window is over and usage is there, so fire now. (21 Nov: three jobs due 8:16 PM saw the next
-    # window's 1:16 AM reset and slept the full hour.)
-    if fresh=$(python3 "$P" --reset 2>/dev/null) && [ "$fresh" -gt "$run_at" ] \
-        && [ $(( fresh - 18000 )) -lt $(( run_at - 3600 )) ]; then
+    if fresh=$(python3 "$P" --reset 2>/dev/null) && [ "$fresh" -gt "$run_at" ]; then
       if [ -n "$until_at" ] && [ "$fresh" -gt "$until_at" ]; then
         log skipped "reset $(fmt "$fresh") is after until $(fmt "$until_at")"; exit 0
       fi
