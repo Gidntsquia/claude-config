@@ -99,6 +99,8 @@ out=$("$S" --resolve "~/no-such-run-agent-dir-$$" 2>&1)
 # ---------------------------------------------------------------- --parse suite
 # Frozen clock: 2026-10-22 18:00 ET; fake usage API with the window resetting at 8:20 PM ET.
 export RUN_AGENT_TZ=America/New_York
+# the scratch repos commit; a machine with no git identity (a CI runner) would refuse
+export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.invalid GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.invalid
 # ep '<YYYY-MM-DD HH:MM>': that New York wall-clock time as an epoch. python3 zoneinfo, not GNU `date -d`
 # (BSD date on macOS has no -d), so the frozen clock is the same on Linux, macOS and Git Bash.
 # mtime <epoch> <file>...: set the files' modification time (GNU `touch -d @N`; BSD touch has no such form)

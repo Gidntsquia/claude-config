@@ -218,7 +218,8 @@ scn_sep22() {
   out="$(cd "$K" && ./install.sh --projects "~/files" "$TERMFLAG" --statusline squid --settings replace 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
   expect "sep22: install.sh exits 0 (got $rc)" test "$rc" = 0
   expect "sep22: ~/.claude/hooks is now a real folder" sh -c "[ -d '$C/hooks' ] && [ ! -L '$C/hooks' ]"
-  expect "sep22: ~/.claude/hooks/usage-guard is a link" test -L "$C/hooks/usage-guard"
+  # usage-guard is not installed on Windows without WSL
+  case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) ;; *) expect "sep22: ~/.claude/hooks/usage-guard is a link" test -L "$C/hooks/usage-guard" ;; esac
   expect "sep22: the clone's hooks/usage-guard is still a real folder" sh -c "[ -d '$K/hooks/usage-guard' ] && [ ! -L '$K/hooks/usage-guard' ]"
   expect "sep22: the commands link (gone from the repo) was removed and said so" sh -c "[ ! -L '$C/commands' ] && [ ! -e '$C/commands' ]"
   expect "sep22: 'removed' printed for commands and the old skill" test "$(printf '%s\n' "$out" | grep -c '^  removed ')" = 2
@@ -243,7 +244,9 @@ scn_moved() {
   expect "moved: it says what it relinked" has "$out" "^  relinked $C/skills/run-agent (was $K/skills/run-agent, now missing)\$"
   expect "moved: no clash and no 'kept yours' for our own broken links" sh -c "! printf '%s\n' \"\$1\" | grep -q -e 'clash' -e 'kept yours' -e 'you have your own'" _ "$out"
   expect "moved: no link under ~/.claude is broken" test -z "$(find "$C" -maxdepth 2 -type l ! -exec test -e {} \; -print 2>/dev/null | grep -v '/debug/')"
-  expect "moved: settings.json names the new path only" sh -c "grep -q '$N/skills/run-agent' '$C/settings.json' && ! grep -q 'old place' '$C/settings.json'"
+  # on Windows settings.json carries the clone's native path (C:/...)
+  local NN="$N"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) command -v cygpath >/dev/null 2>&1 && NN="$(cygpath -m "$N")" ;; esac
+  expect "moved: settings.json names the new path only" sh -c "grep -q '$NN/skills/run-agent' '$C/settings.json' && ! grep -q 'old place' '$C/settings.json'"
   closing moved "$H" "$N"
 }
 

@@ -404,7 +404,7 @@ for d in skills hooks; do
     rm "$C/$d"; echo "  $C/$d was a link (older layout); it is now a folder of its own"
   fi
 done
-mkdir -p "$C/skills"
+mkdir -p "$C/skills" "$C/hooks"
 
 ITERM_OLD="$(saved itermDefault)"
 if [ -f "$C/claude-config.iterm-default.pre-link" ]; then
