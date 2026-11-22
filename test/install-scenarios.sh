@@ -38,7 +38,7 @@ case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) command -v cygpath >/dev/null 2>&1 &
 # to a file here and compared at the end.
 KC_START=""
 if [ "$(uname -s)" = Darwin ]; then
-  real_keychains() { HOME="$REAL_HOME" security list-keychains -d user 2>&1; HOME="$REAL_HOME" security default-keychain 2>&1; }
+  real_keychains() { HOME="$REAL_HOME" security list-keychains -d user 2>&1 && HOME="$REAL_HOME" security default-keychain 2>&1; }
   KC_START="$(mktemp "${TMPDIR:-/tmp}/cc-install-keychains.XXXX")"; real_keychains > "$KC_START"
 fi
 # Ctrl-C or kill: remove the throwaway home of the scenario that was running (its keychain is inside it).
@@ -329,8 +329,10 @@ run_in theirs scn_theirs
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) echo "skip stock: the stock PATH is a macOS/Linux case" ;; *) run_in stock scn_stock ;; esac
 run_in odd scn_odd
 if [ "$(uname -s)" = Darwin ]; then
-  kc_was="$(cat "$KC_START" 2>&1)"; kc_now="$(real_keychains)"; rm -f "$KC_START"
-  if [ "$kc_was" = "$kc_now" ]; then ok "the real keychain search list and default keychain are as they were at the start"
+  kc_was="$(cat "$KC_START" 2>&1)"; kc_now="$(real_keychains)"; kc_rc=$?; rm -f "$KC_START"
+  # A listing that fails proves nothing either way, so it is a failure too.
+  if [ "$kc_rc" != 0 ]; then bad "the real keychain search list and default keychain could not be read: $(printf '%s' "$kc_now" | tr '\n' ' ')"
+  elif [ "$kc_was" = "$kc_now" ]; then ok "the real keychain search list and default keychain are as they were at the start"
   else
     bad "the real keychain search list or default keychain changed during the run"
     echo "     at the start:"; printf '%s\n' "$kc_was" | sed 's/^/       /'
