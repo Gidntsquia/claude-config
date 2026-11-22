@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- With the usage-guard script missing or unreadable, the 7 hook commands in `settings.json` exit 0 and tools keep running. The first hook call of a session prints `usage-guard: script missing at <path>, guard is off; run ./install.sh`, once. Before, every Bash, Agent and Edit call was blocked until the script came back.
+
 ## v1.3.0-beta.5 — 2026-11-21
 
 This pre-release fixes what went wrong when a September install on a Mac was updated and its clone moved, and tests `install.sh` against four kinds of Mac. v1.2.1 stays the latest release until 1.3 is promoted.
