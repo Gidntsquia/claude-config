@@ -34,6 +34,18 @@ PY=python3; command -v python3 >/dev/null 2>&1 && python3 -c 1 >/dev/null 2>&1 |
 # The mod dir as install.sh writes it: on Windows a native C:/... path in a ;-separated list.
 MOD="$R/mods/defer-artifact"; SEP=":"
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) command -v cygpath >/dev/null 2>&1 && MOD="$(cygpath -m "$R")/mods/defer-artifact"; SEP=";" ;; esac
+# macOS: the run must leave the real keychain search list and default keychain as it found them. Both are written
+# to a file here and compared at the end.
+KC_START=""
+if [ "$(uname -s)" = Darwin ]; then
+  real_keychains() { HOME="$REAL_HOME" security list-keychains -d user 2>&1; HOME="$REAL_HOME" security default-keychain 2>&1; }
+  KC_START="$(mktemp "${TMPDIR:-/tmp}/cc-install-keychains.XXXX")"; real_keychains > "$KC_START"
+fi
+# Ctrl-C or kill: remove the throwaway home of the scenario that was running (its keychain is inside it).
+CUR_H=""
+cleanup() { [ -z "$CUR_H" ] || rm -rf "$CUR_H"; [ -z "$KC_START" ] || rm -f "$KC_START"; }
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 jget() { "$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps(d.get(sys.argv[2])))' "$1" "$2"; }
 
 # The plain grep from the plan (patterns split so this file does not match itself), minus the excluded folders.
@@ -47,13 +59,23 @@ grep_clean() {
 
 FLAGS=(--projects "~/files" "$TERMFLAG" --statusline squid --settings merge --agent-clash replace)
 
-# home_setup <H>: what every throwaway home gets before install.sh runs
+# home_setup <H> <scenario name>: what every throwaway home gets before install.sh runs. Returns 1, after one FAIL
+# line, when the home cannot be made safe to run claude in.
 home_setup() {
-  local H="$1"
+  local H="$1" name="$2" err
   mkdir -p "$H/.claude" "$H/.local/bin"
   # claude keeps its install under ~/.local; let the throwaway home see it.
   [ -d "$REAL_HOME/.local/share/claude" ] && mkdir -p "$H/.local/share" && ln -s "$REAL_HOME/.local/share/claude" "$H/.local/share/claude" 2>/dev/null
   [ -f "$REAL_HOME/.claude.json" ] && cp "$REAL_HOME/.claude.json" "$H/.claude.json"
+  # macOS: the Security framework looks for keychains in $HOME/Library/Keychains, and a home with no login keychain
+  # there raises a "Keychain Not Found" dialog on every claude run. A link to the real folder stops the dialog but
+  # breaks isolation: the test claude could read, refresh or overwrite the real Claude Code login. So each throwaway
+  # home gets its own empty keychain, which goes when the home is removed. Never click "Reset To Defaults" in that
+  # dialog and never script it: it makes a new login keychain and can cut you off from your saved passwords.
+  if [ "$(uname -s)" = Darwin ]; then
+    err="$(mkdir -p "$H/Library/Keychains" 2>&1 && HOME="$H" security create-keychain -p "" "$H/Library/Keychains/login.keychain-db" 2>&1)" \
+      || { bad "$name: no throwaway keychain, so install.sh and claude were not run in this home: $(printf '%s' "$err" | tr '\n' ' ')"; return 1; }
+  fi
   # macOS: `defaults` ignores HOME and would read and write the real iTerm2 preferences. This one keeps each key as
   # a file under the throwaway home.
   if [ "$(uname -s)" = Darwin ]; then
@@ -75,11 +97,13 @@ FAKE
 scenario() {  # $1 = a|b
   local name="$1" H
   H="$(mktemp -d "${TMPDIR:-/tmp}/cc-install-$name.XXXX")"
+  CUR_H="$H"
   echo "== scenario $name ($H) ./install.sh ${FLAGS[*]}"
   (
+    trap 'exit 130' INT; trap 'exit 143' TERM
     export HOME="$H" PATH="$H/.local/bin:$PATH"
     [ -n "${USERPROFILE:-}" ] && export USERPROFILE="$H"
-    home_setup "$H"
+    home_setup "$H" "$name" || exit "$fails"
     if [ "$name" = b ]; then
       mkdir -p "$H/.claude/agents"
       printf '%s\n' '{"model": "haiku", "statusLine": {"type": "command", "command": "echo my-status"}, "permissions": {"deny": ["Bash(rm -rf:*)"]}, "env": {"CLAUDE_CODE_PLUGIN_DIRS": "/opt/my-mod"}, "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "echo my-hook"}]}]}}' > "$H/.claude/settings.json"
@@ -130,7 +154,7 @@ assert not missing, missing" "$s" "$R/settings.json"
     exit "$fails"
   )
   fails=$?   # the subshell started from this count
-  rm -rf "$H"
+  rm -rf "$H"; CUR_H=""
 }
 
 want a && scenario a
@@ -164,16 +188,18 @@ run_in() {
   want "$1" || return 0
   local name="$1" fn="$2" H
   H="$(mktemp -d "${TMPDIR:-/tmp}/cc-install-$name.XXXX")"; H="$(cd "$H" && pwd -P)"
+  CUR_H="$H"
   echo "== scenario $name ($H)"
   (
+    trap 'exit 130' INT; trap 'exit 143' TERM
     export HOME="$H" PATH="$H/.local/bin:$PATH"
     [ -n "${USERPROFILE:-}" ] && export USERPROFILE="$H"
-    home_setup "$H"
+    home_setup "$H" "$name" || exit "$fails"
     "$fn" "$H"
     exit "$fails"
   )
   fails=$?   # the subshell started from this count
-  rm -rf "$H"
+  rm -rf "$H"; CUR_H=""
 }
 # Real symlinks are needed to build the older layouts by hand (a Windows account without symlink rights gets copies).
 can_link() { local d; d="$(mktemp -d)"; : > "$d/a"; ln -s "$d/a" "$d/b" 2>/dev/null; [ -L "$d/b" ]; local rc=$?; rm -rf "$d"; return $rc; }
@@ -302,6 +328,15 @@ else echo "skip sep22, moved: this account cannot make symlinks, so the older la
 run_in theirs scn_theirs
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) echo "skip stock: the stock PATH is a macOS/Linux case" ;; *) run_in stock scn_stock ;; esac
 run_in odd scn_odd
+if [ "$(uname -s)" = Darwin ]; then
+  kc_was="$(cat "$KC_START" 2>&1)"; kc_now="$(real_keychains)"; rm -f "$KC_START"
+  if [ "$kc_was" = "$kc_now" ]; then ok "the real keychain search list and default keychain are as they were at the start"
+  else
+    bad "the real keychain search list or default keychain changed during the run"
+    echo "     at the start:"; printf '%s\n' "$kc_was" | sed 's/^/       /'
+    echo "     now:";          printf '%s\n' "$kc_now" | sed 's/^/       /'
+  fi
+fi
 echo
 if [ "$fails" = 0 ]; then echo "all install scenarios passed"; else echo "$fails failure(s)"; fi
 exit $(( fails > 0 ))
