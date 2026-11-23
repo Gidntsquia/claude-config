@@ -400,7 +400,8 @@ Use as-is. Method, for reference:
   scratch folder serves several projects) and assign their sessions to a feature of the parent.
   Check every small project's first prompts before writing a card for it; ask the user when the
   parent isn't clear. Current folds: first-project and tip-calculator -> helper-agent-building;
-  replay/ worker replays -> worker-building, evaluator replays -> evaluator-building.
+  replay/ worker replays -> worker-building, evaluator replays -> evaluator-building;
+  config-updater (plans for a claude-config change) -> claude-config.
 - Favicon: 🗓️. Title: "Weekly Roundup — <date range>" (e.g. "Weekly Roundup — Sep 6-11, 2026"),
   matching the eyebrow so artifacts are distinguishable in the list.
 - Publish with `Artifact`. Joining run: pass the chosen week's artifact URL as `url` to update it in

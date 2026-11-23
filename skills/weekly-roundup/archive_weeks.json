@@ -2730,5 +2730,110 @@
     "total_pct": 23.45
    }
   ]
+ },
+ {
+  "weekStart": "2026-11-15",
+  "label": "Nov 15–22, 2026",
+  "url": "https://claude.ai/artifact/7XY2qBebS42rMLDVNHStJx",
+  "projectCount": 2,
+  "totalCost": 503.71,
+  "slices": [
+   {
+    "name": "token-user",
+    "pct": 67.99,
+    "color": "#e5484d"
+   },
+   {
+    "name": "claude-config",
+    "pct": 3.66,
+    "color": "#2f80ed"
+   },
+   {
+    "name": "Misc",
+    "pct": 0.35,
+    "color": "#9aa3ad"
+   },
+   {
+    "name": "Unused",
+    "pct": 28.0,
+    "color": "#666f7d"
+   }
+  ],
+  "days": [
+   {
+    "date": "2026-11-15",
+    "label": "Sun",
+    "segments": [],
+    "total_pct": 0.0
+   },
+   {
+    "date": "2026-11-16",
+    "label": "Mon",
+    "segments": [],
+    "total_pct": 0.0
+   },
+   {
+    "date": "2026-11-17",
+    "label": "Tue",
+    "segments": [],
+    "total_pct": 0.0
+   },
+   {
+    "date": "2026-11-18",
+    "label": "Wed",
+    "segments": [],
+    "total_pct": 0.0
+   },
+   {
+    "date": "2026-11-19",
+    "label": "Thu",
+    "segments": [],
+    "total_pct": 0.0
+   },
+   {
+    "date": "2026-11-20",
+    "label": "Fri",
+    "segments": [],
+    "total_pct": 0.0
+   },
+   {
+    "date": "2026-11-21",
+    "label": "Sat",
+    "segments": [
+     {
+      "project": "token-user",
+      "person": "Jaxon",
+      "color": "#e5484d",
+      "pct": 21.23
+     },
+     {
+      "project": "claude-config",
+      "person": "Jaxon",
+      "color": "#2f80ed",
+      "pct": 3.66
+     },
+     {
+      "project": "Misc",
+      "person": "Jaxon",
+      "color": "#9aa3ad",
+      "pct": 0.35
+     }
+    ],
+    "total_pct": 25.24
+   },
+   {
+    "date": "2026-11-22",
+    "label": "Sun",
+    "segments": [
+     {
+      "project": "token-user",
+      "person": "Jaxon",
+      "color": "#e5484d",
+      "pct": 46.76
+     }
+    ],
+    "total_pct": 46.76
+   }
+  ]
  }
 ]

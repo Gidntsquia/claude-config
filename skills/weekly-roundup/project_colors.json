@@ -33,6 +33,7 @@
  "solo|assistant-agent": "#2e9e6b",
  "solo|badminton_simulator": "#ff8a65",
  "solo|base-context-cleanup": "#b8860b",
+ "solo|config-updater": "#e8710a",
  "solo|curling_simulator": "#2bb4c9",
  "solo|evaluator-building": "#ff8a65",
  "solo|godot-test": "#b8860b",
@@ -55,5 +56,6 @@
  "solo|run-agent-skill-improver": "#a13e85",
  "solo|slay-the-spire-advisor": "#e8710a",
  "solo|substitute_teacher_simulator": "#a13e85",
+ "solo|token-user": "#e5484d",
  "solo|worker-building": "#43a047"
 }

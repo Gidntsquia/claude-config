@@ -161,6 +161,8 @@ MOVED_FROM = {
     "helper-agent-building": ["first-project", "tip-calculator"],
     "worker-building": ["replay/video-editor-replay", "replay/claude-config-replay"],
     "evaluator-building": ["replay/deadlock-r14-replay", "replay/worker-building-evalreplay"],
+    # Planning folders for a claude-config change (plans only; the code lands in claude-config).
+    "claude-config": ["config-updater"],
 }
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
