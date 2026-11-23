@@ -524,10 +524,32 @@ EOF
   # three lanes reaching the limit together: 3 --handoff calls started at once with the clock frozen at one instant,
   # each from its own repo. Each must get its own job id and its own job file (before 782ccc4 two shared an id).
   R=$(( $(date +%s) + 600 )); usage_at "$R"; FROZEN=$(date +%s)
+  # The three lanes of Nov 21 read the job folder in the same instant. Left to chance, three processes rarely do,
+  # so each `jobs.py write` here is held right after its first look at the folder until all three have looked
+  # (sitecustomize.py on PYTHONPATH, these three calls only; 8 s at most). Without os.link in jobs.py create(),
+  # all three then take the same id.
+  mkdir -p "$T/sync/seen"
+  cat > "$T/sync/sitecustomize.py" <<'PYEOF'
+import os, sys, time
+_real, _held = os.listdir, []
+def _listdir(path="."):
+    names = _real(path)
+    d = os.environ.get("RA_SYNC_DIR")
+    if d and not _held and os.path.basename(sys.argv[0]) == "jobs.py" and sys.argv[1:2] == ["write"] \
+            and os.path.basename(os.fspath(path)) == "jobs":
+        _held.append(1)
+        open(os.path.join(d, str(os.getpid())), "w").close()
+        end = time.time() + 8
+        while len(_real(d)) < 3 and time.time() < end:
+            time.sleep(0.01)
+    return names
+os.listdir = _listdir
+PYEOF
   for i in 1 2 3; do
     mkdir -p "$T/lane$i"; git -C "$T/lane$i" init -q; git -C "$T/lane$i" commit -q --allow-empty -m init
-    ( cd "$T/lane$i" && printf 'Next: lane %s\n' "$i" | RUN_AGENT_NOW="$FROZEN" "$S" --handoff worker "lane $i" > "$T/lane$i.out" 2>&1 ) &
+    ( cd "$T/lane$i" && printf 'Next: lane %s\n' "$i" | PYTHONPATH="$T/sync" RA_SYNC_DIR="$T/sync/seen" RUN_AGENT_NOW="$FROZEN" "$S" --handoff worker "lane $i" > "$T/lane$i.out" 2>&1 ) &
   done; wait
+  [ "$(ls "$T/sync/seen" | wc -l | tr -d ' ')" = 3 ] || bad "handoff: 3 at once: the three writers were not held together" "$(ls "$T/sync/seen")"
   ids=$(for i in 1 2 3; do sed -n 's/^Relaunch: .* ET (job #\([0-9]*\))$/\1/p' "$T/lane$i.out"; done | sort -u | tr '\n' ' ')
   own=0; for i in 1 2 3; do
     id=$(sed -n 's/^Relaunch: .* ET (job #\([0-9]*\))$/\1/p' "$T/lane$i.out")
