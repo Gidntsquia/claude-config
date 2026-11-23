@@ -80,7 +80,6 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 - This is a pre-release under test. UPDATING.md's step 3 skips it, so set `TAG=v1.3.0-beta.4` by hand to install it.
 - usage-guard needs Claude Code 2.1.296 or newer and defer-artifact needs 2.1.293 or newer. Run `claude update` first.
 - A session's first second or two can start before the run-agent MCP server connects. The agents use the Bash form then.
-- With `--agent-clash keep`, the repo's assistant is installed as a copy outside the clone and can't find its MCP server. Use `--agent-clash replace` or `skip` for it.
 - The Windows Sandbox test needs nested virtualization for WSL inside the Sandbox, which some PCs don't have.
 
 ## Agent versions 📄

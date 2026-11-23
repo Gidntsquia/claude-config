@@ -45,6 +45,15 @@ cd <new path> && ./install.sh
 
 The installer points every link under `~/.claude` at the new path and prints `relinked <path> (was <old target>, now missing)` for each, rewrites the paths in `~/.claude/settings.json` (unless the saved choice is `--settings keep`), and saves the new `repo` in `~/.claude/claude-config.json`. Run it before the next Claude session starts: until then the links, the hooks among them, point at the old path. Then `./install.sh --check`.
 
+## What no test covers
+
+The tests (`test/install-scenarios.sh`, `skills/run-agent/scripts/test.sh`, `test/real-usage.sh`, and the install workflow on ubuntu, macOS and Windows) run in throwaway homes on machines with no screen and no login. Four things can only be checked by hand on the real machine after an update:
+
+- **The live login token and real usage numbers.** The tests read a fake Keychain item and get a 401 from the usage API. Check: `python3 ~/.claude/skills/run-agent/scripts/parse.py --window-reset` prints an epoch followed by `live`. `assumed (now + 5 h)` means the usage API gave no answer.
+- **Sleep, wake or a reboot while a run is scheduled.** The tests never suspend the machine. Check: after waking, `run-agent.sh --jobs` still lists the run as `sleeping (pid N)`, and `--health` exits 0.
+- **A Keychain dialog in a GUI session.** A CI runner cannot show one; the tests only prove every throwaway home has its own keychain and the real search list is unchanged. Check: run `bash test/install-scenarios.sh --terminal` at the Mac's own screen; no dialog should appear. If one does, press Cancel, never "Reset To Defaults".
+- **iTerm2 showing the profile.** The tests check the profile file and its link, not the app. Check: iTerm2 → Settings → Profiles lists `claude-tmux`, and `./install.sh --check | grep iTerm2` prints a PASS line.
+
 ## Rules
 
 - Never `git reset --hard`, `git checkout -- .`, `git clean`, or force-push. Nothing the user wrote may be lost.

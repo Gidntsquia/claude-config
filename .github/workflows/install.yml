@@ -4,6 +4,9 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
 
 jobs:
   install:
@@ -17,6 +20,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the oldtag scenario installs from the v1.2.1 tag
 
       - name: Install tmux (Linux)
         if: runner.os == 'Linux'
@@ -42,12 +47,33 @@ jobs:
       - name: claude doctor
         run: claude --version && claude doctor < /dev/null
 
-      - name: run-agent tests (Linux, macOS)
-        if: runner.os != 'Windows'
+      - name: run-agent tests (Linux)
+        if: runner.os == 'Linux'
         run: bash skills/run-agent/scripts/test.sh
+
+      # A stock Mac: the system bash 3.2 and the system tools only (BSD date, sed, stat), plus tmux's folder.
+      # Homebrew's bash and GNU tools on the runner's own PATH hid 140 failures a real Mac then showed.
+      - name: run-agent tests under /bin/bash 3.2 with the stock PATH (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          TMUX_DIR="$(dirname "$(command -v tmux)")"
+          /bin/bash --version | head -1
+          /bin/bash --version | grep -q 'version 3\.2'
+          env -i HOME="$HOME" USER="$USER" TMPDIR="${TMPDIR:-/tmp}" TERM=xterm-256color LANG=en_US.UTF-8 \
+            PATH="/usr/bin:/bin:/usr/sbin:/sbin:$TMUX_DIR" /bin/bash skills/run-agent/scripts/test.sh
+
+      - name: Keychain item read by parse.py through the real security (macOS)
+        if: runner.os == 'macOS'
+        run: /bin/bash test/real-usage.sh keychain
+
+      - name: Unstubbed usage call with a fake token ends in HTTP 401 (Linux, macOS)
+        if: runner.os != 'Windows'
+        run: bash test/real-usage.sh usage
 
       - name: Install scenarios with --terminal (Linux, macOS)
         if: runner.os != 'Windows'
+        env:
+          SCN_NEED_OLDTAG: 1
         run: bash test/install-scenarios.sh --terminal
 
       - name: Install scenarios without --terminal (Windows, Git Bash)

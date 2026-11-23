@@ -108,12 +108,16 @@ fill() {  # fill VAR savedKey fallback
   if [ -n "$s" ]; then eval "$var=\$s"; reused="$reused $key"; else eval "$var=\$fb"; fi
 }
 had_statusline() { [ -f "$C/settings.json" ] && "$PY" -c 'import json,sys; sys.exit(0 if "statusLine" in json.load(open(sys.argv[1])) else 1)' "$C/settings.json" 2>/dev/null; }
-d_term=false; in_clone "$HOME/.local/bin/tmux-quad" && d_term=true
+# ours <link> <path in the repo>: the link points into this clone, or it is broken and its target ends in that repo
+# path (this installer made it for a clone that has since moved). With no saved choices, what is installed is the
+# only record of what was chosen, and a moved clone leaves every one of those links broken.
+ours() { in_clone "$1" || { [ -L "$1" ] && [ ! -e "$1" ] && case "$(readlink "$1")" in */"$2") true ;; *) false ;; esac; }; }
+d_term=false; ours "$HOME/.local/bin/tmux-quad" bin/tmux-quad && d_term=true
 d_status=keep
-if in_clone "$C/statusline.sh"; then
+if ours "$C/statusline.sh" statusline.sh; then
   d_status=squid; grep -qs 'CLAUDE_STATUSLINE_THEME=plane' "$HOME/.bashrc" "$HOME/.zshrc" && d_status=plane
 elif ! had_statusline; then d_status=squid; fi
-d_settings=merge; in_clone "$C/settings.json" && d_settings=replace
+d_settings=merge; ours "$C/settings.json" settings.json && d_settings=replace
 fill PROJECTS projects "$HOME/files"
 fill TERMINAL terminal "$d_term"
 fill DEFPROF defaultProfile false

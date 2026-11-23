@@ -222,7 +222,8 @@ tcheck() {  # tcheck <label> <raw> <epoch> <at_text> <derive or ""> [<extra json
   local label="$1" raw="$2" at="$3" text="$4" derive="$5" extra="${6:-}" shown run
   shown="$(python3 "$(dirname "$S")/parse.py" --fmt "$at") (${derive:-$text}, $(python3 -c "import sys; sys.path.insert(0,sys.argv[1]); from parse import fmt_in; print(fmt_in(int(sys.argv[2]), int(sys.argv[3])))" "$(dirname "$S")" "$at" "$RUN_AGENT_NOW"))"
   run="S worker . --at $at --at-text $(python3 -c 'import shlex,sys; print(shlex.quote(sys.argv[1]))' "$text")"; [ -n "$derive" ] && run+=" --at-shown '$shown'"
-  pcheck "$label" "$raw" "{\"at\":$at,\"at_text\":\"$text\",\"at_shown\":\"$shown\",\"run\":\"$run${extra:+ }${extra:+$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("_run",""))' "$extra")}\",$RESET${extra:+,}$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); d.pop("_run",None); print(json.dumps(d)[1:-1])' "${extra:-{\}}")}"
+  local EMPTY_OBJ='{}'   # bash 3.2 keeps the backslash of "${x:-{\}}", which is not JSON
+  pcheck "$label" "$raw" "{\"at\":$at,\"at_text\":\"$text\",\"at_shown\":\"$shown\",\"run\":\"$run${extra:+ }${extra:+$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("_run",""))' "$extra")}\",$RESET${extra:+,}$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); d.pop("_run",None); print(json.dumps(d)[1:-1])' "${extra:-$EMPTY_OBJ}")}"
 }
 FLJ='"flags":"--model fable --effort low","command":"claude --agent worker \".\" --model fable --effort low --name \"worker: repo (fable)\"","_run":"-- --model fable --effort low"'
 tcheck "time: session 'tomorrow at 1am' (next calendar day)" 'worker fable low tomorrow at 1am' "$(ep '2026-10-23 01:00')" 'tomorrow at 1am' '' "{$FLJ}"
@@ -430,12 +431,12 @@ EOF
   grep -n 'reset' "$(dirname "$S")/runner.sh" | grep -q 'parse.py\|\$P\|--reset' && bad "runner: no usage API / parse.py --reset call at fire time" "$(grep -n reset "$(dirname "$S")/runner.sh")" || ok "runner: no usage API / parse.py --reset call at fire time"
   for u in 60 21600; do
     n=$(( $(ls "$RUN_AGENT_HOME/done" | sed 's/\.json$//' | sort -n | tail -1) + 1 ))
-    R=$(( $(date +%s) + 4 )); usage_at "$R"; : > "$RA_OUT"; rm -f "$T/sched.out"
+    R=$(( $(date +%s) + 10 )); usage_at "$R"; : > "$RA_OUT"; rm -f "$T/sched.out"   # 10 s: a slow CI runner took over 4 s to get the job asleep
     keys "'$S' worker '.' --at $R --at-text 'after window' --window --until $(( R + u )) -- --model fable > '$T/sched.out' 2>&1"
     wait_for 5 test -s "$T/sched.out"; wait_for 3 test -f "$RUN_AGENT_HOME/jobs/$n.json"
     [ "$(python3 "$(dirname "$S")/jobs.py" get "$n" run_at)" = "$R" ] || bad "sched: #$n scheduled at the live reset" "$(cat "$T/sched.out")"
     usage_at $(( R + 18000 ))   # the rollover: from here the API names the next window
-    wait_for 12 grep -q "  #$n  " "$LOG"
+    wait_for 20 grep -q "  #$n  " "$LOG"
     fired=$(date +%s)
     grep -q "  #$n  fired  $SHOWN  (due $(python3 "$(dirname "$S")/parse.py" --fmt-s "$R") live, woke [0-2] s after)$" "$LOG" && [ $(( fired - R )) -le 8 ] && ! grep -q "  #$n  \(skipped\|fired late\)" "$LOG" \
       && ok "sched: API moved to run_at + 18000 before firing, until +$u s -> fired at run_at, no wait, no skip ($(( fired - R )) s after due)" || bad "sched: window run fires at its stored run_at (until +$u s)" "$(( fired - R )) s after due; $(grep "  #$n  " "$LOG")"
@@ -520,6 +521,22 @@ EOF
   [ "$rc" = 0 ] && [ "$(sed -n 2p <<<"$out")" = "Commit: no git" ] && grep -q "^Next: z$" "$T/nogit/plans/WORKER_NOTES.md" \
     && ok "handoff: non-git dir -> Commit: no git" || bad "handoff: non-git dir" "rc=$rc $out"
   "$S" --cancel >/dev/null 2>&1
+  # three lanes reaching the limit together: 3 --handoff calls started at once with the clock frozen at one instant,
+  # each from its own repo. Each must get its own job id and its own job file (before 782ccc4 two shared an id).
+  R=$(( $(date +%s) + 600 )); usage_at "$R"; FROZEN=$(date +%s)
+  for i in 1 2 3; do
+    mkdir -p "$T/lane$i"; git -C "$T/lane$i" init -q; git -C "$T/lane$i" commit -q --allow-empty -m init
+    ( cd "$T/lane$i" && printf 'Next: lane %s\n' "$i" | RUN_AGENT_NOW="$FROZEN" "$S" --handoff worker "lane $i" > "$T/lane$i.out" 2>&1 ) &
+  done; wait
+  ids=$(for i in 1 2 3; do sed -n 's/^Relaunch: .* ET (job #\([0-9]*\))$/\1/p' "$T/lane$i.out"; done | sort -u | tr '\n' ' ')
+  own=0; for i in 1 2 3; do
+    id=$(sed -n 's/^Relaunch: .* ET (job #\([0-9]*\))$/\1/p' "$T/lane$i.out")
+    [ -n "$id" ] && [ "$(python3 "$(dirname "$S")/jobs.py" get "$id" cwd 2>/dev/null)" = "$T/lane$i" ] && own=$((own+1))
+  done
+  [ "$(echo $ids | wc -w)" = 3 ] && [ "$own" = 3 ] && [ "$("$S" --jobs | grep -c '^#')" = 3 ] \
+    && ok "handoff: 3 at once in one frozen instant -> 3 distinct job ids, each job its own lane's folder" \
+    || bad "handoff: 3 at once" "ids: $ids own: $own jobs: $("$S" --jobs) $(cat "$T"/lane[123].out)"
+  for id in $ids; do "$S" --cancel "$id" >/dev/null 2>&1; done
   unset TMUX TMUX_PANE
 
   # (5) dry run: prints, schedules nothing
@@ -1007,7 +1024,8 @@ for a in "--jobs" "--health" "--cancel" "--revive" "--clean" "worker . --at $(( 
     && ok "guard: job store, RUN_AGENT_HOME unset: '${a%% --at*}' refused, exit 2, no file" || bad "guard: job store ${a%% --at*}" "rc=$rc $out $(ls -A "$T/fh3")"
 done
 out=$(RUN_AGENT_HOME="$T/fh3/.claude/run-agent" HOME="$T/fh3" "$S" --jobs 2>&1); rc=$?
-[ "$rc" = 2 ] && [ "$out" = "test mode: refusing the real job store" ] && [ -z "$(ls -A "$T/fh3")" ] && ok "guard: job store, RUN_AGENT_HOME under ~/.claude is refused too" || bad "guard: store under ~/.claude" "rc=$rc $out"
+# Library: Apple's /usr/bin/python3 keeps its bytecode cache in ~/Library/Caches, whatever the script does
+[ "$rc" = 2 ] && [ "$out" = "test mode: refusing the real job store" ] && [ -z "$(ls -A "$T/fh3" | grep -v '^Library$')" ] && ok "guard: job store, RUN_AGENT_HOME under ~/.claude is refused too" || bad "guard: store under ~/.claude" "rc=$rc $out"
 out=$(python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import launch; print(launch.claude_environ(), launch.claude_argv())" "$(dirname "$S")")
 [ "$out" = "{} []" ] && ok "guard: with the flag claude_environ() is {} and claude_argv() finds no parent" || bad "guard: blind lookup" "$out"
 
