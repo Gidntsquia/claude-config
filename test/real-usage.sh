@@ -20,7 +20,7 @@ bad() { FAILS=$((FAILS+1)); echo "FAIL $1"; }
 want() { [ -z "$ONLY" ] || [ "$ONLY" = "$1" ]; }
 REAL_HOME="$HOME"
 MAC=false; [ "$(uname -s)" = Darwin ] && MAC=true
-H="$(mktemp -d "${TMPDIR:-/tmp}/cc-real-usage.XXXX")"
+H="$(mktemp -d "${TMPDIR:-/tmp}/cc-real-usage.XXXX")"; H="$(cd "$H" && pwd -P)"
 trap 'rm -rf "$H"' EXIT
 real_keychains() { HOME="$REAL_HOME" security list-keychains -d user 2>&1 && HOME="$REAL_HOME" security default-keychain 2>&1; }
 KC_WAS=""; $MAC && KC_WAS="$(real_keychains)"
@@ -30,9 +30,12 @@ export RUN_AGENT_CRED_FILE="$H/no-such-credentials.json"   # the token can only 
 
 if $MAC; then
   KC="$H/Library/Keychains/login.keychain-db"
+  KCPW="scratch-$$"   # the throwaway keychain's own password, gone with the folder
   mkdir -p "$H/Library/Keychains"
-  err="$(HOME="$H" security create-keychain -p "" "$KC" 2>&1 && HOME="$H" security unlock-keychain -p "" "$KC" 2>&1 \
-    && HOME="$H" security list-keychains -d user -s "$KC" 2>&1 && HOME="$H" security default-keychain -d user -s "$KC" 2>&1 \
+  # A keychain is unlocked when it is made; the unlock is repeated for a runner that locks it, and its own
+  # failure is not the test's (a hosted runner answered "passphrase not correct" to an empty one).
+  err="$(HOME="$H" security create-keychain -p "$KCPW" "$KC" 2>&1 && { HOME="$H" security unlock-keychain -p "$KCPW" "$KC" >/dev/null 2>&1; true; } \
+    && HOME="$H" security set-keychain-settings "$KC" 2>&1 && HOME="$H" security list-keychains -d user -s "$KC" 2>&1 && HOME="$H" security default-keychain -d user -s "$KC" 2>&1 \
     && HOME="$H" security add-generic-password -s "Claude Code-credentials" -a "test" -A \
          -w "{\"claudeAiOauth\":{\"accessToken\":\"$FAKE\",\"expiresAt\":4102444800000}}" "$KC" 2>&1)" \
     || { bad "keychain: could not build the temporary keychain in $H: $err"; }
