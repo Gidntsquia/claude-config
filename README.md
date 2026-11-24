@@ -75,6 +75,7 @@ More details in the
 - [Workflow](https://github.com/Gidntsquia/claude-config/wiki/Workflow) — what each agent does
 - [Cheat Sheet](https://github.com/Gidntsquia/claude-config/wiki/Cheat-Sheet) — commands and common pitfalls
 - [Glossary and FAQ](https://github.com/Gidntsquia/claude-config/wiki/Glossary-and-FAQ) — terms and beginner questions
+- [Updating](https://github.com/Gidntsquia/claude-config/wiki/Updating) — what an update does with your edits
 - [Context Trimming](https://github.com/Gidntsquia/claude-config/wiki/Context-Trimming) — settings that shrink every session's context
 - [AI Tells](docs/ai-tells.md) — writing habits that read as AI, with fixes
 - [Agent style](docs/agent-style.md) — how the agent files are written, traced to Anthropic's guidance
