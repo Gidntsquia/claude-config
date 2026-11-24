@@ -72,6 +72,6 @@ fresh; unpatch 782ccc4 skills/run-agent/scripts/jobs.py
 stock_testsh | row 4 "782ccc4's changes to jobs.py" "/bin/bash skills/run-agent/scripts/test.sh (cases 'handoff: 3 at once', 'jobs: 12 schedulers at once')"
 # 6: no scratch copy: the red is the run that showed it
 say ""; say "## row 6: run 44974710129 (workflow_dispatch on 655041c, Nov 21): the first Windows run after the beta.5 commits"
-gh run view 44974710129 --json conclusion,event,headSha,jobs --jq '"conclusion \(.conclusion), event \(.event), commit \(.headSha[0:7])", (.jobs[] | "  \(.name): \(.conclusion)")' >> "$LOG" 2>&1
-gh run view 44974710129 --log-failed 2>/dev/null | grep 'FAIL ' | cut -f1,3- | sed 's/[0-9T:.-]*Z //' | cut -c1-300 >> "$LOG"
+( cd "$R" && gh run view 44974710129 --json conclusion,event,headSha,jobs --jq '"conclusion \(.conclusion), event \(.event), commit \(.headSha[0:7])", (.jobs[] | "  \(.name): \(.conclusion)")' ) >> "$LOG" 2>&1
+( cd "$R" && gh run view 44974710129 --log-failed 2>/dev/null ) | grep 'FAIL ' | cut -f1,3- | sed 's/[0-9T:.-]*Z //' | cut -c1-300 >> "$LOG"
 say ""; say "done $(TZ=America/New_York date '+%I:%M %p ET')"
