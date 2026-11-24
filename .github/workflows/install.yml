@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      rehearsal:
+        description: "Also run the update rehearsal (one claude -p run per start release; needs the CLAUDE_CODE_OAUTH_TOKEN secret)"
+        type: boolean
+        default: false
   push:
     branches: [main]
   pull_request:
@@ -21,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # the oldtag scenario installs from the v1.2.1 tag
+          fetch-depth: 0   # the oldtag, plist and dirty scenarios install from older tags and commits
 
       - name: Install tmux (Linux)
         if: runner.os == 'Linux'
@@ -95,3 +100,41 @@ jobs:
 
       - name: Personal-path grep
         run: bash bin/find-personal-paths.sh
+
+  # The same scenarios in a fresh ubuntu:24.04 container: no runner image, only git, curl, python3, tmux and
+  # Claude Code. docker-install.sh exits non-zero when any scenario fails.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install scenarios in a Docker container
+        env:
+          SCN_NEED_OLDTAG: 1
+        run: bash test/docker-install.sh
+
+  # The dress rehearsal: in the same container, an older install with the user's own edits, then README's update
+  # sentence typed into claude -p. Started by hand (Actions > install > Run workflow > rehearsal), since each run
+  # spends Claude usage.
+  rehearsal:
+    if: github.event_name == 'workflow_dispatch' && inputs.rehearsal
+    strategy:
+      fail-fast: false
+      matrix:
+        from: [v1.2.1, v1.3.0-beta.5]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Update rehearsal from ${{ matrix.from }}
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          REHEARSAL_FROM: ${{ matrix.from }}
+        run: bash test/rehearsal.sh "$RUNNER_TEMP/rehearsal"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rehearsal-${{ matrix.from }}
+          path: ${{ runner.temp }}/rehearsal

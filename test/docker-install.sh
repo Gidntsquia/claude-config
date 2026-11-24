@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
-# usage: test/docker-install.sh
+# usage: test/docker-install.sh [--build-only]
 # Builds a fresh ubuntu:24.04 image with git, curl, python3, tmux and Claude Code (native installer), copies this
-# clone in (tracked and untracked files, not git-ignored ones), and runs test/install-scenarios.sh --terminal as a
-# normal user. Exits non-zero on any failure. Needs Docker.
+# clone in (its git history and tags, plus the tracked and untracked files as they are now, not git-ignored ones),
+# and runs test/install-scenarios.sh --terminal as a normal user. Exits non-zero on any failure. Needs Docker.
+# The history is there because the oldtag, plist and dirty scenarios install from older commits; SCN_NEED_OLDTAG=1
+# makes a clone without them a failure. --build-only stops after the build and prints the image name
+# (test/rehearsal.sh uses it).
 set -eu
 R="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMG=claude-config-install-test
 CTX="$(mktemp -d)"
 trap 'rm -rf "$CTX"' EXIT
-mkdir -p "$CTX/clone"
+if git -C "$R" rev-parse --git-dir >/dev/null 2>&1; then
+  git clone -q "$R" "$CTX/clone"
+  git -C "$CTX/clone" checkout -q "$(git -C "$R" rev-parse HEAD)"
+  ( cd "$R" && git ls-files -z --deleted ) | ( cd "$CTX/clone" && xargs -0 rm -f -- )
+else
+  mkdir -p "$CTX/clone"
+fi
 ( cd "$R" && git ls-files -z --cached --others --exclude-standard | while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\0' "$f"; done \
   | tar --null -T - -cf - ) | tar -xf - -C "$CTX/clone"
 cat > "$CTX/Dockerfile" <<'DOCKER'
@@ -23,4 +32,6 @@ COPY --chown=tester:tester clone /tester/claude-config
 ENV PATH=/tester/.local/bin:$PATH
 DOCKER
 docker build -q -t "$IMG" "$CTX" >/dev/null
-docker run --rm "$IMG" bash -lc 'cd ~/claude-config && git init -q 2>/dev/null; bash test/install-scenarios.sh --terminal'
+if [ "${1:-}" = --build-only ]; then echo "$IMG"; exit 0; fi
+docker run --rm -e SCN_NEED_OLDTAG="${SCN_NEED_OLDTAG:-}" -e SCN_ONLY="${SCN_ONLY:-}" "$IMG" \
+  bash -lc 'cd ~/claude-config && { [ -d .git ] || git init -q; } && bash test/install-scenarios.sh --terminal'

@@ -14,6 +14,12 @@
 #              server and guard hook inside the clone
 #   oldtag)    v1.2.1's own install.sh installs, the clone is pulled to this version, the current install.sh runs
 #   nokeychain) macOS: a throwaway home with no Library/Keychains fails the run before any claude command
+#   nohook)    every hook command of the installed settings file exits 0 when the file it runs is missing
+#   plist)     a September install with iTerm2 reading its preferences from the clone: the update as UPDATING.md
+#              gives it leaves the plist iTerm2 is using in place, byte for byte
+#   dirty)     an install at v1.2.1, and again at v1.3.0-beta.5, with the user's own edits (uncommitted edits to
+#              tracked files, an edit that conflicts with the release, a link replaced with a real file), updated
+#              with UPDATING.md steps 5 to 9 as shell commands: every edit survives and --check passes
 # a and b run install.sh, then install.sh --check, the personal-path grep and claude doctor from this clone. The
 # others run from a copy of the clone inside the throwaway home, and each ends with: --check prints
 # `all checks passed`, the copy's `git status --porcelain` is empty, and no *.pre-link* exists under the home.
@@ -32,9 +38,13 @@ REAL_HOME="$HOME"
 fails=0
 ok()   { echo "ok   $*"; }
 bad()  { echo "FAIL $*"; fails=$((fails+1)); }
-# SCN_ONLY=<name>: run just that one of a, b, sep22, moved, theirs, stock, odd, noguard, assistant, oldtag, nokeychain
-# SCN_NEED_OLDTAG=1 (CI): a clone without the v1.2.1 tag is a failure, not a skip.
-want() { [ -z "${SCN_ONLY:-}" ] || [ "$SCN_ONLY" = "$1" ]; }
+# SCN_ONLY=<name>: run just that one of a, b, sep22, moved, theirs, stock, odd, noguard, assistant, oldtag, nokeychain,
+#                  nohook, plist, dirty
+# SCN_NEED_OLDTAG=1 (CI): a clone without the old tags and history is a failure, not a skip.
+# SCN_LIB=1: define the functions and run nothing (test/rehearsal.sh sources this file for the dirty start state
+#            and its checks).
+# SCN_NO_PLIST_STEP=1: leave UPDATING.md's copy-the-plist step out of the plist scenario (the red run for error 1d).
+want() { [ -z "${SCN_LIB:-}" ] && { [ -z "${SCN_ONLY:-}" ] || [ "$SCN_ONLY" = "$1" ]; }; }
 expect() { local what="$1"; shift; if "$@"; then ok "$what"; else bad "$what"; fi; }
 PY=python3; command -v python3 >/dev/null 2>&1 && python3 -c 1 >/dev/null 2>&1 || PY=python
 # The mod dir as install.sh writes it: on Windows a native C:/... path in a ;-separated list.
@@ -480,6 +490,235 @@ scn_oldtag() {
   closing oldtag "$H" "$K"
 }
 
+# Every hook command of the installed settings file, whatever it runs, with every file under ~/.claude gone (HOME is
+# an empty folder for the call). noguard covers the 7 usage-guard commands with one script removed; this covers every
+# command in the file, so a hook added later that runs a linked file without looking for it first fails here.
+scn_nohook() {
+  local H="$1" K="$1/files/claude-config" C="$1/.claude" out rc n i
+  copy_clone "$K" || { bad "nohook: could not copy the clone"; return; }
+  out="$(cd "$K" && ./install.sh --projects "~/files" --no-terminal --statusline squid --settings replace 2>&1)"; rc=$?
+  expect "nohook: install.sh exits 0 (got $rc)" test "$rc" = 0
+  mkdir -p "$H/hookcmds" "$H/hooktmp" "$H/empty-home"
+  n="$("$PY" - "$C/settings.json" "$H/hookcmds" <<'PYEOF'
+import json, os, sys
+n = 0
+for event, entries in sorted(json.load(open(sys.argv[1], encoding="utf-8")).get("hooks", {}).items()):
+    for e in entries:
+        for h in e.get("hooks", []):
+            if h.get("type") == "command" and h.get("command"):
+                n += 1
+                open(os.path.join(sys.argv[2], str(n)), "w", newline="\n", encoding="utf-8").write(h["command"])
+                open(os.path.join(sys.argv[2], str(n) + ".name"), "w", encoding="utf-8").write("%s %s" % (event, e.get("matcher", "(any)")))
+print(n)
+PYEOF
+)"
+  expect "nohook: the installed settings file has at least 8 hook commands (got $n)" test "${n:-0}" -ge 8
+  i=1
+  while [ "$i" -le "${n:-0}" ]; do
+    out="$(printf '%s' '{"session_id": "scn-nohook", "hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "true"}, "prompt": "/run-agent jobs"}' \
+      | HOME="$H/empty-home" TMPDIR="$H/hooktmp" sh -c "$(cat "$H/hookcmds/$i")" 2>&1)"; rc=$?
+    expect "nohook: hook $i of $n ($(cat "$H/hookcmds/$i.name")) exits 0 with the file it runs missing (got $rc: $(printf '%s' "$out" | head -1 | cut -c1-120))" test "$rc" = 0
+    i=$((i+1))
+  done
+  closing nohook "$H" "$K"
+}
+
+# ---- updating an install that has the user's own edits ---------------------------------------------------------------
+GITID=(-c user.name=test -c user.email=test@example.com)
+# target_commit <scratch dir>: prints a commit that holds this clone's HEAD plus its uncommitted files (the release
+# under test), made in a scratch clone so nothing is written to this one.
+target_commit() {
+  local T="$1" head
+  head="$(git -C "$R" rev-parse HEAD)" || return 1
+  git clone -q "$R" "$T" 2>/dev/null && git -C "$T" checkout -q "$head" 2>/dev/null || return 1
+  ( cd "$R" && git ls-files -z --cached --others --exclude-standard | while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\0' "$f"; done \
+    | tar --null -T - -cf - ) | tar -xf - -C "$T" || return 1
+  ( cd "$R" && git ls-files -z --deleted ) | ( cd "$T" && xargs -0 rm -f -- 2>/dev/null )
+  git -C "$T" add -A >/dev/null 2>&1
+  git -C "$T" diff --cached --quiet || git -C "$T" "${GITID[@]}" commit -qm "working tree" || return 1
+  git -C "$T" rev-parse HEAD
+}
+# old_clone <clone> <start commit> <target repo> <target commit>: the user's clone as it stands before the update:
+# branch main at the start commit, with the release under test fetched and waiting.
+old_clone() {
+  git clone -q "$R" "$1" 2>/dev/null || return 1
+  git -C "$1" fetch -q "$3" HEAD 2>/dev/null || return 1
+  git -C "$1" checkout -q -B main "$2" 2>/dev/null
+}
+# update_steps <clone> <target commit>: UPDATING.md steps 5 to 8 as the shell commands the file gives.
+# Never reset --hard, clean or a forced push (UPDATING.md "Rules").
+update_steps() {
+  local K="$1" to="$2" stashed="" out rc
+  if [ -n "$(git -C "$K" status --porcelain)" ]; then                                   # step 5
+    git -C "$K" "${GITID[@]}" stash push --include-untracked -q -m "pre-update $(date +%F)" || { bad "update: git stash push failed"; return 1; }
+    stashed=1
+  fi
+  out="$(git -C "$K" merge --ff-only "$to" 2>&1)" || { bad "update: git merge --ff-only failed: $(last "$out")"; return 1; }   # step 6
+  if [ -n "$stashed" ]; then                                                           # step 7
+    out="$(git -C "$K" "${GITID[@]}" stash pop 2>&1)"; rc=$?
+    UPDATE_POP_CONFLICTS="$(git -C "$K" diff --name-only --diff-filter=U | tr '\n' ' ')"
+    if [ "$rc" != 0 ]; then
+      out="$("$PY" "$K/bin/resolve-kept-edits.py" "$K" 2>&1)" || { bad "update: resolve-kept-edits.py left a conflict: $(printf '%s' "$out" | tr '\n' ' ')"; return 1; }
+      echo "$out" | sed 's/^/     /'
+      git -C "$K" stash drop -q || { bad "update: git stash drop failed"; return 1; }
+    fi
+  fi
+  out="$(cd "$K" && ./install.sh 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'           # step 8
+  UPDATE_INSTALL_OUT="$out"
+  expect "update: the current install.sh, no flags, exits 0 (got $rc)" test "$rc" = 0
+}
+
+# The start state for `dirty` and for test/rehearsal.sh: the start commit's own install.sh, then four things the
+# user did since. dirty_setup <home> <clone> <start commit> <target repo> <target commit>
+MINE_RULE="- my own rule: say which file you changed"
+MINE_NOTE="My own note for the helper: I work in Eastern time."
+dirty_setup() {
+  local H="$1" K="$2" from="$3" C="$1/.claude" out rc
+  old_clone "$K" "$from" "$4" "$5" || { bad "dirty: could not clone $R at $from"; return 1; }
+  out="$(cd "$K" && ./install.sh --projects "~/files" "$TERMFLAG" --statusline squid --settings replace 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
+  expect "dirty: the install.sh of $from exits 0 (got $rc)" test "$rc" = 0
+  expect "dirty: the clone is clean after that install" test -z "$(git -C "$K" status --porcelain 2>&1)"
+  # 1. uncommitted edits to tracked files
+  printf '\n%s\n' "$MINE_RULE" >> "$K/CLAUDE.md"
+  printf '\n%s\n' "$MINE_NOTE" >> "$K/agents/helper.md"
+  printf 'notes I keep in the clone\n' > "$K/my-notes.md"
+  # 2. an edit that conflicts with the release: the first line of the settings file that the release changed and
+  #    that holds a rule or a hook command becomes his own.
+  out="$("$PY" - "$K/settings.json" <(git -C "$K" show "$5:settings.json") <<'PYEOF'
+import difflib, re, sys
+old = open(sys.argv[1], encoding="utf-8").read().split("\n")
+new = open(sys.argv[2], encoding="utf-8").read().split("\n")
+for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, old, new, autojunk=False).get_opcodes():
+    if tag not in ("replace", "delete"):
+        continue
+    for i in range(i1, i2):
+        m = re.match(r'^(\s*)"command": "(.*)"(,?)$', old[i])
+        if m:
+            old[i] = '%s"command": "echo my-own-hook >/dev/null; %s"%s' % m.groups()
+        elif re.match(r'^\s*"[^"]*",?$', old[i]) and i > 0 and old[i - 1].rstrip().endswith(("[", ",")):
+            old[i] = re.sub(r'"[^"]*"', '"Bash(my-own-tool:*)"', old[i], count=1)
+        else:
+            continue
+        open(sys.argv[1], "w", encoding="utf-8", newline="\n").write("\n".join(old))
+        print("line %d: %s" % (i + 1, old[i].strip()[:100]))
+        sys.exit(0)
+sys.exit("no line of the settings file that the release changed holds a rule or a hook command")
+PYEOF
+)" || { bad "dirty: could not make the conflicting edit: $out"; return 1; }
+  echo "     his conflicting edit, settings file $out"
+  # 3. a link he replaced with a real file: his own skill folder where the installer's link was
+  expect "dirty: ~/.claude/skills/review-skill is a link before he replaces it" test -L "$C/skills/review-skill"
+  rm -f "$C/skills/review-skill" && mkdir -p "$C/skills/review-skill"
+  printf -- '---\nname: review-skill\ndescription: my own review skill\n---\nmine, not a link\n' > "$C/skills/review-skill/SKILL.md"
+  mkdir -p "$H/orig" && cp -R "$C/skills/review-skill" "$H/orig/review-skill"
+  git -C "$K" rev-parse HEAD > "$H/start-commit"
+}
+# links_outside <dir> <clone>: the links up to two levels under <dir> that do not resolve inside <clone>
+links_outside() {
+  local f t
+  find "$1" -maxdepth 2 -type l 2>/dev/null | grep -v '/debug/' | while IFS= read -r f; do
+    t="$(cd "$(dirname "$f")" 2>/dev/null && cd "$(dirname "$(readlink "$f")")" 2>/dev/null && pwd -P)"
+    case "$t/" in ("$2"/*) ;; (*) printf '%s ' "$f" ;; esac
+  done
+}
+# dirty_asserts <home> <clone> <target commit>: plans R7, R8, R9 and the closing checks
+dirty_asserts() {
+  local H="$1" K="$2" to="$3" C="$1/.claude" out rc f
+  expect "dirty: the clone is at the release ($(git -C "$K" rev-parse --short HEAD 2>&1))" test "$(git -C "$K" rev-parse HEAD 2>&1)" = "$to"
+  # R7
+  expect "dirty: his line is still in CLAUDE.md" grep -qxF -- "$MINE_RULE" "$K/CLAUDE.md"
+  expect "dirty: his line is still in agents/helper.md" grep -qxF -- "$MINE_NOTE" "$K/agents/helper.md"
+  expect "dirty: his untracked notes file is still in the clone" test "$(cat "$K/my-notes.md" 2>&1)" = "notes I keep in the clone"
+  expect "dirty: git stash list is empty" test -z "$(git -C "$K" stash list 2>&1)"
+  expect "dirty: ~/.claude/CLAUDE.md shows his line too" grep -qxF -- "$MINE_RULE" "$C/CLAUDE.md"
+  # R8
+  f="$K/settings.json"
+  expect "dirty: his edit is still in the clone's settings file" grep -q -e 'my-own-hook' -e 'my-own-tool' "$f"
+  expect "dirty: no conflict markers in the files he edited" test -z "$(grep -l -E '^(<<<<<<< |>>>>>>> |=======$)' "$f" "$K/CLAUDE.md" "$K/agents/helper.md" 2>/dev/null)"
+  expect "dirty: the settings file parses as JSON and holds every line of the release's beside his" "$PY" - "$f" <(git -C "$K" show "$to:settings.json") <<'PYEOF'
+import json, sys
+mine = json.load(open(sys.argv[1], encoding="utf-8")); rel = json.load(open(sys.argv[2], encoding="utf-8"))
+def missing(m, r, path=""):
+    if isinstance(r, dict):
+        if not isinstance(m, dict): return [path]
+        return [x for k, v in r.items() for x in (missing(m[k], v, path + "/" + k) if k in m else [path + "/" + k])]
+    if isinstance(r, list):
+        if not isinstance(m, list): return [path]
+        return [path + "[%d]" % i for i, x in enumerate(r) if x not in m]
+    return [] if m == r else [path]
+gone = missing(mine, rel)
+assert not gone, "the release's values missing from the merged file: %s" % gone[:6]
+PYEOF
+  expect "dirty: ~/.claude's settings file holds his edit too" grep -q -e 'my-own-hook' -e 'my-own-tool' "$C/settings.json"
+  expect "dirty: ~/.claude's settings file parses as JSON" "$PY" -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' "$C/settings.json"
+  # R9
+  expect "dirty: his real folder ~/.claude/skills/review-skill is byte-identical" diff -r "$C/skills/review-skill" "$H/orig/review-skill"
+  expect "dirty: ... and is still a real folder, not a link" sh -c "[ -d '$C/skills/review-skill' ] && [ ! -L '$C/skills/review-skill' ]"
+  out=""; for f in "$K"/skills/*/; do f="$(basename "$f")"; [ "$f" = review-skill ] && continue
+    [ -L "$C/skills/$f" ] && [ "$C/skills/$f" -ef "$K/skills/$f" ] || out="$out $f"; done
+  expect "dirty: every other skill is a link into the clone (not:$out)" test -z "$out"
+  expect "dirty: the agents resolve into the clone" test "$C/agents/planner.md" -ef "$K/agents/planner.md"
+  out="$(links_outside "$C" "$K")"
+  expect "dirty: every link under ~/.claude points into the clone (not: $out)" test -z "$out"
+  # closing: --check, no backup copies, nothing but his edits differs from the release
+  out="$(cd "$K" && ./install.sh --check 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
+  expect "dirty: --check exits 0 and ends 'all checks passed' (got $rc, '$(last "$out")')" test "$rc$(last "$out")" = "0all checks passed"
+  expect "dirty: no .pre-link anywhere under the home" test -z "$(find "$H" -name '*.pre-link*' 2>/dev/null)"
+  out="$(git -C "$K" status --porcelain 2>&1 | sed 's/^...//' | LC_ALL=C sort | tr '\n' ' ')"
+  expect "dirty: git status lists his four files and nothing else (lists: $out)" test "$out" = "CLAUDE.md agents/helper.md my-notes.md settings.json "
+}
+scn_dirty_from() {  # <home> <start commit>
+  local H="$1" from="$2" K="$1/files/claude-config" to
+  to="$(target_commit "$H/target")" || { bad "dirty from $from: could not build the release commit"; return; }
+  dirty_setup "$H" "$K" "$from" "$H/target" "$to" || return
+  UPDATE_POP_CONFLICTS=""; UPDATE_INSTALL_OUT=""
+  update_steps "$K" "$to" || return
+  expect "dirty from $from: the stash pop did stop on a conflict in the settings file (conflicted: ${UPDATE_POP_CONFLICTS:-none})" has "$UPDATE_POP_CONFLICTS" 'settings\.json'
+  expect "dirty from $from: install.sh said it kept his skill" has "$UPDATE_INSTALL_OUT" "^  kept yours: $H/.claude/skills/review-skill (repo's not installed)\$"
+  dirty_asserts "$H" "$K" "$to"
+}
+scn_dirty_v121() { scn_dirty_from "$1" v1.2.1; }
+scn_dirty_beta5() { scn_dirty_from "$1" v1.3.0-beta.5; }
+
+# Error 1d, the harm itself: a September install tracked iterm2/com.googlecode.iterm2.plist, iTerm2 was set to load
+# and save its preferences there, and the release deletes that file, so a pull takes away the file iTerm2 is using.
+# UPDATING.md "Coming from an install before v1.3" copies it out first and puts it back after the pull.
+SEP_COMMIT=faaebbb   # the last commit that tracks the plist (the parent of f3fd85b, 2026-10-26)
+PLIST=iterm2/com.googlecode.iterm2.plist
+scn_plist() {
+  local H="$1" K="$1/files/claude-config" C="$1/.claude" B="$1/.claude/iterm2-prefs-backup" to f out rc
+  to="$(target_commit "$H/target")" || { bad "plist: could not build the release commit"; return; }
+  old_clone "$K" "$SEP_COMMIT" "$H/target" "$to" || { bad "plist: could not clone $R at $SEP_COMMIT"; return; }
+  expect "plist: the September commit tracks $PLIST" test -n "$(git -C "$K" ls-files "$PLIST")"
+  # the September layout, as sep22 builds it
+  for f in agents commands hooks CLAUDE.md settings.json statusline.sh; do [ -e "$K/$f" ] && ln -s "$K/$f" "$C/$f"; done
+  if [ "$(uname -s)" = Darwin ]; then
+    defaults write com.googlecode.iterm2 PrefsCustomFolder -string "$K/iterm2"
+    defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool true
+  fi
+  printf 'what iTerm2 saved on quit\n' >> "$K/$PLIST"; cp "$K/$PLIST" "$H/plist.orig"   # iTerm2 rewrites its file
+  expect "plist: git sees iTerm2's write as a local change" test -n "$(git -C "$K" status --porcelain -- iterm2)"
+  # UPDATING.md "Coming from an install before v1.3", steps 1 to 4
+  if [ -z "${SCN_NO_PLIST_STEP:-}" ]; then mkdir -p "$B" && cp -p "$K/$PLIST" "$B/"; fi                  # 1
+  git -C "$K" restore iterm2/                                                                              # 2
+  out="$(git -C "$K" merge --ff-only "$to" 2>&1)" || { bad "plist: git merge --ff-only failed: $(last "$out")"; return; }   # 3
+  if [ -z "${SCN_NO_PLIST_STEP:-}" ] && [ ! -e "$K/$PLIST" ]; then cp -p "$B/$(basename "$PLIST")" "$K/$PLIST"; fi
+  expect "plist: after the pull the plist iTerm2 is using is in place" test -f "$K/$PLIST"
+  expect "plist: ... and is what iTerm2 last saved, byte for byte" cmp -s "$K/$PLIST" "$H/plist.orig"
+  expect "plist: the copy outside the clone is byte-identical too" cmp -s "$B/$(basename "$PLIST")" "$H/plist.orig"
+  out="$(cd "$K" && ./install.sh --projects "~/files" "$TERMFLAG" --statusline squid --settings replace 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'   # 4
+  expect "plist: the current install.sh exits 0 (got $rc)" test "$rc" = 0
+  expect "plist: install.sh left the plist alone" cmp -s "$K/$PLIST" "$H/plist.orig"
+  if [ "$(uname -s)" = Darwin ]; then
+    expect "plist: iTerm2 no longer loads its preferences from the clone" sh -c "! defaults read com.googlecode.iterm2 PrefsCustomFolder >/dev/null 2>&1 && [ \"\$(defaults read com.googlecode.iterm2 LoadPrefsFromCustomFolder)\" = false ]"
+  fi
+  out="$(cd "$K" && ./install.sh --check 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
+  expect "plist: --check exits 0 and ends 'all checks passed' (got $rc, '$(last "$out")')" test "$rc$(last "$out")" = "0all checks passed"
+  expect "plist: the kept plist is the only thing git status lists" test "$(git -C "$K" status --porcelain 2>&1)" = "?? $PLIST"
+  expect "plist: no .pre-link anywhere under the home" test -z "$(find "$H" -name '*.pre-link*' 2>/dev/null)"
+}
+
+if [ -n "${SCN_LIB:-}" ]; then return 0 2>/dev/null || exit 0; fi
 if can_link; then run_in sep22 scn_sep22; run_in moved scn_moved
 else echo "skip sep22, moved: this account cannot make symlinks, so the older layouts cannot be built"; fi
 run_in theirs scn_theirs
@@ -493,6 +732,17 @@ case "$(uname -s)" in
   *) if git -C "$R" rev-parse -q --verify 'refs/tags/v1.2.1^{commit}' >/dev/null 2>&1; then run_in oldtag scn_oldtag
      elif want oldtag && [ -n "${SCN_NEED_OLDTAG:-}" ]; then bad "oldtag: $R has no v1.2.1 tag (a shallow or tagless checkout; fetch with full history and tags)"
      elif want oldtag; then echo "skip oldtag: $R has no v1.2.1 tag (not a git checkout, or fetched without tags)"; fi ;;
+esac
+run_in nohook scn_nohook
+# The scenarios that start from an older commit need this clone's history and tags.
+has_history() { git -C "$R" rev-parse -q --verify 'refs/tags/v1.2.1^{commit}' >/dev/null 2>&1 && git -C "$R" rev-parse -q --verify 'refs/tags/v1.3.0-beta.5^{commit}' >/dev/null 2>&1 && git -C "$R" rev-parse -q --verify "$SEP_COMMIT^{commit}" >/dev/null 2>&1; }
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) echo "skip plist, dirty: the older installers were never run on Windows without WSL" ;;
+  *) if has_history; then
+       run_in plist scn_plist
+       if want dirty; then run_in dirty scn_dirty_v121; run_in dirty scn_dirty_beta5; fi
+     elif { want plist || want dirty; } && [ -n "${SCN_NEED_OLDTAG:-}" ]; then bad "plist, dirty: $R lacks the v1.2.1 or v1.3.0-beta.5 tag or commit $SEP_COMMIT (a shallow or tagless checkout; fetch with full history and tags)"
+     elif want plist || want dirty; then echo "skip plist, dirty: $R lacks the old tags or commit $SEP_COMMIT (not a git checkout, or fetched without tags)"; fi ;;
 esac
 # nokeychain: this script run again for scenario a with the keychain left out of the home. It must stop at
 # keychain_ready: exit 1, a FAIL line naming the home, and neither install.sh nor claude started.

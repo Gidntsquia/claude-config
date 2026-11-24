@@ -21,3 +21,4 @@ agents/evals/report-writer/out/
 # Claude Code writes these beside a mod loaded with --plugin-dir
 mods/*/.claude-plugin/types/
 mods/*/tsconfig.json
+/rehearsal-out/
