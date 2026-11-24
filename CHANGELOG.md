@@ -11,6 +11,17 @@
 - Fixed: the beta.4 known issue "with `--agent-clash keep`, the repo's assistant is installed as a copy outside the clone and can't find its MCP server". The assistant has lived in `assistant/` since beta.5 and is never copied under `~/.claude/agents`; a project links it and its MCP server and guard hook resolve inside the clone. The `assistant` scenario in `test/install-scenarios.sh` checks this, and the line is gone from the release notes.
 - `install.sh`, clone moved and `~/.claude/claude-config.json` missing: the status line and the terminal setup stay installed. Before, their broken links were not counted as this installer's, so the rerun dropped the terminal setup and left the status line as "kept yours".
 - Tests: the install workflow runs on every push to `main` and every pull request, as well as on a release and by hand. New install scenarios `noguard`, `assistant`, `oldtag` (v1.2.1's own installer, then this one) and `nokeychain`; `moved` and `theirs` each gained a case. On macOS the run-agent tests run under `/bin/bash` 3.2 with the stock PATH, and `test/real-usage.sh` reads a fake Keychain item through the real `security` and calls the real usage API with a fake token (it must answer 401, over verified TLS). `UPDATING.md` lists what no test covers.
+- Updating an install that has your own edits is tested. The new scenario `dirty` installs v1.2.1, and again v1.3.0-beta.5, with that release's own installer, adds lines to `CLAUDE.md` and an agent, edits a `settings.json` line the release also changed, replaces a skill link with a folder of its own, and runs UPDATING.md's steps as commands. Every edit is there afterwards, `git stash list` is empty and `--check` passes.
+- New `bin/resolve-kept-edits.py`: when `git stash pop` or `git merge` stops on a conflict during an update, it keeps your lines and adds the release's. In a JSON file a value you changed keeps your value and the release's new keys and list entries are added. UPDATING.md steps 6 and 7 run it. Before, those steps said "resolve by keeping the user's lines" and left the how to the reader.
+- UPDATING.md, "Coming from an install before v1.3": the first step copies `iterm2/com.googlecode.iterm2.plist` out of the clone and puts it back after the pull. The release no longer has that file, so the pull deleted it while iTerm2 was reading it. The new scenario `plist` checks the file is byte-identical afterwards.
+- Tests: the new scenario `nohook` runs every hook command of the installed `settings.json` with the file it runs missing and expects exit 0. The install workflow has a `docker` job (the scenarios in a fresh ubuntu:24.04 container, with the clone's history) and a hand-started `rehearsal` job (`test/rehearsal.sh`: an older install with edits, then README's update sentence typed into `claude -p`). `test/redgreen.sh` takes each Mac fix out in turn and shows its test fail.
+- Removed: `demos/`, `RELEASE_NOTES.md` (this file has the same notes), and the report-writer eval's golden rounds 1 to 4 with their `make_r1.py` to `make_r4.py` (round 5, the one the writer reads, stays). The checkout is about 17 MB smaller.
+
+### Known issues
+
+- usage-guard needs Claude Code 2.1.296 or newer and defer-artifact needs 2.1.293 or newer. Run `claude update` first.
+- A session's first second or two can start before the run-agent MCP server connects. The agents use the Bash form then.
+- The Windows Sandbox test needs nested virtualization for WSL inside the Sandbox, which some PCs don't have.
 
 ## v1.3.0-beta.5 — 2026-11-21
 

@@ -1,7 +1,7 @@
 # AI writing tells
 
 A list of the habits that make a reader say "an AI wrote this" and stop reading. Each entry has a name, why a
-reader hears AI in it, one real example (from the round 4 fixture reports `agents/evals/report-writer/golden/r4/A|B/report.md`
+reader hears AI in it, one real example (from the round 4 fixture reports, `agents/evals/report-writer/golden/r4/A|B/report.md` at tag `v1.3.0-beta.5`,
 where one exists, otherwise from the research named at the end), and the fix. Any AI writing for this repo reads
 this list before it writes and again before it hands the text over. The checks marked `check.py` are caught by
 `agents/evals/report-writer/check.py --prose` (`ai_tells` check); the rest need a human read.
@@ -81,7 +81,7 @@ this list before it writes and again before it hands the text over. The checks m
 
 Append a numbered entry: the name in bold, why a reader hears AI in it, one real example (quote the file), and the
 fix. If a regex can catch it, add the pattern to `AI_TELLS` in `agents/evals/report-writer/check.py` and run
-`python3 -I check.py golden/r4/A --prose` to see it fire. Mirror the change to `wiki/AI-Tells.md`.
+`python3 -I check.py <a report folder that has the tell> --prose` to see it fire. Mirror the change to `wiki/AI-Tells.md`.
 
 Sources: Wikipedia "Signs of AI writing"; Graphite's 2026 em-dash study (Fast Company); The Conversation (2026) on
 "not X, but Y" and the rule of three; DEV (2026) on three-beat rhythms and hedge sandwiches; PCWorld's self-audit on
