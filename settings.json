@@ -38,7 +38,7 @@
     "restore-sessions": "user-invocable-only",
     "anthropic-skills:morning": "off",
     "anthropic-skills:google-workspace": "off",
-    "anthropic-skills:docx": "name-only",
+    "anthropic-skills:docx": "off",
     "anthropic-skills:docs": "off",
     "anthropic-skills:import-memory": "off",
     "weekly-roundup": "user-invocable-only",
@@ -57,13 +57,25 @@
     "simplify": "user-invocable-only",
     "security-review": "user-invocable-only",
     "anthropic-skills:deep-research": "off",
-    "anthropic-skills:pdf": "name-only",
-    "anthropic-skills:xlsx": "name-only",
-    "anthropic-skills:pptx": "name-only"
+    "anthropic-skills:pdf": "off",
+    "anthropic-skills:xlsx": "off",
+    "anthropic-skills:pptx": "off",
+    "update-config": "name-only",
+    "claude-api": "name-only",
+    "run": "name-only",
+    "claude-approvals": "name-only",
+    "ship-local": "user-invocable-only",
+    "steward": "user-invocable-only"
   },
   "deniedMcpServers": [
     {
       "serverName": "claude.ai Claude Docs"
+    },
+    {
+      "serverName": "easel"
+    },
+    {
+      "serverName": "claude-in-chrome"
     }
   ],
   "hooks": {
@@ -73,7 +85,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/skills/run-agent/scripts/run-agent.sh --hook",
+            "command": "f=~/.claude/skills/run-agent/scripts/run-agent.sh; [ -x \"$f\" ] || exit 0; exec \"$f\" --hook",
             "timeout": 90
           }
         ]
@@ -168,7 +180,7 @@
   },
   "enabledPlugins": {
     "skill-creator@claude-plugins-official": false,
-    "frontend-design@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": false,
     "claude-md-management@claude-plugins-official": false,
     "cc-plugin-diff@builtin": true,
     "engineering@synced": false
