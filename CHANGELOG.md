@@ -1,6 +1,107 @@
 # Changelog
 
-## v1.3.0 — 2026-11-25
+## v1.3.0 — unreleased
+
+1.3 improves the planner, worker and evaluator loop by adding three core features to it: run-agent, phone modes and the usage guard. Everything since v1.2.1 (2026-10-26) is here.
+
+### Highlights ✨
+
+- run-agent is a main part of the workflow. The planner, worker and evaluator each end with the `/run-agent` line that starts the next agent in the same tmux pane, at once or at a time like `in 2h` or `after window`. Before, an agent stopped and the next command was yours to work out and type. An early form shipped in 1.2 (scheduling with `after window` and `until`, and the worker's handoff at the usage limit) and matured in 1.3. New since v1.2.1: the closing next-step lines, an MCP server with five tools so auto mode never blocks a handoff, a worker that schedules its own relaunch when only waiting is left, a typed `/run-agent` that costs no tokens, scheduled runs that survive a reboot, and `after window` runs that fire at the time fixed when they were scheduled.
+- Phone modes let you run the loop from your phone. `claude --agent evaluator "phone"` sends each item as a picture in the chat and opens no windows. The assistant's phone mode sends a picture of the tmux pane after each action. The report-writer builds every report as 390 px cards, and `/run-agent` reads loose phone typing. Without them a check needed you at the desktop, where the evaluator opens its windows. An early form shipped in 1.2 (the evaluator's phone path, the report cards and run-agent's phone typing) and matured in 1.3. New since v1.2.1: the assistant's phone mode, and an evaluator phone path that skips the desktop's readiness question.
+- The usage guard reduces token waste. It is a hook that stops a worker before it starts more than 2 headless `claude` runs at once, a headless run without `--max-budget-usd` and `--max-turns`, more than 30 launches a day in a project, a 4th subagent at once, or a subagent task it already sent today. The worker sees its count after every launch, and `guard status`, `guard usage` and `guard allow 2h` are your commands. Before, only the worker's prompt asked it to hold back, and one worker spent most of a weekly allowance in two weeks. All of it is new in 1.3, and it is the first of the guardrails to come.
+- Planner, worker and evaluator fixes. The planner sends facts it can't know to up to three researcher subagents. The worker writes a denied command under `## Denied`, tries two other routes and never ends on a question. The evaluator opens every item hidden, asks once before it moves windows, and shows files as pages in Firefox.
+- Stability. Updating an install that has your own edits is tested: the kept-edits update tests (the `dirty` scenario and `bin/resolve-kept-edits.py`) and a Docker rehearsal that types README's update sentence into Claude on an install of v1.2.1 and of v1.3.0-beta.5. The install workflow runs on every push, on Ubuntu, macOS, Windows and in Docker. It still needs work, and Known issues says where.
+
+### Agents 🤖
+
+- The planner, worker and evaluator end with their next step in three lines: when to run it, the `/run-agent` line, and the plain `claude --agent` line. The line never carries the calling session's model or effort.
+- When a requirement depends on a fact the planner can't know, it sends the question to up to three `researcher` subagents at once and saves their findings in `plans/research/`.
+- There is one planner again. planner-fix10's prompt is now `planner.md`, and the planner-fix10 and planner-fix32 variants are deleted.
+- When a command is denied, the worker writes it under `## Denied` in `plans/WORKER_NOTES.md` and tries two other routes before it calls the step blocked. Its last message never ends on a question.
+- When only waiting is left, the worker schedules its own relaunch, appends `## Waiting — <time> ET` to its notes and ends with the `scheduled #N` line.
+- The worker gets reports from the report-writer through `skills/write-report/SKILL.md` and reruns the writer on what its last line names.
+- A worker's subagents run as `helper` on Sonnet, except the report-writer, which stays on Opus.
+- On the desktop the evaluator opens every item hidden first, asks "Ready for me to move windows and start?", and shows each item when its question comes up. `plans/EVAL.md` quotes a `no-flash:` line saying whether any window showed early. The phone path skips the question.
+- The evaluator opens files as pages in Firefox, a `.md` rendered and anything else as numbered text, and no longer opens VS Code. A failed open is retried twice, then reported with the item's path.
+- The report-writer writes an outline before any prose, keeps each middle section on what you asked, and draws a table, split bar or pair where numbers compare. A run that can't build a report ends with one line saying what to run.
+- The new assistant agent runs your tmux sessions from one chat. It reports where each project is, starts an agent in a free pane, answers a waiting session and schedules runs, and a guard hook keeps it away from your own panes. Say "phone mode" and it sends a picture of the pane after each action.
+- The assistant's files are in `assistant/` (agent file, server and hook), so it is not installed for every folder. It starts only in a project whose `.claude/agents/assistant.md` is a link to `assistant/assistant.md`, and `install.sh --check` tests that.
+- The assistant's guard hook no longer denies Bash commands that name `mcp/`, `scripts/hooks/` or `.claude/agents/`. The tmux, background, pet-pane, own-pane, judgement-menu and force rules stay.
+
+### run-agent 🔁
+
+- The run-agent MCP server has five tools (`next`, `schedule`, `handoff`, `jobs`, `cancel`) that auto mode allows by rule. The agents use them and keep the Bash form as the fallback.
+- A typed `/run-agent` costs no tokens: a hook runs it in place of a model turn.
+- A `/run-agent` line runs without a confirm question. Add `confirm` to be asked first.
+- Time phrases like `tomorrow at 1am`, `in 2 hours 10 min` and `two hours before the window` are read without a model, and the scheduled line says how the time was worked out.
+- `+` joins runs into one new tmux window, tiled side by side, and `window` or `split` opens one agent in a new window.
+- Scheduled runs survive a reboot or WSL restart. A run that came due while the machine was off is skipped and logged.
+- An `after window` run fires at the time fixed when it was scheduled, which is the usage API's reset or, with no answer from the API, five hours after scheduling. `jobs` shows `live` or `assumed (now + 5 h)` beside it. Before, a run could sleep up to an hour past the reset or be skipped.
+- Runs scheduled in the same instant each get their own job id. Before, one job could replace the other.
+- Scheduling works on macOS, which has no `setsid` command. The runner gets its own session through Python there.
+- On macOS the usage API call verifies TLS with `/etc/ssl/cert.pem` and reads the token from the Keychain when the one in `~/.claude/.credentials.json` has expired. Before, the call always failed there and every window time was an estimate.
+- `test.sh` passes on macOS with the same count as on Linux. The scripts no longer need GNU `date -d`, `realpath -m`, `readlink -f`, `mapfile` or `/proc`, and `proc.py` reads other processes through `sysctl` and `ps` on macOS.
+- On macOS a scheduled run lost its `until` time and its folder, because bash 3.2 kept two arguments as one word. Both are recorded now.
+- A scheduled run started from a stripped environment (cron, launchd) finds Homebrew's tmux.
+- `run-agent jobs` shows each runner's state and the runs that failed since you last looked, and `run-agent clean` deletes job files older than 30 days.
+- `test.sh` can no longer touch a live tmux pane.
+- The PermissionDenied hook that logged denied run-agent commands, added earlier in 1.3, is removed from `settings.json`, with `run-agent.sh --denied` and `--install-denied`. The review of the log is finished and no allow rule was added. `~/.claude/run-agent/denied.log` is left on disk.
+
+### Install 🧰
+
+- `install.sh` registers the run-agent MCP server for every session, and `--check` has a line for it and one for the assistant. When `claude` isn't on PATH it prints the `claude mcp add` command to run later.
+- `install.sh` links `run-agent` and `guard` into `~/.local/bin` and installs the usage-guard and `/run-agent` hooks with the settings merge.
+- A settings merge into a `settings.json` that already has its own `hooks` keeps your hooks and adds the repo's.
+- `install.sh` never makes a `.pre-link` copy. Your own agent, skill or command with one of this repo's names stays, and the run prints `kept yours: <path> (repo's not installed)` and exits 0. `--agent-clash replace` and `--settings replace` delete yours with no copy. Exit code 3 is gone.
+- After you move the clone, a plain `./install.sh` from the new folder points every link under `~/.claude` at it and prints `relinked <path> (was <old target>, now missing)`. A link to a file the repo no longer has is removed, and the old path leaves `settings.json`. With `~/.claude/claude-config.json` missing as well, the status line and the terminal setup stay installed.
+- An install from before v1.3 had `~/.claude/hooks` as one link into the clone, so the installer wrote into the clone. It now makes `hooks` and `skills` real folders first and refuses to link anything that resolves inside the clone. `git status` in the clone is the same before and after a run.
+- A link that can't be made prints `install: could not link <dst>: <error>`. Before, the run ended with exit 1 and no message.
+- With python3 or tmux missing, `install.sh` names each one with its install command and exits before it changes a file. On a Mac without the Xcode tools it no longer runs the `/usr/bin/python3` stub that opens the install dialog.
+- `--check` fails on a personal path only in a tracked file, and an untracked one prints `WARN`. It prints `WARN` for each `.pre-link` copy an older installer left under `~/.claude`, `SKIP` for a file of yours it left alone, and one `SKIP` for the hook checks when your choice is `--settings keep`.
+- The iTerm2 default profile from before `--default-profile` is saved in `~/.claude/claude-config.json` as `itermDefault`. The Windows Terminal script no longer writes `settings.json.pre-link`.
+- On Windows, a second `./install.sh` no longer stops on a settings.json with an em dash or emoji (Python read it as cp1252), and `--check` reads the defer-artifact entry in Claude Code's `;`-separated plugin list. Where systemd won't enable the reboot service (CI runners, containers), `install.sh` adds the restart line to your shell rc.
+- New `bin/resolve-kept-edits.py`: when `git stash pop` or `git merge` stops on a conflict during an update, it keeps your lines and adds the release's. In a JSON file a value you changed keeps your value, the release's new keys and list entries are added, and a list entry both sides changed stays one entry with your value. UPDATING.md steps 6 and 7 run it.
+- `UPDATING.md` has three new sections: "Coming from an install before v1.3" (it copies iTerm2's preferences file out of the clone before the pull and puts it back after), "Moving the clone" and "What no test covers". In the 1.2.1 → 1.3 step Claude installs `uv` itself.
+- Removed: `demos/`, `RELEASE_NOTES.md` (this file has the same notes), and the report-writer eval's golden rounds 1 to 4. The checkout is about 17 MB smaller.
+
+### Tests 🧪
+
+- The install workflow runs on every push to `main` and every pull request, as well as on a release and by hand, on Ubuntu, macOS and Windows. Its `docker` job runs the scenarios in a fresh ubuntu:24.04 container. It also runs the run-agent tests on Ubuntu and macOS.
+- `test/install-scenarios.sh` gained scenarios for the September layout with the iTerm2 preferences setting, a moved clone, a home with its own agents, skills, commands, hooks and settings, a stock Mac PATH under `/bin/bash`, a clone and projects folder with spaces in their names, and `noguard`, `assistant`, `oldtag`, `nokeychain`, `plist` and `nohook`. `SCN_ONLY=<name>` runs one.
+- Updating an install that has your own edits is tested. The `dirty` scenario starts from a lived-in install of v1.2.1, and again of v1.3.0-beta.5: two commits of your own, a side branch, uncommitted edits, a `settings.json` line the release also changed, a skill link replaced with your own folder, and session, history and plugin files. It runs UPDATING.md's steps as commands. Every edit is there afterwards, `git stash list` is empty and `--check` passes.
+- `test/rehearsal.sh` runs on the maintainer's Mac, in Docker: an older install with edits, then README's update sentence typed into `claude -p`, from v1.2.1 and from v1.3.0-beta.5. No login is stored on GitHub.
+- On macOS the tests run the way a stock Mac would: `test/stock-mac.sh` runs `install.sh`, `--check` and every test script under `/bin/bash` 3.2 with the stock PATH. `test/iterm2-live.sh` opens iTerm2 on the runner and checks its preferences file is unchanged by the update. `test/real-usage.sh` calls the real usage API with a fake token over verified TLS.
+- `test/redgreen.sh` takes each Mac fix out in turn and shows its test fail. `test/replay-page.sh` builds the release page from the workflow run, those red counts and the rehearsal results.
+
+### Settings ⚙️
+
+- `settings.json` gains the usage-guard hooks. usage-guard acts only in a `claude --agent worker` session and its subagents. Besides the launch limits it blocks a worker's edits to the guard's own state, `settings.json` and `worker.md`. The status line shows `guard 7/30 12.4M FE`. See `hooks/usage-guard/README.md`.
+- With the usage-guard script missing or unreadable, the 7 hook commands exit 0 and tools keep running. The first hook call of a session prints `usage-guard: script missing at <path>, guard is off; run ./install.sh`, once.
+- The defer-artifact mod keeps the Artifact tool's 38 KB schema out of every session and subagent until you ask for an artifact, when Claude loads it through ToolSearch. Measured here, a subagent's first request drops from 22,565 to 10,093 tokens.
+- `settings.json` allows six narrow run-agent Bash rules and `mcp__run-agent__*`, so auto mode never sends a run-agent call to the classifier. The installed copy names your clone's own path in those rules.
+- `autoMode.allow` keeps Claude Code's defaults and adds one sentence describing run-agent.
+
+### Known issues
+
+- usage-guard needs Claude Code 2.1.296 or newer and defer-artifact needs 2.1.293 or newer. Run `claude update` first.
+- A session's first second or two can start before the run-agent MCP server connects. The agents use the Bash form then.
+- The Windows Sandbox test needs nested virtualization for WSL inside the Sandbox, which some PCs don't have.
+- Stability still needs work. UPDATING.md's "What no test covers" names four things that are checked only by hand: the live login token and real usage numbers, sleep, wake or a reboot while a run is scheduled, a Keychain dialog in a GUI session, and iTerm2 showing the profile.
+
+### Agent versions 📄
+
+- planner.md at 751a899 (2026-11-17)
+- worker.md at a839db2 (2026-11-18)
+- evaluator.md at a839db2 (2026-11-18)
+- helper.md at 723ebb1 (2026-11-09)
+- report-writer.md at 8c5b81a (2026-11-09)
+- report-checker.md at 81cd4b6 (2026-11-06)
+- researcher.md at 238bb09 (2026-11-18)
+- assistant.md at e472f6a (2026-11-18)
+
+### Full log
+
+Each entry is as it was written when its change landed, newest first. Where a later entry changes an earlier one, the later one holds.
 
 - run-agent: an `after window` run fires at the time fixed when it was scheduled. The runner no longer asks the usage API at fire time. Before, at the instant a window ended the API already named the next window's reset, five hours on, so the run slept up to an hour (logged `fired late`), or was skipped when that reset was past its `until`.
 - run-agent: the `after window` time is the usage API's reset, rounded up to a whole second; with no answer from the API it is five hours after scheduling. The last cached answer and the estimate from session files no longer set it, because either can be earlier than the real reset and start the run before the window opens. They still stand in for `N h before the window` and for the reset a dry run shows.
@@ -21,111 +122,6 @@
 - `test/rehearsal.sh` runs on the maintainer's Mac, in Docker: an older install with edits, then README's update sentence typed into `claude -p`, from v1.2.1 and from v1.3.0-beta.5. The Claude login comes from the Keychain item `claude-config-rehearsal` and goes to the container as an environment variable. The workflow's `rehearsal` job is removed; no login is stored on GitHub.
 - `test/replay-page.sh` builds the release page from `gh run view` of a commit, the red counts of `test/redgreen.sh` and the rehearsal results. Its banner reads PASSED only when the four jobs are green, each of the 11 Mac errors has a red run, and both rehearsals passed.
 - Removed: `demos/`, `RELEASE_NOTES.md` (this file has the same notes), and the report-writer eval's golden rounds 1 to 4 with their `make_r1.py` to `make_r4.py` (round 5, the one the writer reads, stays). The checkout is about 17 MB smaller.
-
-### Known issues
-
-- usage-guard needs Claude Code 2.1.296 or newer and defer-artifact needs 2.1.293 or newer. Run `claude update` first.
-- A session's first second or two can start before the run-agent MCP server connects. The agents use the Bash form then.
-- The Windows Sandbox test needs nested virtualization for WSL inside the Sandbox, which some PCs don't have.
-
-## v1.3.0-beta.5 — 2026-11-21
-
-This pre-release fixes what went wrong when a September install on a Mac was updated and its clone moved, and tests `install.sh` against four kinds of Mac. v1.2.1 stays the latest release until 1.3 is promoted.
-
-### Install 🧰
-
-- `install.sh` never makes a `.pre-link` copy. Your own agent, skill or command with one of this repo's names stays, and the run prints `kept yours: <path> (repo's not installed)` and exits 0. `--agent-clash replace` and `--settings replace` delete yours with no copy. Exit code 3 is gone.
-- After you move the clone, a plain `./install.sh` from the new folder points every link under `~/.claude` at it and prints `relinked <path> (was <old target>, now missing)`. A link to a file the repo no longer has is removed, and the old path leaves `settings.json`.
-- An install from before v1.3 had `~/.claude/hooks` as one link into the clone, so the installer wrote into the clone. It now makes `hooks` and `skills` real folders first and refuses to link anything that resolves inside the clone. `git status` in the clone is the same before and after a run.
-- A link that can't be made prints `install: could not link <dst>: <error>`. Before, the run ended with exit 1 and no message.
-- With python3 or tmux missing, `install.sh` names each one with its install command and exits before it changes a file. On a Mac without the Xcode tools it no longer runs the `/usr/bin/python3` stub that opens the install dialog.
-- `--check` fails on a personal path only in a tracked file, and an untracked one prints `WARN`. It prints `WARN` for each `.pre-link` copy an older installer left under `~/.claude`, `SKIP` for a file of yours it left alone, and one `SKIP` for the hook checks when your choice is `--settings keep`.
-- The iTerm2 default profile from before `--default-profile` is saved in `~/.claude/claude-config.json` as `itermDefault`. The Windows Terminal script no longer writes `settings.json.pre-link`.
-- `UPDATING.md` has two new sections, "Coming from an install before v1.3" and "Moving the clone".
-- `test/install-scenarios.sh` has five more scenarios: the September layout with the iTerm2 preferences setting, a moved clone, a home with its own agents, skills, commands, hooks and settings, a stock Mac PATH under `/bin/bash`, and a clone and projects folder with spaces in their names. `SCN_ONLY=<name>` runs one.
-- The install workflow also starts by hand (`workflow_dispatch`) and runs the run-agent tests on Ubuntu and macOS.
-
-### run-agent 🔁
-
-- `test.sh` passes on macOS with the same count as on Linux, 309. The scripts no longer need GNU `date -d`, `realpath -m`, `readlink -f`, `mapfile` or `/proc`; `proc.py` reads other processes through `sysctl` and `ps` on macOS.
-- On macOS a scheduled run lost its `until` time and its folder, because bash 3.2 kept two arguments as one word. Both are recorded now.
-- A scheduled run started from a stripped environment (cron, launchd) finds Homebrew's tmux.
-- The PermissionDenied hook is removed from `settings.json`, with `run-agent.sh --denied` and `--install-denied`, their tests, the hook check in `install.sh --check` and the install step that scheduled the review. The review of the denied-command log is finished and no allow rule was added. `~/.claude/run-agent/denied.log` is left on disk.
-
-### Agents 🤖
-
-- The assistant's agent file moved from `agents/assistant.md` to `assistant/assistant.md`, next to its server and hook, so it is no longer installed for every folder. It starts only in a project whose `.claude/agents/assistant.md` is a link to it, and `install.sh --check` tests that.
-- The assistant's guard hook no longer denies Bash commands that name `mcp/`, `scripts/hooks/` or `.claude/agents/`. The tmux, background, pet-pane, own-pane, judgement-menu and force rules stay.
-
-## v1.3.0-beta.4 — 2026-11-18
-
-Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. This is a pre-release for testing, and v1.2.1 stays the latest release until it's promoted.
-
-### Highlights ✨
-
-- The worker can build while you're away. It never stops on a question, writes a blocker down as the command it ran and its error, schedules its own relaunch when only waiting is left, and every agent ends with its next step.
-- `/run-agent worker` swaps the Claude session in a tmux pane for another agent, at once or at a time like `in 2h`. Agents call it through an MCP server so auto mode never blocks a handoff, and scheduled runs survive a reboot.
-- usage-guard stops a worker before it starts too many headless `claude` runs or subagents at once, or more than 30 launches a day per project. The worker sees its count after every launch, and the `guard` command shows it or lifts the limit.
-- The report-writer writes an outline before any prose, keeps each middle section on what you asked, and draws a table, split bar or pair where numbers compare. A run that can't build a report ends with one line saying what to run.
-- The defer-artifact mod keeps the Artifact tool's 38 KB schema out of every session and subagent until you ask for an artifact, when Claude loads it through ToolSearch. Measured here, a subagent's first request drops from 22,565 to 10,093 tokens.
-- The new assistant agent runs your tmux sessions from one chat. It reports where each project is, starts an agent in a free pane, answers a waiting session and schedules runs, and a guard hook keeps it away from your own panes.
-
-### Agents 🤖
-
-- When a requirement depends on a fact the planner can't know, it sends the question to up to three `researcher` subagents at once and saves their findings in `plans/research/`.
-- There is one planner again. planner-fix10's prompt is now `planner.md`, and the planner-fix10 and planner-fix32 variants are deleted.
-- When a command is denied, the worker writes it under `## Denied` in `plans/WORKER_NOTES.md` and tries two other routes before it calls the step blocked. Its last message never ends on a question.
-- The worker gets reports from the report-writer through `skills/write-report/SKILL.md` and reruns the writer on what its last line names.
-- On the desktop the evaluator opens every item hidden first, asks "Ready for me to move windows and start?", and shows each item when its question comes up. `plans/EVAL.md` quotes a `no-flash:` line saying whether any window showed early.
-- The evaluator opens files as pages in Firefox, a `.md` rendered and anything else as numbered text, and no longer opens VS Code.
-- A worker's subagents run as `helper` on Sonnet, except the report-writer, which stays on Opus.
-
-### run-agent 🔁
-
-- The run-agent MCP server has five tools (`next`, `schedule`, `handoff`, `jobs`, `cancel`) that auto mode allows by rule. The agents use them and keep the Bash form as the fallback.
-- A typed `/run-agent` costs no tokens: a hook runs it in place of a model turn.
-- A `/run-agent` line runs without a confirm question. Add `confirm` to be asked first.
-- Time phrases like `tomorrow at 1am`, `in 2 hours 10 min` and `two hours before the window` are read without a model, and the scheduled line says how the time was worked out.
-- `+` joins runs into one new tmux window, tiled side by side, and `window` or `split` opens one agent in a new window.
-- Scheduled runs survive a reboot or WSL restart. A run that came due while the machine was off is skipped and logged.
-- Scheduling works on macOS, which has no `setsid` command. The runner gets its own session through Python there.
-- `run-agent jobs` shows each runner's state and the runs that failed since you last looked, and `run-agent clean` deletes job files older than 30 days.
-- `test.sh` can no longer touch a live tmux pane.
-
-### Install 🧰
-
-- `install.sh` registers the run-agent MCP server for every session, and `--check` has a line for it and one for the assistant. When `claude` isn't on PATH it prints the `claude mcp add` command to run later.
-- `install.sh` links `run-agent` and `guard` into `~/.local/bin` and installs the usage-guard and `/run-agent` hooks with the settings merge.
-- A settings merge into a `settings.json` that already has its own `hooks` keeps your hooks and adds the repo's, and the install test covers that case.
-- The install workflow on Ubuntu, macOS and Windows runs when a release is published.
-- On Windows, a second `./install.sh` no longer stops on a settings.json with an em dash or emoji (Python read it as cp1252), and `--check` reads the defer-artifact entry in Claude Code's `;`-separated plugin list. Where systemd won't enable the reboot service (CI runners, containers), `install.sh` adds the restart line to your shell rc. The install workflows of v1.3.0-beta.1 to beta.3 found these.
-
-### Settings ⚙️
-
-- `settings.json` allows six narrow run-agent Bash rules and `mcp__run-agent__*`, so auto mode never sends a run-agent call to the classifier. The installed copy names your clone's own path in those rules.
-- `autoMode.allow` keeps Claude Code's defaults and adds one sentence describing run-agent.
-
-### Known issues
-
-- This is a pre-release under test. UPDATING.md's step 3 skips it, so set `TAG=v1.3.0-beta.4` by hand to install it.
-- usage-guard needs Claude Code 2.1.296 or newer and defer-artifact needs 2.1.293 or newer. Run `claude update` first.
-- A session's first second or two can start before the run-agent MCP server connects. The agents use the Bash form then.
-- With `--agent-clash keep`, the repo's assistant is installed as a copy outside the clone and can't find its MCP server. Use `--agent-clash replace` or `skip` for it.
-- The Windows Sandbox test needs nested virtualization for WSL inside the Sandbox, which some PCs don't have.
-
-### Agent versions 📄
-
-- planner.md at 751a899 (2026-11-17)
-- worker.md at a839db2 (2026-11-18)
-- evaluator.md at a839db2 (2026-11-18)
-- helper.md at 723ebb1 (2026-11-09)
-- report-writer.md at 8c5b81a (2026-11-09)
-- report-checker.md at 81cd4b6 (2026-11-06)
-- researcher.md at 238bb09 (2026-11-18)
-- assistant.md at 238bb09 (2026-11-18)
-
-### Full log
-
 - run-agent: scheduling works on macOS. `start_runner` started the sleeper with `setsid`, which macOS does not have, so every scheduled run there (and the denied.log review install.sh schedules) was `errored: ... setsid: command not found`. Without `setsid` it starts through `python3 -c 'os.setsid(); os.execvp(...)'`, the same pid and a new session. Found by v1.3.0-beta.3's install workflow on macOS.
 - install: on Windows a rerun of `./install.sh` (a settings merge into an existing `settings.json`) stopped with `UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d`: Windows Python reads files as cp1252, and the installed settings.json holds UTF-8 text. `install.sh` exports `PYTHONUTF8=1`. Found by v1.3.0-beta.2's install workflow (`rerun with no flags exits 0 (got 1)`), reproduced and checked in Git Bash on Windows.
 - install: `--check` finds the defer-artifact mod on Windows (the `;`-separated `CLAUDE_CODE_PLUGIN_DIRS` holds a `C:/...` path, which the old `:` split cut apart), and the reboot revive falls back to the shell rc line whenever `run-agent-revive.service` is not enabled afterwards (a CI runner's user manager answers but won't enable a unit from a scratch HOME). `test/install-scenarios.sh` expects the native path and separator on Windows. Found by v1.3.0-beta.1's install workflow (Ubuntu and Windows failed).
@@ -188,17 +184,25 @@ Six things are new since v1.2.1 (2026-10-26), listed in no order of importance. 
 - `bin/run-agent` confirms in the terminal again on Python 3.14 (opening `/dev/tty` read-write failed, so it fell back to a popup and changed nothing).
 - run-agent: scheduled runs survive a reboot or WSL restart. `run-agent-revive.service` (a systemd user service install.sh enables; the shell rc on macOS) runs `run-agent.sh --revive` at boot, silently: a run still ahead gets a new runner, and one that came due while the machine was down is skipped and logged as `skipped` in `jobs.log`. After a tmux restart the run opens a new window instead of reusing an old pane id. `/run-agent jobs` marks runs whose runner is gone.
 
+## v1.3.0-beta.5 — 2026-11-21
+
+Pre-release that fixed updating a September install on a Mac and tested `install.sh` against four kinds of Mac. Its changes are under v1.3.0 above.
+
+## v1.3.0-beta.4 — 2026-11-18
+
+Pre-release with the first full set of 1.3 notes. Its changes are under v1.3.0 above.
+
 ## v1.3.0-beta.3 — 2026-11-18
 
-Tagged and published as a pre-release; its install workflow passed on Ubuntu and Windows and failed on macOS (the first entry under v1.3.0-beta.4). Otherwise the same as v1.3.0-beta.4.
+Pre-release. Its install workflow passed on Ubuntu and Windows and failed on macOS (the `setsid` entry in v1.3.0's Full log). Its changes are under v1.3.0 above.
 
 ## v1.3.0-beta.2 — 2026-11-18
 
-Tagged and published as a pre-release; its install workflow passed on Ubuntu and failed on Windows (the second entry under v1.3.0-beta.4), and macOS got no runner. Otherwise the same as v1.3.0-beta.4.
+Pre-release. Its install workflow passed on Ubuntu and failed on Windows (the `UnicodeDecodeError` entry in v1.3.0's Full log), and macOS got no runner. Its changes are under v1.3.0 above.
 
 ## v1.3.0-beta.1 — 2026-11-18
 
-Tagged and published as a pre-release; its install workflow failed on Ubuntu and Windows (the second and third entries under v1.3.0-beta.4). Otherwise the same as v1.3.0-beta.4.
+Pre-release. Its install workflow failed on Ubuntu and Windows (the `UnicodeDecodeError` and `--check` entries in v1.3.0's Full log). Its changes are under v1.3.0 above.
 
 ## v1.2.1 — 2026-10-26
 

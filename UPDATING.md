@@ -2,6 +2,16 @@
 
 For a Claude (or a person) updating an existing install to the latest release. Run it unattended; stop only where it says STOP.
 
+## What 1.3 adds
+
+1.3 improves the planner, worker and evaluator loop by adding three core features to it: run-agent, phone modes and the usage guard. 1.3 is a release candidate (v1.3.0-rc.1) until it is published, and step 3 skips it until then.
+
+- run-agent is a main part of the workflow: each agent ends with the `/run-agent` line that starts the next one in the same tmux pane, at once or at a set time.
+- Phone modes: the evaluator and the assistant send pictures to the chat, reports come as phone cards, and `/run-agent` reads loose phone typing.
+- The usage guard reduces token waste by capping a worker's headless `claude` runs and subagents, and it is the first of the guardrails to come.
+- Planner, worker and evaluator fixes: researcher subagents for the planner, a worker that never ends on a question, an evaluator that opens items hidden.
+- Stability: updates that keep your edits are tested, and a Docker rehearsal runs the update from v1.2.1. "What no test covers" below lists what is still checked by hand.
+
 ## How the install is laid out
 
 `./install.sh` symlinks files from this repo into `~/.claude` (the agents, each folder in `skills/`, and, when the user chose them, `CLAUDE.md`, `settings.json` and `statusline.sh`; a merged `settings.json` is a real file). The choices are saved in `~/.claude/claude-config.json`. So the repo clone **is** the config: changing the clone changes `~/.claude`. Any edits the user made to `CLAUDE.md`, `settings.json` or the agents are uncommitted changes or local commits in the clone, and the update must keep them.
