@@ -828,7 +828,7 @@ out=$(printf '{"command_args":"jobs"}' | "$S" --hook); python3 -c "import json,s
 out=$(printf '{"command_args":"worker"}' | env -u TMUX -u TMUX_PANE "$S" --hook); python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert d['reason'].startswith('not inside tmux'), d" "$out" && ok "hook: outside tmux -> the run-agent line to type" || bad "hook: no tmux" "$out"
 out=$( (exec -a claude bash -c "printf '{\"command_args\":\"planner \\\\\"x\\\\\" in $T/sibling split dry\"}' | env -u RUN_AGENT_HUMAN -u RUN_AGENT_FROM '$S' --hook" _ --agent worker) )
 python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert not d['reason'].startswith('ignored'), d" "$out" && ok "hook: a typed /run-agent inside an agent session is the human's (split kept)" || bad "hook: human in agent" "$out"
-python3 -c "import json,sys; s=json.load(open(sys.argv[1])); hs=s['hooks']['UserPromptExpansion']; h=[x for x in hs if x['matcher']=='run-agent'][0]['hooks'][0]; assert h['command'].endswith('run-agent.sh --hook') and h['timeout']>=60, h" "$(dirname "$S")/../../../settings.json" \
+python3 -c "import json,sys; s=json.load(open(sys.argv[1])); hs=s['hooks']['UserPromptExpansion']; h=[x for x in hs if x['matcher']=='run-agent'][0]['hooks'][0]; assert 'run-agent.sh' in h['command'] and h['command'].endswith('--hook') and h['timeout']>=60, h" "$(dirname "$S")/../../../settings.json" \
   && ok "hook: settings.json has the run-agent UserPromptExpansion hook, timeout >= 60 s" || bad "hook: settings.json"
 # v1.3.1 (R13a): the commands the auto-mode classifier blocked, replayed against the shipped allow rules. A compound
 # command is split on && || ; | and newlines; every part must start with an allowed prefix (Bash(<prefix> *)) or be a

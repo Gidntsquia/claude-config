@@ -6,7 +6,8 @@ Usage: resolve-kept-edits.py [clone] [--mine theirs|ours]
 Run it when `git stash pop` (step 7) or `git merge <tag>` (step 6) stops on a conflict. For every conflicted file:
   - a .json file is merged value by value from the three versions git holds (the old release, yours, the new
     release): a value you changed keeps your value, a list keeps the release's entries and adds the ones you
-    added, everything else is the release's. The result must parse as JSON.
+    added, an entry you edited stays one entry (your values in it, the release's other changes beside them),
+    everything else is the release's. The result must parse as JSON.
   - any other text file keeps both sides' lines where they clash (yours first), with no conflict markers.
 After a stash pop (--mine theirs, the default) every edit is left uncommitted and unstaged, as a clean pop
 would leave it; drop the stash afterwards with `git stash drop`. After a merge (--mine ours) each resolved file is
@@ -34,6 +35,57 @@ def stage(repo, n, path):
     return p.stdout if p.returncode == 0 else None
 
 
+def alike(x, y):
+    """How many keys two entries share with equal values; 0 when they are not both objects."""
+    if not (isinstance(x, dict) and isinstance(y, dict)):
+        return 0
+    return sum(1 for k in x if k in y and x[k] == y[k])
+
+
+def pick(x, pool):
+    """The entry of pool most like x (an edited copy of it), or None."""
+    best, score = None, 0
+    for y in pool:
+        n = alike(x, y)
+        if n > score:
+            best, score = y, n
+    return best
+
+
+def merge_list(b, mine, rel):
+    """rel's entries, without the ones I removed, with my edit of an entry in that entry's place, then my new ones.
+
+    An entry I edited is one entry afterwards, never two: where the release edited the same entry, the two edits
+    are merged value by value (my value wins where both changed it), so a hook cannot end up listed twice.
+    """
+    removed = [x for x in b if x not in mine]
+    added = [x for x in mine if x not in b]
+    edits, free = [], list(added)             # (old entry, my edit of it)
+    for x in removed:
+        y = pick(x, free)
+        if y is not None:
+            edits.append((x, y))
+            free.remove(y)
+    out = []
+    for r in rel:
+        mine_of = [y for x, y in edits if x == r]
+        if mine_of:
+            out.append(mine_of[0])            # the release left it alone: my edit takes its place
+        elif r not in removed:
+            out.append(r)
+    rel_new = [r for r in rel if r not in b]
+    for x, y in edits:
+        if x in rel:
+            continue
+        z = pick(x, [r for r in rel_new if r in out])
+        if z is not None:                     # the release edited it too
+            out[out.index(z)] = merge3(x, y, z)
+            rel_new.remove(z)
+        else:                                 # the release dropped it after I changed it
+            out.append(y)
+    return out + [y for y in free if y not in out]
+
+
 def merge3(base, mine, rel):
     """mine's changes since base, applied on top of rel."""
     if isinstance(mine, dict) and isinstance(rel, dict):
@@ -51,10 +103,7 @@ def merge3(base, mine, rel):
                 out[k] = v                    # my own key, or one the release dropped after I changed it
         return out
     if isinstance(mine, list) and isinstance(rel, list):
-        b = base if isinstance(base, list) else []
-        removed = [x for x in b if x not in mine]
-        out = [x for x in rel if x not in removed]
-        return out + [x for x in mine if x not in b and x not in out]
+        return merge_list(base if isinstance(base, list) else [], mine, rel)
     return rel if mine == base else mine
 
 
@@ -115,7 +164,7 @@ def main(argv):
         try:
             if path.lower().endswith(".json"):
                 out = resolve_json(base if base is not None else b"{}", mine, rel)
-                how = "your values kept, the release's keys and entries added"
+                how = "your values kept, the release's keys and entries added; an entry you edited stays one entry with your value"
             else:
                 out = resolve_text(base if base is not None else b"", mine, rel)
                 how = "both sides' lines kept"

@@ -701,7 +701,7 @@ assert any('my-own-settings-hook' in h.get('command','') for e in s['hooks']['Pr
   f="$K/settings.json"
   expect "dirty: his edit is still in the clone's settings file" grep -q -e 'my-own-hook' -e 'my-own-tool' "$f"
   expect "dirty: no conflict markers in the files he edited" test -z "$(grep -l -E '^(<<<<<<< |>>>>>>> |=======$)' "$f" "$K/CLAUDE.md" "$K/agents/helper.md" 2>/dev/null)"
-  expect "dirty: the settings file parses as JSON and holds every line of the release's beside his" "$PY" - "$f" <(git -C "$K" show "$to:settings.json") <<'PYEOF'
+  expect "dirty: the settings file parses as JSON and holds every value of the release's but the one he changed, with no hook twice" "$PY" - "$f" <(git -C "$K" show "$to:settings.json") <<'PYEOF'
 import json, sys
 mine = json.load(open(sys.argv[1], encoding="utf-8")); rel = json.load(open(sys.argv[2], encoding="utf-8"))
 def missing(m, r, path=""):
@@ -710,10 +710,23 @@ def missing(m, r, path=""):
         return [x for k, v in r.items() for x in (missing(m[k], v, path + "/" + k) if k in m else [path + "/" + k])]
     if isinstance(r, list):
         if not isinstance(m, list): return [path]
-        return [path + "[%d]" % i for i, x in enumerate(r) if x not in m]
-    return [] if m == r else [path]
+        out = []
+        for i, x in enumerate(r):
+            if x in m: continue
+            # not there as the release has it: it may be the entry he edited, which stays one entry with his value
+            twins = [y for y in m if isinstance(x, dict) and isinstance(y, dict) and any(k in y and y[k] == v for k, v in x.items())]
+            best = min((missing(y, x, path + "[%d]" % i) for y in twins), key=len, default=[path + "[%d]" % i])
+            out += best
+        return out
+    if m == r: return []
+    return [] if isinstance(m, str) and ("my-own-hook" in m or "my-own-tool" in m) else [path]
 gone = missing(mine, rel)
 assert not gone, "the release's values missing from the merged file: %s" % gone[:6]
+# an entry he edited is one entry, not his and the release's side by side (a hook listed twice runs twice)
+for event, entries in rel.get("hooks", {}).items():
+    r = [e.get("matcher") for e in entries]; m = [e.get("matcher") for e in mine.get("hooks", {}).get(event, [])]
+    more = sorted(set(str(x) for x in r if m.count(x) > r.count(x)))
+    assert not more, "%s lists more entries than the release for matcher %s" % (event, more)
 PYEOF
   expect "dirty: ~/.claude's settings file holds his edit too" grep -q -e 'my-own-hook' -e 'my-own-tool' "$C/settings.json"
   expect "dirty: ~/.claude's settings file parses as JSON" "$PY" -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' "$C/settings.json"
