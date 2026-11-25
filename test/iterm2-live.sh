@@ -43,10 +43,17 @@ defaults write "$DOM" PrefsCustomFolder -string "$K/iterm2"
 defaults write "$DOM" LoadPrefsFromCustomFolder -bool true
 xattr -dr com.apple.quarantine /Applications/iTerm.app 2>/dev/null
 echo "step iterm2: open -g -a iTerm"
-open -g -a iTerm </dev/null >/dev/null 2>&1 &
+open -g -a iTerm </dev/null >"$HOME/iterm2-live.open.log" 2>&1 &
 op=$!; ( sleep 60; kill "$op" 2>/dev/null ) </dev/null >/dev/null 2>&1 &
 echo "step iterm2: waiting for the iTerm2 process"
-i=0; while [ $i -lt 60 ] && ! pgrep -x iTerm2 >/dev/null; do sleep 1; i=$((i+1)); done
+i=0; while [ $i -lt 20 ] && ! pgrep -x iTerm2 >/dev/null; do sleep 1; i=$((i+1)); done
+if ! pgrep -x iTerm2 >/dev/null; then
+  # a runner's login session may not let `open` start an app; the app's own program is the same iTerm2
+  echo "step iterm2: open did not start it ($(head -3 "$HOME/iterm2-live.open.log" 2>/dev/null | tr '\n' ' ')); starting the app's program itself"
+  nohup /Applications/iTerm.app/Contents/MacOS/iTerm2 </dev/null >"$HOME/iterm2-live.app.log" 2>&1 &
+  while [ $i -lt 60 ] && ! pgrep -x iTerm2 >/dev/null; do sleep 1; i=$((i+1)); done
+  pgrep -x iTerm2 >/dev/null || head -5 "$HOME/iterm2-live.app.log"
+fi
 expect "iterm2: iTerm2 is running (pid $(pgrep -x iTerm2 | head -1), after $i s)" pgrep -x iTerm2
 sleep 5   # let it read the folder
 expect "iterm2: the real iTerm2 is set to load its preferences from the clone" test "$(defaults read "$DOM" PrefsCustomFolder 2>/dev/null)" = "$K/iterm2"
@@ -70,7 +77,7 @@ expect "iterm2: install.sh said it added the Claude tmux profile" sh -c 'printf 
 expect "iterm2: the profile file iTerm2 loads exists and resolves into the clone" test -f "$DP" -a "$DP" -ef "$K/iterm2/DynamicProfiles/claude-tmux.json"
 name="$(plutil -extract Profiles.0.Name raw -o - "$DP" 2>&1)"
 expect "iterm2: that file holds the \"Claude tmux\" profile (Profiles.0.Name: $name)" test "$name" = "Claude tmux"
-expect "iterm2: plutil reads it as a valid property list" plutil -lint -s "$DP"
+expect "iterm2: plutil can read it (the file is JSON, which plutil -lint refuses, so it is converted)" plutil -convert xml1 -o /dev/null "$DP"
 expect "iterm2: iTerm2 no longer loads its preferences from the clone" sh -c "! defaults read $DOM PrefsCustomFolder >/dev/null 2>&1 && [ \"\$(defaults read $DOM LoadPrefsFromCustomFolder)\" = 0 ]"
 out="$(cd "$K" && /bin/bash "$R/test/stock-mac.sh" ./install.sh --check 2>&1)"; rc=$?
 printf '%s\n' "$out" | sed 's/^/     /'
