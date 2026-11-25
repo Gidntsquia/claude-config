@@ -146,6 +146,8 @@ fails=0
   expect "rehearsal: the clone has the tag v1.3.0 and it is the release under test" test "$(git -C "$K" rev-parse 'v1.3.0^{commit}' 2>&1)" = "$to"
   expect "rehearsal: main holds the release tag (git describe: $(git -C "$K" describe --tags 2>&1))" git -C "$K" merge-base --is-ancestor "$to" HEAD
   dirty_asserts "$H" "$K" "$to"
+  # UPDATING.md's 1.2.1 -> 1.3 step: the run-agent MCP server starts with uv, and installing it is Claude's step, not his
+  expect "rehearsal: uv is installed after the update ($(PATH="$H/.local/bin:$H/.cargo/bin:$PATH" command -v uv 2>&1))" env PATH="$H/.local/bin:$H/.cargo/bin:$PATH" uv --version
 } > "$OUT/results.txt" 2>&1
 fails=$((fails + setup_fails))
 {
