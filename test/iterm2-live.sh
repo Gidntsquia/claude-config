@@ -36,9 +36,16 @@ rm -rf "$K"; mkdir -p "$HOME/files" "$C"
 git clone -q "$R" "$K" && git -C "$K" checkout -q -B main "$SEP_COMMIT" || { bad "iterm2: could not clone $R at $SEP_COMMIT"; echo "$fails failure(s)"; exit 1; }
 expect "iterm2: the September commit tracks $PLIST" test -n "$(git -C "$K" ls-files "$PLIST")"
 for f in agents commands hooks CLAUDE.md settings.json statusline.sh; do [ -e "$K/$f" ] && [ ! -e "$C/$f" ] && ln -s "$K/$f" "$C/$f"; done
+# Each step says what it is about to do: the first run of this file hung here for 6 hours with nothing printed.
+# `open` runs in the background and is killed after 60 s, so a launch that never returns cannot hold the job.
+echo "step iterm2: defaults write PrefsCustomFolder"
 defaults write "$DOM" PrefsCustomFolder -string "$K/iterm2"
 defaults write "$DOM" LoadPrefsFromCustomFolder -bool true
-open -a iTerm
+xattr -dr com.apple.quarantine /Applications/iTerm.app 2>/dev/null
+echo "step iterm2: open -g -a iTerm"
+open -g -a iTerm </dev/null >/dev/null 2>&1 &
+op=$!; ( sleep 60; kill "$op" 2>/dev/null ) </dev/null >/dev/null 2>&1 &
+echo "step iterm2: waiting for the iTerm2 process"
 i=0; while [ $i -lt 60 ] && ! pgrep -x iTerm2 >/dev/null; do sleep 1; i=$((i+1)); done
 expect "iterm2: iTerm2 is running (pid $(pgrep -x iTerm2 | head -1), after $i s)" pgrep -x iTerm2
 sleep 5   # let it read the folder

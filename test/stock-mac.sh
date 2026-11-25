@@ -3,7 +3,8 @@
 # Runs the script the way a Mac runs it before anything is added to it: under /bin/bash (3.2) with an empty
 # environment and PATH=/usr/bin:/bin:/usr/sbin:/sbin. Two programs the tests cannot do without, tmux and claude,
 # are reached through one extra folder that holds links to those two and nothing else, so Homebrew's bash, GNU
-# date, sed and stat stay out of reach. HOME, USER, TMPDIR and every SCN_* variable pass through.
+# date, sed and stat stay out of reach. ~/.local/bin is on PATH too: install.sh adds it in the shell rc file, so it
+# is what a new terminal on that Mac has. HOME, USER, TMPDIR and every SCN_* variable pass through.
 # The install workflow's macOS job runs install.sh, --check and every test script through this file. Homebrew's
 # tools on a runner's own PATH hid 140 failures that a real Mac then showed.
 set -u
@@ -17,4 +18,4 @@ done
 keep=()
 for v in $(env | sed -n 's/^\(SCN_[A-Z0-9_]*\)=.*/\1/p'); do keep[${#keep[@]}]="$v=$(eval "printf '%s' \"\${$v}\"")"; done
 env -i HOME="$HOME" USER="${USER:-$(id -un)}" TMPDIR="${TMPDIR:-/tmp}" TERM=xterm-256color LANG=en_US.UTF-8 \
-  PATH="/usr/bin:/bin:/usr/sbin:/sbin:$B" ${keep[@]+"${keep[@]}"} /bin/bash "$@"
+  PATH="/usr/bin:/bin:/usr/sbin:/sbin:$B:$HOME/.local/bin" ${keep[@]+"${keep[@]}"} /bin/bash "$@"
