@@ -429,6 +429,8 @@ EOF
   # the next window's reset (run_at + 18000); the runner must not ask, wait or skip: it fires at run_at.
   # #5: until 60 s after run_at (the next reset is past until: the old runner skipped). #6: until 6 h on (it slept 1 h).
   grep -n 'reset' "$(dirname "$S")/runner.sh" | grep -q 'parse.py\|\$P\|--reset' && bad "runner: no usage API / parse.py --reset call at fire time" "$(grep -n reset "$(dirname "$S")/runner.sh")" || ok "runner: no usage API / parse.py --reset call at fire time"
+  # 'woke N s after' allows 0-9 s, as case (1) does: a loaded macOS runner woke 3 s after (run 45676179596); the
+  # fault this guards against is a skip or an hour's sleep, and the runner itself calls only > 60 s late.
   for u in 60 21600; do
     n=$(( $(ls "$RUN_AGENT_HOME/done" | sed 's/\.json$//' | sort -n | tail -1) + 1 ))
     R=$(( $(date +%s) + 10 )); usage_at "$R"; : > "$RA_OUT"; rm -f "$T/sched.out"   # 10 s: a slow CI runner took over 4 s to get the job asleep
@@ -438,7 +440,7 @@ EOF
     usage_at $(( R + 18000 ))   # the rollover: from here the API names the next window
     wait_for 20 grep -q "  #$n  " "$LOG"
     fired=$(date +%s)
-    grep -q "  #$n  fired  $SHOWN  (due $(python3 "$(dirname "$S")/parse.py" --fmt-s "$R") live, woke [0-2] s after)$" "$LOG" && [ $(( fired - R )) -le 8 ] && ! grep -q "  #$n  \(skipped\|fired late\)" "$LOG" \
+    grep -q "  #$n  fired  $SHOWN  (due $(python3 "$(dirname "$S")/parse.py" --fmt-s "$R") live, woke [0-9] s after)$" "$LOG" && [ $(( fired - R )) -le 15 ] && ! grep -q "  #$n  \(skipped\|fired late\)" "$LOG" \
       && ok "sched: API moved to run_at + 18000 before firing, until +$u s -> fired at run_at, no wait, no skip ($(( fired - R )) s after due)" || bad "sched: window run fires at its stored run_at (until +$u s)" "$(( fired - R )) s after due; $(grep "  #$n  " "$LOG")"
     wait_for 10 grep -q "arg=worker: repo (fable)" "$RA_OUT" || bad "sched: #$n ran claude in the pane" "$(cat "$RA_OUT")"
     [ "$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['run_at'])" "$RUN_AGENT_HOME/done/$n.json")" = "$R" ] && ok "sched: #$n run_at unchanged by the later API answer" || bad "sched: #$n run_at unchanged"
