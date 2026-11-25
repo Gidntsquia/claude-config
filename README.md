@@ -61,7 +61,7 @@ To update, tell Claude: "update my claude-config to the latest release, followin
 More details in the
 [wiki](https://github.com/Gidntsquia/claude-config/wiki):
 
-- [Wiki home](https://github.com/Gidntsquia/claude-config/wiki/Home) — where to start
+- [Wiki home](https://github.com/Gidntsquia/claude-config/wiki) — where to start
 - [Setting Up WSL](https://github.com/Gidntsquia/claude-config/wiki/Setting-Up-WSL) — Windows first-time setup
 - [Setting Up Claude Code](https://github.com/Gidntsquia/claude-config/wiki/Setting-Up-Claude-Code) — install, sign in, first run
 - [Install This Config Repo](https://github.com/Gidntsquia/claude-config/wiki/Install-This-Config-Repo) — the install, step by step
