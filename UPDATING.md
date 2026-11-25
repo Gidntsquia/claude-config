@@ -1,49 +1,61 @@
 # Updating claude-config
 
-For a Claude (or a person) updating an existing install to the latest release. Run it unattended; stop only where it says STOP.
+For a Claude (or a person) updating an existing install to the latest release. Run it unattended and stop only where it says STOP. The wiki's [Updating](https://github.com/Gidntsquia/claude-config/wiki/Updating) page explains the reasons behind these steps.
 
 ## What 1.3 adds
 
 1.3 improves the planner, worker and evaluator loop by adding three core features to it: run-agent, phone modes and the usage guard. 1.3 is a release candidate (v1.3.0-rc.1) until it is published, and step 3 skips it until then.
 
-- run-agent is a main part of the workflow: each agent ends with the `/run-agent` line that starts the next one in the same tmux pane, at once or at a set time.
-- Phone modes: the evaluator and the assistant send pictures to the chat, reports come as phone cards, and `/run-agent` reads loose phone typing.
-- The usage guard reduces token waste by capping a worker's headless `claude` runs and subagents, and it is the first of the guardrails to come.
-- Planner, worker and evaluator fixes: researcher subagents for the planner, a worker that never ends on a question, an evaluator that opens items hidden.
-- Stability: updates that keep your edits are tested, and a Docker rehearsal runs the update from v1.2.1. "What no test covers" below lists what is still checked by hand.
+- run-agent is now a main part of the workflow: each agent ends with the `/run-agent` line that starts the next one in the same tmux pane.
+- Phone modes let you run the loop from your phone, with each item sent as a picture in the chat.
+- The usage guard reduces token waste by stopping a worker before it starts too many `claude` runs or subagents.
+- Planner, worker and evaluator fixes: researcher subagents, a worker that never ends on a question, an evaluator that opens items hidden.
+- Stability: updating an install that has your own edits is now tested, and it still needs work.
 
 ## How the install is laid out
 
-`./install.sh` symlinks files from this repo into `~/.claude` (the agents, each folder in `skills/`, and, when the user chose them, `CLAUDE.md`, `settings.json` and `statusline.sh`; a merged `settings.json` is a real file). The choices are saved in `~/.claude/claude-config.json`. So the repo clone **is** the config: changing the clone changes `~/.claude`. Any edits the user made to `CLAUDE.md`, `settings.json` or the agents are uncommitted changes or local commits in the clone, and the update must keep them.
+`./install.sh` symlinks files from this repo into `~/.claude`, and saves the user's choices in `~/.claude/claude-config.json`. The clone is the config, so the user's edits to `CLAUDE.md`, `settings.json` or the agents are uncommitted changes or local commits in the clone. The update must keep them.
 
 ## Steps
 
 1. Find the clone: the `repo` value in `~/.claude/claude-config.json`. If that file is missing (installs before 1.2.1), use `dirname "$(readlink -f ~/.claude/CLAUDE.md)"`, or `dirname "$(readlink -f ~/.claude/agents/planner.md)"` and its parent. Call it `$REPO`. If none of these leads to a clone, install was never run: STOP and tell the user to follow https://github.com/Gidntsquia/claude-config/blob/main/INSTALL.md.
 2. Check it is the right repo: `git -C "$REPO" remote get-url origin` must contain `Gidntsquia/claude-config` (or the user's fork of it).
-3. Find the latest release tag (never use a pre-release or draft):
+3. Find the latest release tag. Never use a pre-release or draft.
    - With gh: `gh release view --repo Gidntsquia/claude-config --json tagName -q .tagName`
    - Without gh: `git -C "$REPO" ls-remote --tags --refs origin 'v*' | sed 's|.*/||' | grep -v -e '-' | sort -V | tail -1`
    Call it `$TAG`.
 4. Read what changed: `git -C "$REPO" fetch --tags origin`, then `git -C "$REPO" show "$TAG:CHANGELOG.md" | head -60`. Tell the user the highlights in two or three lines.
 5. Keep the user's changes: if `git -C "$REPO" status --porcelain` prints anything, run `git -C "$REPO" stash push --include-untracked -m "pre-update $(date +%F)"`. Note whether you stashed.
-6. Move to the release. If the branch is `main` with no local commits (`git -C "$REPO" rev-list origin/main..HEAD` is empty): `git -C "$REPO" merge --ff-only "$TAG"`. If the user has local commits: `git -C "$REPO" merge --no-edit "$TAG"`. If that conflicts: `python3 "$REPO/bin/resolve-kept-edits.py" "$REPO" --mine ours`, then `git -C "$REPO" commit --no-edit`.
-7. If you stashed: `git -C "$REPO" stash pop`. If it stops on a conflict, the stash is still there and nothing is lost: run `python3 "$REPO/bin/resolve-kept-edits.py" "$REPO"`, then `git -C "$REPO" stash drop`. The script keeps the user's lines and adds the release's: in `settings.json` a value the user changed keeps their value, every new key and list entry of the release is added, and a list entry both changed (a hook command, say) stays one entry with the user's value, so leave it as one; in any other file both sides' lines stay. It prints `resolved <file>` for each. If it prints `LEFT <file>`, STOP and ask the user about that file. Afterwards `git -C "$REPO" stash list` shows no `pre-update` entry and `git -C "$REPO" status` lists the user's edits as uncommitted changes, as before the update.
-8. Relink: `cd "$REPO" && ./install.sh`. It reapplies the choices saved in `~/.claude/claude-config.json` and is safe to rerun. It makes no backup copies. If one of the user's own agents, skills or commands has a repo name, or the user replaced one of the installer's links with a file or folder of their own, theirs stays byte for byte and the run prints `kept yours: <path> (repo's not installed)`; INSTALL.md step 5 says how to choose otherwise.
-   - 1.2.0 → 1.2.1: run `./install.sh` and it reapplies your saved choices; if the file is missing, follow INSTALL.md's questions once (steps 3 to 5), then run `./install.sh --check`.
-   - 1.2.1 → 1.3: first run `claude update` until `claude --version` prints 2.1.296 or newer (usage-guard needs it), and install `uv` if `command -v uv` prints nothing: `brew install uv` when `command -v brew` prints a path, otherwise `curl -LsSf https://astral.sh/uv/install.sh | sh` (uv's own installer, into `~/.local/bin`). The run-agent and assistant MCP servers do not start without it, so this is a step of the update the user asked for: run it yourself and do not leave it for the user to do or decide. Then run `./install.sh`: it registers the run-agent MCP server. If it printed that `claude` is not on PATH, run `claude mcp add --transport stdio --scope user run-agent -- ~/.claude/skills/run-agent/mcp/server.py` once `claude` is installed. If the saved choice is `--settings keep`, add `$REPO/mods/defer-artifact` to `env.CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json` (after any directories already there, `:`-separated) to load the defer-artifact mod. Then run `./install.sh --check`.
-9. Verify: `cd "$REPO" && ./install.sh --check` ends with `all checks passed`, and `git -C "$REPO" describe --tags --exact-match` prints `$TAG`. If step 6 merged the release into the user's own commits, the tag is behind their merge commit, so check `git -C "$REPO" merge-base --is-ancestor "$TAG" HEAD` exits 0 instead.
-10. Tell the user: the old and new version, what you kept from their changes (and the stash name if a pop was skipped), and that running Claude Code sessions must be restarted to pick up the new agents and settings.
+6. Move to the release.
+   - Branch `main` with no local commits (`git -C "$REPO" rev-list origin/main..HEAD` is empty): `git -C "$REPO" merge --ff-only "$TAG"`.
+   - The user has local commits: `git -C "$REPO" merge --no-edit "$TAG"`.
+   - If that conflicts: `python3 "$REPO/bin/resolve-kept-edits.py" "$REPO" --mine ours`, then `git -C "$REPO" commit --no-edit`.
+7. If you stashed: `git -C "$REPO" stash pop`.
+   - If it stops on a conflict, the stash is still there and nothing is lost. Run `python3 "$REPO/bin/resolve-kept-edits.py" "$REPO"`, then `git -C "$REPO" stash drop`.
+   - The script keeps the user's lines and adds the release's, and prints `resolved <file>` for each. A `settings.json` list entry both sides changed stays one entry with the user's value, so leave it as one.
+   - If it prints `LEFT <file>`, STOP and ask the user about that file.
+   - Afterwards `git -C "$REPO" stash list` shows no `pre-update` entry and `git -C "$REPO" status` lists the user's edits as uncommitted changes, as before the update.
+8. Relink: `cd "$REPO" && ./install.sh`. It reapplies the choices saved in `~/.claude/claude-config.json` and is safe to rerun. It makes no backup copies. A file or folder of the user's own in the place of one of the repo's stays byte for byte, and the run prints `kept yours: <path> (repo's not installed)`. INSTALL.md step 5 says how to choose otherwise.
+   - 1.2.0 to 1.2.1: run `./install.sh` and it reapplies your saved choices. If the file is missing, follow INSTALL.md's questions once (steps 3 to 5), then run `./install.sh --check`.
+   - 1.2.1 to 1.3, in this order:
+     1. Run `claude update` until `claude --version` prints 2.1.296 or newer (usage-guard needs it).
+     2. Install `uv` if `command -v uv` prints nothing: `brew install uv` when `command -v brew` prints a path, otherwise `curl -LsSf https://astral.sh/uv/install.sh | sh` (uv's own installer, into `~/.local/bin`). The run-agent and assistant MCP servers do not start without it. This is a step of the update the user asked for, so run it yourself and do not leave it for the user to do or decide.
+     3. Run `./install.sh`. It registers the run-agent MCP server. If it printed that `claude` is not on PATH, run `claude mcp add --transport stdio --scope user run-agent -- ~/.claude/skills/run-agent/mcp/server.py` once `claude` is installed.
+     4. If the saved choice is `--settings keep`, add `$REPO/mods/defer-artifact` to `env.CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json` (after any directories already there, `:`-separated) to load the defer-artifact mod.
+     5. Run `./install.sh --check`.
+9. Verify: `cd "$REPO" && ./install.sh --check` ends with `all checks passed`, and `git -C "$REPO" describe --tags --exact-match` prints `$TAG`. If step 6 merged the release into the user's own commits, the tag is behind their merge commit, so check that `git -C "$REPO" merge-base --is-ancestor "$TAG" HEAD` exits 0.
+10. Tell the user the old and new version, what you kept from their changes (and the stash name if a pop was skipped), and that running Claude Code sessions must be restarted to pick up the new agents and settings.
 
 ## Coming from an install before v1.3
 
-An install from September 2026 linked whole folders (`~/.claude/agents`, `commands`, `hooks`) into the clone, and iTerm2 could be set to load its preferences from the clone's `iterm2/` folder, so iTerm2 rewrote files there. Do these four things in one go, with no new Claude session or terminal tab in between:
+An install from September 2026 linked whole folders (`~/.claude/agents`, `commands`, `hooks`) into the clone, and iTerm2 could be set to load its preferences from the clone's `iterm2/` folder. Do these four things in one go, with no new Claude session or terminal tab in between:
 
 1. Copy iTerm2's preferences out of the clone. If `"$REPO/iterm2/com.googlecode.iterm2.plist"` exists: `mkdir -p ~/.claude/iterm2-prefs-backup && cp -p "$REPO/iterm2/com.googlecode.iterm2.plist" ~/.claude/iterm2-prefs-backup/`. The release no longer has that file, so the pull deletes it while iTerm2 is still reading it.
-2. Discard the local `iterm2/` edits: `git -C "$REPO" restore iterm2/`. iTerm2 wrote them, the user did not, the pull stops on them, and step 1 saved them. This is the one place a discard is right; every other local change follows steps 5 to 7.
-3. Pull: steps 3 to 7 above. Then put the preferences back where iTerm2 looks for them: if `"$REPO/iterm2/com.googlecode.iterm2.plist"` is gone, `cp -p ~/.claude/iterm2-prefs-backup/com.googlecode.iterm2.plist "$REPO/iterm2/"`. Git lists it as an untracked file from now on, and `--check` prints a `WARN` line for it; both are fine.
-4. Run `cd "$REPO" && ./install.sh` at once. The pull moved or removed files the old links point at, the usage-guard hook among them, and a session started before the installer runs meets those broken links. The installer makes `~/.claude/hooks` a folder of its own, removes links to files the repo no longer has (it prints `removed <path>`), and tells iTerm2 to stop loading preferences from the clone. Restart iTerm2 afterwards. Once it shows the user's settings, the plist in `$REPO/iterm2/` and the copy in `~/.claude/iterm2-prefs-backup/` can be deleted.
+2. Discard the local `iterm2/` edits: `git -C "$REPO" restore iterm2/`. iTerm2 wrote them and step 1 saved them. This is the one place a discard is right. Every other local change follows steps 5 to 7.
+3. Pull: steps 3 to 7 above. Then put the preferences back where iTerm2 looks for them: if `"$REPO/iterm2/com.googlecode.iterm2.plist"` is gone, `cp -p ~/.claude/iterm2-prefs-backup/com.googlecode.iterm2.plist "$REPO/iterm2/"`. Git lists it as an untracked file from now on, and `--check` prints a `WARN` line for it. Both are fine.
+4. Run `cd "$REPO" && ./install.sh` at once. The pull moved or removed files the old links point at, the usage-guard hook among them. The installer makes `~/.claude/hooks` a folder of its own, removes links to files the repo no longer has (it prints `removed <path>`), and tells iTerm2 to stop loading preferences from the clone. Restart iTerm2 afterwards. Once it shows the user's settings, the plist in `$REPO/iterm2/` and the copy in `~/.claude/iterm2-prefs-backup/` can be deleted.
 
-Then `./install.sh --check`. A `WARN leftover from an older install` line names a `.pre-link` copy an older installer made; delete it once the user has looked at it.
+Then `./install.sh --check`. A `WARN leftover from an older install` line names a `.pre-link` copy an older installer made. Delete it once the user has looked at it.
 
 ## Moving the clone
 
@@ -54,16 +66,16 @@ mv "$REPO" <new path>
 cd <new path> && ./install.sh
 ```
 
-The installer points every link under `~/.claude` at the new path and prints `relinked <path> (was <old target>, now missing)` for each, rewrites the paths in `~/.claude/settings.json` (unless the saved choice is `--settings keep`), and saves the new `repo` in `~/.claude/claude-config.json`. Run it before the next Claude session starts: until then the links, the hooks among them, point at the old path. Then `./install.sh --check`.
+The installer prints `relinked <path> (was <old target>, now missing)` for each link. Run it before the next Claude session starts, then `./install.sh --check`. The wiki's Updating page says what it rewrites.
 
 ## What no test covers
 
-The tests (`test/install-scenarios.sh`, `skills/run-agent/scripts/test.sh`, `test/real-usage.sh`, `test/docker-install.sh`, `test/iterm2-live.sh`, and the install workflow on ubuntu, macOS, Windows and in a Docker container) run in throwaway homes on machines with no screen and no login. Four things can only be checked by hand on the real machine after an update:
+Four things can only be checked by hand on the real machine after an update. The wiki's Updating page says why.
 
-- **The live login token and real usage numbers.** The tests read a fake Keychain item and get a 401 from the usage API. Check: `python3 ~/.claude/skills/run-agent/scripts/parse.py --window-reset` prints an epoch followed by `live`. `assumed (now + 5 h)` means the usage API gave no answer.
-- **Sleep, wake or a reboot while a run is scheduled.** The tests never suspend the machine. Check: after waking, `run-agent.sh --jobs` still lists the run as `sleeping (pid N)`, and `--health` exits 0.
-- **A Keychain dialog in a GUI session.** A CI runner cannot show one; the tests only prove every throwaway home has its own keychain and the real search list is unchanged. Check: run `bash test/install-scenarios.sh --terminal` at the Mac's own screen; no dialog should appear. If one does, press Cancel, never "Reset To Defaults".
-- **iTerm2 showing the profile.** The macOS job opens iTerm2 with its preferences read from the clone, runs the update, and checks the preferences file and the profile file (`test/iterm2-live.sh`); it does not look at the Settings window. Check: iTerm2 → Settings → Profiles lists `claude-tmux`, and `./install.sh --check | grep iTerm2` prints a PASS line.
+- The live login token and real usage numbers. Check: `python3 ~/.claude/skills/run-agent/scripts/parse.py --window-reset` prints an epoch followed by `live`. `assumed (now + 5 h)` means the usage API gave no answer.
+- Sleep, wake or a reboot while a run is scheduled. Check: after waking, `run-agent.sh --jobs` still lists the run as `sleeping (pid N)`, and `--health` exits 0.
+- A Keychain dialog in a GUI session. Check: run `bash test/install-scenarios.sh --terminal` at the Mac's own screen. No dialog should appear. If one does, press Cancel, never "Reset To Defaults".
+- iTerm2 showing the profile. Check: iTerm2 > Settings > Profiles lists `claude-tmux`, and `./install.sh --check | grep iTerm2` prints a PASS line.
 
 ## Rules
 

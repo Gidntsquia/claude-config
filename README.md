@@ -27,58 +27,57 @@ cd ~/.claude-config
 ./install.sh --check   # Prints one PASS/FAIL line per item
 ```
 
-`./install.sh --help` lists every flag. Your choices are saved in `~/.claude/claude-config.json`, so a later `./install.sh` with no flags applies them again. It makes no backup copies. If you already have an agent or skill with one of this repo's names, yours stays and the repo's is not installed; `--agent-clash keep|replace|skip` changes that.
+`./install.sh --help` lists every flag. Your choices are saved in `~/.claude/claude-config.json`, so a later `./install.sh` with no flags applies them again.
 
-IMPORTANT: never add `.credentials.json`, `history.jsonl`, `projects/`, or any other session data. `~/.claude/skills/synced` is managed by Claude and stays out of the repo.
+IMPORTANT: never add `.credentials.json`, `history.jsonl`, `projects/`, or any other session data to the repo.
 
-Run the agents from a project root:
+Other commands, run from a project root:
 
 ```
-claude --agent planner     # Turns what you ask for into plans/PLAN.md
-claude --agent worker      # Builds what PLAN.md specifies
+claude --agent planner            # Turns what you ask for into plans/PLAN.md
+claude --agent worker             # Builds what PLAN.md specifies
 claude --agent evaluator "."      # Launches the result, asks you if it works, writes plans/EVAL.md
-claude --agent evaluator "phone"  # Same when you follow on your phone: pictures in the chat, no windows
-claude --agent helper      # Guides a beginner through the planner, worker and evaluator
-claude --agent assistant   # Runs your tmux sessions from one chat: status, launch, send, close, retile, schedule. Starts only in a project that links it (see assistant/ below)
-claude --agent report-writer   # The essay a study's data supports, in a storyteller's voice: your ask quoted first, one moment of the study as a scene, the "But", then the answer, every figure a sourced {key}; a report-checker subagent reads it once in the background. Opus medium. When and how to call it: skills/write-report/SKILL.md
-claude --agent report-checker  # Second set of eyes on a report (the writer runs it itself); Opus medium
+claude --agent evaluator "phone"  # The same check from your phone, as pictures in the chat
+claude --agent helper             # Guides a beginner through the planner, worker and evaluator
 ```
 
 To update, tell Claude: "update my claude-config to the latest release, following https://github.com/Gidntsquia/claude-config/blob/main/UPDATING.md". The steps keep your own edits and relink everything.
 
 ## Features 🔬
 
-- The planner asks a few questions and writes a spec with the requirements and acceptance criteria. It doesn't decide how to build anything. When a requirement rests on a fact it can't know, up to three `researcher` subagents look it up and their findings go in `plans/research/`.
-- The worker builds the spec and follows what you tell it over what the plan says. It never ends a session on a question. When only time is left (a long run, a scrape) it schedules its own relaunch, and at the usage limit it writes what's done and what's next and hands off to a fresh worker.
-- The evaluator runs the app and asks you whether it works. Small changes you ask for are added to the spec, and big ones are sent back to the planner. It never edits code. On the desktop it opens every item hidden first and shows each one only when it asks about it, so no window flashes up while you work.
-- Every agent ends with its next step in three lines: when to run it, the `/run-agent` line, and the plain `claude --agent` line for a terminal without run-agent.
-- The helper asks where you are in the workflow, then helps one step at a time. It answers only from the agent files, the wiki and the Claude Code docs, through a small MCP server in `helper-mcp/`.
-- `/run-agent <agent>` swaps a tmux pane's Claude session for the chosen agent, e.g. `/run-agent worker` after the planner finishes. It replaces the pane (or schedules, or opens the window) at once; add `confirm` to be asked first. Loose phone typing works (`worker fable low effort`, `model=opus`, typos get corrected), and a time schedules the run instead: `at 9pm`, `in 2h`, or `after window` to start when the 5-hour usage window resets (`until 7am` caps the wait). Add `window` (or `split`) to open the agent in a new tmux window instead, or join runs with `+` to start several side by side in one new window (four planners = a 2x2 grid). `/run-agent jobs` lists what is scheduled, `/run-agent cancel` drops it, and `run-agent clean` deletes old job files. If a reboot or WSL restart stops a scheduled run, it is picked up again when WSL starts; a run that came due while it was down is skipped.
-- The assistant runs your tmux sessions from one chat: it reports where each project is, starts an agent in a free pane, answers a waiting session, closes or retiles panes, and schedules runs. Its agent file, MCP server (seven tools) and guard hook all live in `assistant/` (`assistant.md`, `mcp/server.py`, `hooks/guard.py`), not in `agents/`, so it is not installed for every folder. It starts only in a project whose `.claude/agents/assistant.md` is a link to `assistant/assistant.md`: `ln -s <clone>/assistant/assistant.md <project>/.claude/agents/assistant.md`. The guard hook stops it from closing your own panes or answering an evaluator's questions for you.
-- usage-guard (`hooks/usage-guard/`, Claude Code 2.1.296+) stops a worker's expensive launches before they run: at most 2 headless `claude` runs at once, 3 subagents at once and 30 launches a day per project. The worker sees its count, and `guard status`, `guard allow 2h` and `guard usage` let you check or lift it.
-- `/restore-sessions` reopens the Claude Code sessions a Windows Update restart or WSL stop killed, each in its own tmux pane.
-- `review-skill` audits a SKILL.md for correctness, edge cases, and token use. `test-speedup` sets up parallel runs and fast/slow tiers for a slow test suite.
-- `weekly-roundup` builds an artifact of what I worked on in the past week from git activity. `write-readme` writes a README like this one and moves the detail into the wiki.
-- The `defer-artifact` mod (`mods/defer-artifact/`, Claude Code 2.1.293+) keeps the Artifact tool's schema out of every session (about 9.6k tokens per request); Claude loads it through ToolSearch when you ask for an artifact. install.sh turns it on through `CLAUDE_CODE_PLUGIN_DIRS`; disable it in `/plugin` or remove that entry to turn it off.
-- `statusline.sh` draws the status line in the gruvbox colors from my starship prompt, with a different color for each model. `./install.sh --statusline plane` swaps in a plane mascot with easter eggs, and `bash ~/.claude/statusline.sh --preview plane` shows every one.
-- With `--terminal`, new terminal tabs open tmux with 4 panes in your projects folder and the starship prompt. On WSL that is the Windows Terminal profile for your distro (in JetBrainsMono Nerd Font, with Windows Terminal kept at 18% volume after reboots); on macOS it is an iTerm2 "Claude tmux" profile. `--default-profile` also makes it the profile new windows open with.
-- On WSL it also links `wsl/local-tools/`, scripts Claude uses to open, place, screenshot and close Windows windows.
+- The planner asks a few questions and writes a spec with the requirements and acceptance criteria. When a requirement rests on a fact it can't know, researcher subagents look it up.
+- The worker builds the spec and follows what you tell it over what the plan says. At the usage limit it writes down what's done and hands off to a fresh worker.
+- The evaluator runs the app and asks you whether it works. Small changes you ask for are added to the spec, and big ones are sent back to the planner.
+- Every agent ends with the `/run-agent` line that starts the next one in the same tmux pane. Add a time like `in 2h` or `after window` to schedule the run.
+- With `evaluator "phone"` each item arrives as a picture in the chat, so you can check the work away from the desktop.
+- usage-guard stops a worker before it starts more than 2 headless `claude` runs at once, 3 subagents at once or 30 launches a day in a project.
+- The helper asks where you are in the workflow, then helps one step at a time. It answers only from the agent files, the wiki and the Claude Code docs.
+- The assistant runs your tmux sessions from one chat. It reports where each project is, starts agents in free panes and schedules runs.
+- `/restore-sessions` reopens the Claude Code sessions a restart killed, and `write-readme` writes a README like this one.
+- With `--terminal`, new terminal tabs open tmux with 4 panes in your projects folder. `statusline.sh` draws the status line with a different color for each model.
 
 ## Documentation 📚
 
 More details in the
 [wiki](https://github.com/Gidntsquia/claude-config/wiki):
 
+- [Wiki home](https://github.com/Gidntsquia/claude-config/wiki/Home) — where to start
 - [Setting Up WSL](https://github.com/Gidntsquia/claude-config/wiki/Setting-Up-WSL) — Windows first-time setup
-- [Setting Up Claude Code](https://github.com/Gidntsquia/claude-config/wiki/Setting-Up-Claude-Code) — install, sign in, this repo
+- [Setting Up Claude Code](https://github.com/Gidntsquia/claude-config/wiki/Setting-Up-Claude-Code) — install, sign in, first run
+- [Install This Config Repo](https://github.com/Gidntsquia/claude-config/wiki/Install-This-Config-Repo) — the install, step by step
 - [Getting Started](https://github.com/Gidntsquia/claude-config/wiki/Getting-Started) — a first project step by step
 - [Workflow](https://github.com/Gidntsquia/claude-config/wiki/Workflow) — what each agent does
+- [When the Worker Is Blocked or Waiting](https://github.com/Gidntsquia/claude-config/wiki/When-The-Worker-Is-Blocked-Or-Waiting) — refused commands, long waits, the usage limit
+- [How the Evaluator Opens Items](https://github.com/Gidntsquia/claude-config/wiki/How-The-Evaluator-Opens-Items) — hidden windows and file pages
 - [Cheat Sheet](https://github.com/Gidntsquia/claude-config/wiki/Cheat-Sheet) — commands and common pitfalls
 - [Glossary and FAQ](https://github.com/Gidntsquia/claude-config/wiki/Glossary-and-FAQ) — terms and beginner questions
+- [The Golden Context Window](https://github.com/Gidntsquia/claude-config/wiki/The-Golden-Context-Window) — `/compact`, `/clear` and the cache
+- [Features](https://github.com/Gidntsquia/claude-config/wiki/Features) — every agent, skill and option
 - [Updating](https://github.com/Gidntsquia/claude-config/wiki/Updating) — what an update does with your edits
 - [Context Trimming](https://github.com/Gidntsquia/claude-config/wiki/Context-Trimming) — settings that shrink every session's context
-- [AI Tells](docs/ai-tells.md) — writing habits that read as AI, with fixes
-- [Agent style](docs/agent-style.md) — how the agent files are written, traced to Anthropic's guidance
+- [Release 1.3 Details](https://github.com/Gidntsquia/claude-config/wiki/Release-1.3-Details) — the full 1.3 change list
+- [AI Tells](docs/ai-tells.md) — writing habits that read as AI
+- [Agent style](docs/agent-style.md) — how the agent files are written
 
 `examples/first-project/` is the finished app from Getting Started, and `agents/USAGE.txt` has the hand-off rules between agents.
 
