@@ -4,11 +4,6 @@ on:
   release:
     types: [published]
   workflow_dispatch:
-    inputs:
-      rehearsal:
-        description: "Also run the update rehearsal (one claude -p run per start release; needs the CLAUDE_CODE_OAUTH_TOKEN secret)"
-        type: boolean
-        default: false
   push:
     branches: [main]
   pull_request:
@@ -56,50 +51,68 @@ jobs:
         if: runner.os == 'Linux'
         run: bash skills/run-agent/scripts/test.sh
 
-      # A stock Mac: the system bash 3.2 and the system tools only (BSD date, sed, stat), plus tmux's folder.
-      # Homebrew's bash and GNU tools on the runner's own PATH hid 140 failures a real Mac then showed.
+      # A stock Mac: on macOS every test script, install.sh and --check run through test/stock-mac.sh, which is
+      # /bin/bash 3.2 with an empty environment and PATH=/usr/bin:/bin:/usr/sbin:/sbin plus links to tmux and
+      # claude. Homebrew's bash and GNU tools on the runner's own PATH hid 140 failures a real Mac then showed.
       - name: run-agent tests under /bin/bash 3.2 with the stock PATH (macOS)
         if: runner.os == 'macOS'
         run: |
-          TMUX_DIR="$(dirname "$(command -v tmux)")"
           /bin/bash --version | head -1
-          /bin/bash --version | grep -q 'version 3\.2'
-          env -i HOME="$HOME" USER="$USER" TMPDIR="${TMPDIR:-/tmp}" TERM=xterm-256color LANG=en_US.UTF-8 \
-            PATH="/usr/bin:/bin:/usr/sbin:/sbin:$TMUX_DIR" /bin/bash skills/run-agent/scripts/test.sh
+          /bin/bash test/stock-mac.sh skills/run-agent/scripts/test.sh
 
-      - name: Keychain item read by parse.py through the real security (macOS)
-        if: runner.os == 'macOS'
-        run: /bin/bash test/real-usage.sh keychain
+      - name: Keychain item read by parse.py through the real security, /bin/bash 3.2 and the stock PATH (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        run: /bin/bash test/stock-mac.sh test/real-usage.sh keychain
 
-      - name: Unstubbed usage call with a fake token ends in HTTP 401 (Linux, macOS)
-        if: runner.os != 'Windows'
+      - name: Unstubbed usage call with a fake token ends in HTTP 401 (Linux)
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
         run: bash test/real-usage.sh usage
 
-      - name: Install scenarios with --terminal (Linux, macOS)
-        if: runner.os != 'Windows'
+      - name: Unstubbed usage call with a fake token ends in HTTP 401, /bin/bash 3.2 and the stock PATH (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        run: /bin/bash test/stock-mac.sh test/real-usage.sh usage
+
+      - name: Install scenarios with --terminal (Linux)
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
         env:
           SCN_NEED_OLDTAG: 1
         run: bash test/install-scenarios.sh --terminal
 
+      - name: Install scenarios with --terminal, /bin/bash 3.2 and the stock PATH (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        env:
+          SCN_NEED_OLDTAG: 1
+        run: /bin/bash test/stock-mac.sh test/install-scenarios.sh --terminal
+
       - name: Install scenarios without --terminal (Windows, Git Bash)
-        if: runner.os == 'Windows'
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
         env:
           MSYS: winsymlinks:nativestrict
         run: bash test/install-scenarios.sh --no-terminal
 
-      - name: macOS --terminal with iTerm2 absent skips the profile
-        if: runner.os == 'macOS'
+      - name: macOS --terminal with iTerm2 absent skips the profile, /bin/bash 3.2 and the stock PATH
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
         run: |
           test ! -d /Applications/iTerm.app
           H="$(mktemp -d)"
-          export PATH="$H/.local/bin:$PATH"
-          out="$(HOME="$H" ./install.sh --projects '~/files' --terminal --default-profile --statusline squid --settings merge 2>&1)"
+          out="$(HOME="$H" /bin/bash test/stock-mac.sh ./install.sh --projects '~/files' --terminal --default-profile --statusline squid --settings merge 2>&1)"
           echo "$out"
           echo "$out" | grep -q 'iTerm2 is not installed'
-          HOME="$H" ./install.sh --check
+          HOME="$H" /bin/bash test/stock-mac.sh ./install.sh --check
 
-      - name: Personal-path grep
+      - name: Personal-path grep (Linux, Windows)
+        if: ${{ !cancelled() && runner.os != 'macOS' }}
         run: bash bin/find-personal-paths.sh
+
+      - name: Personal-path grep, /bin/bash 3.2 and the stock PATH (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        run: /bin/bash test/stock-mac.sh bin/find-personal-paths.sh
+
+      # Last, because it changes the runner account's real iTerm2 preferences and ~/.claude: iTerm2 installed with
+      # Homebrew, opened while it reads its preferences from a September clone, and the update run under it.
+      - name: iTerm2 open and reading its preferences from the clone during the update (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        run: /bin/bash test/iterm2-live.sh
 
   # The same scenarios in a fresh ubuntu:24.04 container: no runner image, only git, curl, python3, tmux and
   # Claude Code. docker-install.sh exits non-zero when any scenario fails.
@@ -114,27 +127,6 @@ jobs:
           SCN_NEED_OLDTAG: 1
         run: bash test/docker-install.sh
 
-  # The dress rehearsal: in the same container, an older install with the user's own edits, then README's update
-  # sentence typed into claude -p. Started by hand (Actions > install > Run workflow > rehearsal), since each run
-  # spends Claude usage.
-  rehearsal:
-    if: github.event_name == 'workflow_dispatch' && inputs.rehearsal
-    strategy:
-      fail-fast: false
-      matrix:
-        from: [v1.2.1, v1.3.0-beta.5]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Update rehearsal from ${{ matrix.from }}
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          REHEARSAL_FROM: ${{ matrix.from }}
-        run: bash test/rehearsal.sh "$RUNNER_TEMP/rehearsal"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: rehearsal-${{ matrix.from }}
-          path: ${{ runner.temp }}/rehearsal
+  # The update rehearsal (an older, lived-in install, then README's update sentence typed into claude -p) does not
+  # run here: it needs a Claude login, and none is stored on GitHub. test/rehearsal.sh runs it in Docker on the
+  # maintainer's Mac before a release.
