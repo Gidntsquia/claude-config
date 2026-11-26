@@ -11,3 +11,4 @@
 - `wiki/` is its own git repo (the GitHub wiki). After changing a line of `agents/*.md` that the wiki quotes, run `helper-mcp/stamp-wiki` and `helper-mcp/check-wiki-quotes`, and commit inside `wiki/`.
 - `settings.json` cannot be edited from a Claude session: the usage guard blocks writes to it. The user edits it.
 - No file that installs into `~/.claude` names the author's own repos or projects; `test/owner-text.sh` checks it.
+- A Mac set to always show scroll bars (a mouse, the CI runner) gives a long page 375 css px; `phone-bidi.py` sets `ui.useOverlayScrollbars` and hides the root scroll bar so pictures stay 780 px wide. `PHONE_OVERLAY_SCROLLBARS=0` reproduces the case.

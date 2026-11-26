@@ -294,6 +294,7 @@ else
 png $PH/01-three-p2.png 780x1688
 png $PH/01-three-p3.png 780x1224" ] && [ $rc = 0 ] && ok "phone-shot html, 3 screens: three png lines, 780x1688 780x1688 780x1224" || bad "phone-shot printed (rc $rc): $out"
     [ "$(size "$PH/01-three-p1.png") $(size "$PH/01-three-p2.png") $(size "$PH/01-three-p3.png")" = "780x1688 780x1688 780x1224" ] && ok "the three files are those sizes" || bad "files: $(ls "$PH")"
+    out=$(PHONE_OVERLAY_SCROLLBARS=0 "$PS" "$PH/01b-bars" html "$PH/three.html"); has "$out" "png $PH/01b-bars-p3.png 780x1224" "classic scroll bars (a Mac with a mouse, a CI runner): still 780 wide, no bar in the picture"
     [ ! -e "$PH/01-three.png" ] && [ -z "$(ls "$PH" | grep tmp-)" ] && ok "no whole-page file and no temporary file is left" || bad "left: $(ls "$PH")"
     printf '<!doctype html><meta name="viewport" content="width=device-width"><p id="o"></p><script>document.getElementById("o").textContent=innerWidth+" "+devicePixelRatio+" "+matchMedia("(max-width:400px)").matches</script>' > "$PH/probe.html"
     out=$("$PS" "$PH/02-short" html "$PH/probe.html"); case "$out" in "png $PH/02-short.png 780x"*) h=${out##*x}; [ "$h" -le 1688 ] && [ "$h" -ge 240 ] && ok "a short page is one <base>.png, 780 wide, no taller than a screen ($out)" || bad "short page: $out";; *) bad "short page printed: $out";; esac

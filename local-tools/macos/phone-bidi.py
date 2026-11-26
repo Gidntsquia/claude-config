@@ -7,7 +7,8 @@ A page up to one phone screen (844 css px) is <out-base>.png; a taller one is cu
 <out-base>-p1.png, -p2.png ...: each 780x1688, the last shorter. Prints "png <path> WxH" per part, exit 0.
 Firefox missing, the port silent for 20 s, or BiDi answering with an error: prints ONE line
 "phone-shot.sh: no picture: <reason>", exit 1, and leaves no file. The Firefox it started is killed before it exits.
-PHONE_FIREFOX_APP=<Firefox.app> moves the lookup, PHONE_PORT_WAIT=<s> the 20 s, PHONE_SETTLE_MS the 500 ms after load.
+PHONE_FIREFOX_APP=<Firefox.app> moves the lookup, PHONE_PORT_WAIT=<s> the 20 s, PHONE_SETTLE_MS the 500 ms after load,
+PHONE_OVERLAY_SCROLLBARS=0 gives the page classic scroll bars (the test of the 375 px case).
 """
 import base64, json, os, shutil, signal, socket, struct, subprocess, sys, tempfile, time
 
@@ -120,7 +121,8 @@ def main():
             f.write(''.join('user_pref("%s", %s);\n' % kv for kv in (
                 ('browser.shell.checkDefaultBrowser', 'false'), ('app.update.auto', 'false'), ('app.update.enabled', 'false'),
                 ('datareporting.policy.dataSubmissionEnabled', 'false'), ('toolkit.telemetry.reportingpolicy.firstRun', 'false'),
-                ('browser.aboutwelcome.enabled', 'false'), ('remote.active-protocols', '1'))))
+                ('browser.aboutwelcome.enabled', 'false'), ('remote.active-protocols', '1'),
+                ('ui.useOverlayScrollbars', os.environ.get('PHONE_OVERLAY_SCROLLBARS') or '1'))))
         port = free_port()
         proc = subprocess.Popen([ff, '--headless', '--remote-debugging-port=%d' % port, '-new-instance', '-profile', prof],
                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
@@ -139,6 +141,10 @@ def main():
         ctx = b.cmd('browsingContext.create', type='tab')['context']   # the first context of getTree refuses setViewport
         b.cmd('browsingContext.setViewport', context=ctx, viewport={'width': W, 'height': SCREEN}, devicePixelRatio=SCALE)
         b.cmd('browsingContext.navigate', context=ctx, url=url, wait='complete')
+        # a Mac set to "always show scroll bars" (a mouse, a CI runner) gives the page 375 css px beside a 15 px bar: take the bar away
+        b.cmd('script.evaluate', target={'context': ctx}, awaitPromise=False, expression=
+              'if (document.documentElement.clientWidth < %d) { var s = document.createElement("style"); '
+              's.textContent = "html{scrollbar-width:none!important}"; document.documentElement.appendChild(s); } 0' % W)
         time.sleep(settle)
         r = b.cmd('script.evaluate', target={'context': ctx}, awaitPromise=False,
                   expression='Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0, 1)')
