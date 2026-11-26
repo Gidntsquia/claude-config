@@ -5,7 +5,7 @@
 import sys, os, time, json, subprocess, datetime, zoneinfo
 path, mode, title, D = sys.argv[1:5]
 ET = zoneinfo.ZoneInfo("America/New_York")
-H = os.path.expanduser("~/.claude/local-tools")
+H = os.environ.get("EVSHOW_TOOLS") or os.path.expanduser("~/.claude/local-tools")
 os.environ["EVSHOW_STATE"] = D
 def log(s):
     with open(os.path.join(D, "log"), "a") as f: f.write(s + "\n")

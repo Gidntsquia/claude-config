@@ -40,6 +40,13 @@ case "$(uname -s)" in
   *) grep -qi microsoft /proc/version 2>/dev/null && [ -n "${WSL_DISTRO_NAME:-}" ] && command -v wslpath >/dev/null 2>&1 && OS=wsl ;;
 esac
 OS="${CLAUDE_CONFIG_INSTALL_OS:-$OS}"  # tests only: pretend to be linux|wsl|mac|windows
+# Evaluator tools: local-tools/common/ is for every OS; each install gets its own OS's folder beside it and no other.
+case "$OS" in wsl) TOOLS_OS=wsl ;; mac) TOOLS_OS=macos ;; *) TOOLS_OS="" ;; esac
+tool_names() {  # tool_names <folder under local-tools/>...: the file names in them, one per line
+  local d f
+  for d in "$@"; do for f in "$R/local-tools/$d"/*; do [ -e "$f" ] && basename "$f"; done; done
+  return 0
+}
 # Git Bash makes copies for ln -s unless told to make real Windows symlinks (needs Developer Mode or admin).
 [ "$OS" = windows ] && export MSYS=winsymlinks:nativestrict
 # Windows Python reads files as cp1252 by default; settings.json and the agents are UTF-8 (em dashes, emoji).
@@ -341,7 +348,22 @@ PYEOF
   if [ "$OS" = wsl ]; then
     if [ -L "$C/CLAUDE.local.md" ] || [ ! -e "$C/CLAUDE.local.md" ]; then linked "$C/CLAUDE.local.md" "CLAUDE.local.md"
     else skip "CLAUDE.local.md is yours"; fi
-    linked "$C/local-tools/win.sh" "local-tools"
+  fi
+  # Evaluator tools: one line per tool of this OS, and a FAIL for a tool of another OS found installed.
+  for d in common $TOOLS_OS; do
+    for f in "$R/local-tools/$d"/*; do n="$(basename "$f")"; linked "$C/local-tools/$n" "local-tools/$n ($d)" "$f"; done
+  done
+  mine=" $(tool_names common $TOOLS_OS | tr '\n' ' ')"
+  for d in wsl macos; do
+    [ "$d" = "$TOOLS_OS" ] && continue
+    for n in $(tool_names "$d"); do
+      case "$mine" in *" $n "*) continue ;; esac
+      if [ -e "$C/local-tools/$n" ] || [ -L "$C/local-tools/$n" ]; then fail "local-tools/$n is a $d tool; this install is ${TOOLS_OS:-neither wsl nor macos} (run ./install.sh)"; fi
+    done
+  done
+  if [ "$OS" = mac ]; then
+    if [ -d "${CLAUDE_CONFIG_FIREFOX_APP:-/Applications/Firefox.app}" ]; then pass "Firefox installed (the evaluator shows items in it)"
+    else warn "Firefox not installed: Safari fallback, Firefox recommended"; fi
   fi
   echo "$([ $fails -eq 0 ] && echo "all checks passed" || echo "$fails check(s) failed")"
   [ $fails -eq 0 ]; exit $?
@@ -386,7 +408,7 @@ mkdir -p "$C" "$PROJECTS"
 #    A link under ~/.claude whose target ends in its own path below ~/.claude (skills/<name> -> .../skills/<name>) and is
 #    now missing, or sits in another clone of this repo, came from this installer. It is pointed at this clone, or
 #    removed when this repo no longer has that file. Nothing of yours matches: your files are not such links.
-for p in "$C"/* "$C"/skills/* "$C"/agents/* "$C"/hooks/* "$C"/local-tools/*; do
+for p in "$C"/* "$C"/skills/* "$C"/agents/* "$C"/hooks/*; do
   [ -L "$p" ] || continue
   if [ -e "$p" ] && in_clone "$p"; then continue; fi   # a working link into this clone
   t="$(readlink "$p")"; rel="${p#"$C"/}"
@@ -617,10 +639,25 @@ else
   echo "  terminal setup: not chosen"
 fi
 
-# 9. WSL helpers Claude uses (open files in Firefox/VS Code, place and screenshot windows).
+# 9. Evaluator tools (open, place, show and close the windows of an evaluator run; phone pictures; file pages):
+#    local-tools/common/* on every OS, plus local-tools/wsl/* on WSL or local-tools/macos/* on a Mac, and no other OS's.
+mkdir -p "$C/local-tools"
+mine=" $(tool_names common $TOOLS_OS | tr '\n' ' ')"
+for p in "$C"/local-tools/*; do   # a link from an earlier install (the old wsl/local-tools/, another OS's folder, a moved clone)
+  [ -L "$p" ] || continue
+  case "$mine" in *" $(basename "$p") "*) continue ;; esac   # relinked below
+  t="$(readlink "$p")"
+  case "$t" in */wsl/local-tools/*|*/local-tools/wsl/*|*/local-tools/macos/*|*/local-tools/common/*) ;; *) continue ;; esac   # this installer's
+  rm "$p"; echo "  removed $p (was $t: not a tool of this OS)"
+done
+for d in common $TOOLS_OS; do
+  for f in "$R/local-tools/$d"/*; do link "$f" "$C/local-tools/$(basename "$f")"; done
+done
+echo "  evaluator tools: local-tools/common${TOOLS_OS:+ and local-tools/$TOOLS_OS} linked into $C/local-tools"
+if [ "$OS" = mac ] && [ ! -d /Applications/Firefox.app ]; then
+  echo "  Firefox is not installed: the evaluator falls back to Safari (no pictures, windows may not be placed). Firefox is recommended."
+fi
 if [ "$OS" = wsl ]; then
-  mkdir -p "$C/local-tools"
-  for f in "$R"/wsl/local-tools/*; do link "$f" "$C/local-tools/$(basename "$f")"; done
   if [ ! -e "$C/CLAUDE.local.md" ] || in_clone "$C/CLAUDE.local.md"; then link "$R/wsl/CLAUDE.local.md" "$C/CLAUDE.local.md"
   else echo "  CLAUDE.local.md is yours; the WSL notes are in $R/wsl/CLAUDE.local.md"; fi
   echo "  WSL: local-tools and CLAUDE.local.md"

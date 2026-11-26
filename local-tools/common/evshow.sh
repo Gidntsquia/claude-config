@@ -26,14 +26,29 @@
 # Geometry: terminal 0 0 1020 1400, item 1030 0 1530 1400 (EVSHOW_TERM="X Y W H" EVSHOW_ITEM="X Y W H" override);
 # EVSHOW_TRANSCRIPTS=<dir> takes the newest *.jsonl there as the transcript (eval harness); EVSHOW_BEHIND=1 = windows
 # go to the very bottom of the z-order (see win.sh). EVSHOW_TERMHWND=<HWND> uses that window as the terminal (tests).
-grep -qi microsoft /proc/version 2>/dev/null || { echo "evshow.sh: WSL only (this is $(uname))" >&2; exit 1; }
+# This file is the same on every OS; the window work is in win.sh, of which each install has its own OS's (wsl/ or macos/).
+# EVOS: wsl = whole-display captures, gate loop, z-order sampler, pixel geometry above; mac = geometry from `win.sh geom`
+# (terminal left 51%, item the rest), the item's picture from win.sh, `noflash` not measured, `end` also runs `win.sh quit`.
+case "$(uname -s)" in Darwin) EVOS=mac;; *) if grep -qi microsoft /proc/version 2>/dev/null; then EVOS=wsl; else EVOS=other; fi;; esac
+EVOS=${EVSHOW_OS:-$EVOS}   # EVSHOW_OS=wsl|mac|other (tests)
+T="${EVSHOW_TOOLS:-$HOME/.claude/local-tools}"   # EVSHOW_TOOLS=<dir> = where the tools are (tests run them from the repo)
+if [ "$EVOS" = other ] && [ -z "${EVSHOW_WIN:-}" ]; then echo "evshow.sh: no window tools for this OS (this is $(uname))" >&2; exit 1; fi
 set -u
-. "$HOME/.claude/local-tools/evsession.sh"
-. "$HOME/.claude/local-tools/winenv.sh"
-W="${EVSHOW_WIN:-$HOME/.claude/local-tools/win.sh}"   # EVSHOW_WIN=<script> stands in for win.sh (tests)
-PY="$HOME/.claude/local-tools/evshow_watch.py"
-CAP="$HOME/.claude/local-tools/screen-capture.sh"
-et() { TZ=America/New_York date +%T.%N | cut -c1-12; }
+. "$T/evsession.sh"
+[ "$EVOS" = wsl ] && . "$T/winenv.sh"
+W="${EVSHOW_WIN:-$T/win.sh}"   # EVSHOW_WIN=<script> stands in for win.sh (tests)
+PY="$T/evshow_watch.py"
+CAP="$T/screen-capture.sh"
+case "$(date +%N 2>/dev/null)" in
+  ''|*[!0-9]*) et() { python3 -I -c 'import datetime,zoneinfo; print(datetime.datetime.now(zoneinfo.ZoneInfo("America/New_York")).strftime("%H:%M:%S.%f")[:12])'; };;
+  *) et() { TZ=America/New_York date +%T.%N | cut -c1-12; };;
+esac
+if [ "$EVOS" = wsl ]; then IDW=HWND; SLOW="Windows is slow to start the helper"; SLOW2="Windows did not run the helper"
+else IDW=id; SLOW="the show is slow"; SLOW2="the helper did not finish"; fi
+SETSID=$(command -v setsid 2>/dev/null || true)
+# one show at a time: flock where it exists (Linux), else a lock folder (macOS has no flock)
+lock() { if command -v flock >/dev/null 2>&1; then exec 9>"$D/lock"; flock -n 9 || { exec 9>&-; return 1; }; else mkdir "$D/lock.d" 2>/dev/null || return 1; fi; }
+unlock() { if command -v flock >/dev/null 2>&1; then exec 9>&-; else rmdir "$D/lock.d" 2>/dev/null; fi; }
 secs() { python3 -I -c "
 import sys,datetime as d
 f=lambda s:d.datetime.strptime(s[:12],'%H:%M:%S.%f')
@@ -57,13 +72,19 @@ pick_gate() {  # the last gate capture finished before the answer; says whether 
   fi; }
 
 fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired, $2 = answer time (ET) or ""
-  exec 9>"$D/lock"; flock -n 9 || { exec 9>&-; return 0; }
-  [ -e "$D/done" ] && { exec 9>&-; return 0; }
-  local mode title old out rc t0 t1 capw capl
+  lock || return 0
+  [ -e "$D/done" ] && { unlock; return 0; }
+  local mode title old out rc t0 t1 capw capl g
   et > "$D/started"   # `wait` reads this: a show that has started but not finished is waited for, not reported as "nothing fired"
   mode=$(cat "$D/mode"); title=$(cat "$D/title"); old=$(cat "$D/old" 2>/dev/null || echo 0)
   if [ -e "$D/gatepid" ]; then kill -- -"$(cat "$D/gatepid")" 2>/dev/null; pkill -P "$(cat "$D/gatepid")" 2>/dev/null; rm -f "$D/gatepid"; fi
-  capl="$WIN_HOME/evshow-shown-$SID8-$(date +%s).png"; capw="$WIN_HOME_W\\$(basename "$capl")"
+  if [ "$EVOS" = wsl ]; then capl="$WIN_HOME/evshow-shown-$SID8-$(date +%s).png"; capw="$WIN_HOME_W\\$(basename "$capl")"
+  else capl="$D/picture-$(date +%s).png"; capw="$capl"   # win.sh writes the item's own picture there
+    if [ -z "${EVSHOW_TERM:-}" ] && [ -z "${EVSHOW_ITEM:-}" ] && g=$("$W" geom 2>/dev/null); then   # this display's split
+      TERMG=$(printf '%s\n' "$g" | sed -n 's/^term //p'); ITEMG=$(printf '%s\n' "$g" | sed -n 's/^item //p')
+      [ -n "$TERMG" ] && [ -n "$ITEMG" ] || { TERMG="0 0 1020 1400"; ITEMG="1030 0 1530 1400"; }
+    fi
+  fi
   t0=$(et); read -r ix iy iw ih <<<"$ITEMG"; read -r tx ty tw th <<<"$TERMG"
   local term try
   for try in 1 2; do
@@ -83,7 +104,9 @@ fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired
   done
   local tdone; tdone=$(et); t1=""
   # shown-at = when the capture file was created (the capture starts right after the show checks pass); else process end
-  if printf '%s\n' "$out" | grep -q '^shown: ' && [ -f "$capl" ]; then t1=$(TZ=America/New_York stat -c %y "$capl" | cut -d' ' -f2 | cut -c1-12); fi
+  if [ "$EVOS" = wsl ]; then
+    if printf '%s\n' "$out" | grep -q '^shown: ' && [ -f "$capl" ]; then t1=$(TZ=America/New_York stat -c %y "$capl" | cut -d' ' -f2 | cut -c1-12); fi
+  else t1=$(printf '%s\n' "$out" | sed -n 's/^shown-at //p' | head -1); fi   # win.sh says when the window was in place
   [ -n "$t1" ] || t1=$tdone
   hist "fired-by $1" "${2:+answer $2 (transcript timestamp, ET)}" "show-start $t0" "shown-at $t1 (process done $tdone)"
   [ -n "$2" ] && hist "elapsed $(secs "$2" "$t1") s (answer -> shown)"
@@ -91,16 +114,18 @@ fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired
   [ "$rc" -ne 0 ] && hist "$("$W" close-cloaked "$title" 2>&1)"   # not shown: the cloaked window of this attempt is closed; the other queued items stay
   if printf '%s\n' "$out" | grep -q '^shown: '; then
     printf '%s\n' "$out" | grep '^shown: ' | cut -d' ' -f2 > "$D/current"; echo "$t1" > "$D/last-shown"
-    [ -f "$capl" ] && { cp "$capl" "$D/shown.png"; hist "capture $D/shown.png (copy of $capl, taken after shown)"; }
+    if [ "$EVOS" = wsl ]; then [ -f "$capl" ] && { cp "$capl" "$D/shown.png"; hist "capture $D/shown.png (copy of $capl, taken after shown)"; }
+    elif [ -s "$capl" ]; then mv "$capl" "$D/shown.png"; hist "capture $D/shown.png (the item's own picture, taken after shown)"
+    else rm -f "$D/shown.png"; hist "capture: none for this item"; fi
   fi
-  [ "$mode" = first ] && pick_gate
-  echo "$rc" > "$D/done"; exec 9>&-
+  [ "$mode" = first ] && [ "$EVOS" = wsl ] && pick_gate
+  echo "$rc" > "$D/done"; unlock
 }
 
 arm() {  # arm first|next <title> <oldHWND>; sets per-item state and starts the watcher on this session's transcript
   local mode=$1 title=$2 old=$3
   "$0" disarm >/dev/null 2>&1
-  rm -f "$D"/{log,done,lock,started,mode,title,old,answer,pid,question-ts,gates,gatepid}
+  rm -f "$D"/{log,done,lock,started,mode,title,old,answer,pid,question-ts,gates,gatepid}; rmdir "$D/lock.d" 2>/dev/null
   if [ "$mode" = first ] || [ ! -s "$D/transcript" ]; then
     local tr; tr=$(ev_pick_transcript); [ -n "$tr" ] || { echo "no transcript found in $(ev_transcripts_dir)"; exit 1; }
     echo "$tr" > "$D/transcript"
@@ -109,8 +134,8 @@ arm() {  # arm first|next <title> <oldHWND>; sets per-item state and starts the 
   echo "$(et) armed $mode '$title'" > "$D/log"; echo "$(et) armed $mode '$title'" >> "$D/history"
   nohup python3 -I "$PY" "$(cat "$D/transcript")" "$mode" "$title" "$D" >> "$D/watch.err" 2>&1 &
   echo $! > "$D/pid"
-  if [ "$mode" = first ]; then setsid "$0" gateloop >/dev/null 2>&1 & echo $! > "$D/gatepid"
-    setsid "$W" zlog 1800 > "$D/zlog" 2>/dev/null & echo $! > "$D/zpid"; fi   # 100 ms z-order sampler until `end`
+  if [ "$mode" = first ] && [ "$EVOS" = wsl ]; then $SETSID "$0" gateloop >/dev/null 2>&1 & echo $! > "$D/gatepid"
+    $SETSID "$W" zlog 1800 > "$D/zlog" 2>/dev/null & echo $! > "$D/zpid"; fi   # 100 ms z-order sampler until `end`
   echo "armed $mode '$title' (watcher pid $(cat "$D/pid"), transcript $(cat "$D/transcript"), state $D)"
 }
 
@@ -129,7 +154,9 @@ case "${1:-}" in
   path)
     D=$(ev_state_dir) || { echo "no session"; exit 1; }
     case "${2:-}" in shown) echo "$D/shown.png";; gate) echo "$D/gate.png";; zlog) echo "$D/zlog";; dir|"") echo "$D";; *) echo "usage: path shown|gate|zlog|dir"; exit 1;; esac;;
-  noflash) D=$(ev_state_dir) || { echo "no session"; exit 1; }; python3 -I "$HOME/.claude/local-tools/evshow_noflash.py" "$D";;
+  noflash) D=$(ev_state_dir) || { echo "no session"; exit 1; }
+    [ "$EVOS" = mac ] && { echo "no-flash: not measured (macOS)"; exit 0; }   # nothing opens before its show there: the openers only record
+    python3 -I "$T/evshow_noflash.py" "$D";;
   gateloop)  # captures the screen every ~2.5 s until the answer (30 min at most); rotates 4 files; records finish time (ET) + path
     D=$(ev_state_dir); export EVSHOW_STATE="$D"; SID8=$(basename "$D" | cut -c1-8)
     # also stops when the session's watcher is gone or after 30 min: an unanswered question once left three loops capturing for a day
@@ -150,25 +177,25 @@ case "${1:-}" in
     # a show that started but is still running (Windows was slow to start the helper: 78 s seen once) is waited for, up to 100 s in all;
     # reopening the item now would leave two windows and the first would still show itself later
     if [ ! -e "$D/done" ] && [ -e "$D/started" ]; then
-      echo "wait: show started $(cat "$D/started") is still running after ${to}s (Windows is slow to start the helper); waiting up to ${EVSHOW_SLOW_S:-100}s in all"
+      echo "wait: show started $(cat "$D/started") is still running after ${to}s ($SLOW); waiting up to ${EVSHOW_SLOW_S:-100}s in all"
       while [ ! -e "$D/done" ] && [ $n -lt $((${EVSHOW_SLOW_S:-100}*10)) ]; do sleep 0.1; n=$((n+1)); done
-      [ -e "$D/done" ] || { echo "not shown: show started $(cat "$D/started") did not finish within ${EVSHOW_SLOW_S:-100}s (Windows did not run the helper)"; exit 1; }
+      [ -e "$D/done" ] || { echo "not shown: show started $(cat "$D/started") did not finish within ${EVSHOW_SLOW_S:-100}s ($SLOW2)"; exit 1; }
       tail -n +2 "$D/log" 2>/dev/null
     fi
     [ -e "$D/done" ] || { echo "not shown: nothing fired within ${to}s"; exit 1; }
     rc=$(cat "$D/done")
     if grep -q '^shown: ' "$D/log"; then
-      cur=$(cat "$D/current"); idx=$(cat "$D/idx" 2>/dev/null || echo 0); n=$(wc -l < "$D/queue" 2>/dev/null || echo 0)
+      cur=$(cat "$D/current"); idx=$(cat "$D/idx" 2>/dev/null || echo 0); n=$(wc -l < "$D/queue" 2>/dev/null || echo 0); n=$((n + 0))
       [ -s "$D/term" ] && echo "terminal (saved fginfo): $(cat "$D/term")"
       if [ "$idx" -gt 0 ] && [ "$idx" -lt "$n" ]; then
         nxt=$(sed -n "$((idx+1))p" "$D/queue"); echo $((idx+1)) > "$D/idx"
-        arm next "$nxt" "$cur"; echo "item $idx of $n shown (HWND $cur); next item $((idx+1)) armed: on the answer it closes $cur and shows '$nxt'. Ask this item's question NOW (no capture read)."
+        arm next "$nxt" "$cur"; echo "item $idx of $n shown ($IDW $cur); next item $((idx+1)) armed: on the answer it closes $cur and shows '$nxt'. Ask this item's question NOW (no capture read)."
       else
         if [ -s "$D/transcript" ]; then  # watch only for the last item's question so its shown -> question line is logged too
           nohup python3 -I "$PY" "$(cat "$D/transcript")" last "" "$D" >> "$D/watch.err" 2>&1 &
           echo $! > "$D/pid"
         fi
-        echo "item $idx of $n shown (HWND $cur); LAST item: ask its question NOW; after its answer run: evshow.sh end"
+        echo "item $idx of $n shown ($IDW $cur); LAST item: ask its question NOW; after its answer run: evshow.sh end"
       fi
       exit 0
     fi
@@ -179,6 +206,7 @@ case "${1:-}" in
     cur=$(cat "$D/current" 2>/dev/null); [ -n "$cur" ] && { "$W" untop "$cur"; "$W" close "$cur"; rm -f "$D/current"; }
     [ -e "$D/zpid" ] && { kill "$(cat "$D/zpid")" 2>/dev/null; pkill -P "$(cat "$D/zpid")" 2>/dev/null; rm -f "$D/zpid"; }
     "$W" close-cloaked   # a cloaked (never shown) window is never left behind
+    [ "$EVOS" = wsl ] || "$W" quit   # macOS: this run's Firefox ends with the run (by pid)
     if [ -s "$D/term" ]; then read -r h l t w ht mx < "$D/term"; echo "saved $h $l $t $w $ht $mx"; "$W" setwin "$h" "$l" "$t" "$w" "$ht" "$mx"; fi
     sleep 1; echo "list-topmost:"; "$W" list-topmost; echo "ended $(et)" >> "$D/history"; rm -f "$D/mode";;
   disarm)
