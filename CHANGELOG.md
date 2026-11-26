@@ -5,18 +5,18 @@
 ### Evaluator on a Mac 🍎
 
 - The evaluator now runs on a Mac as it does on a Windows PC. Its tools are split by OS: `local-tools/common/` installs everywhere, `local-tools/wsl/` on WSL and `local-tools/macos/` on a Mac. `wsl/local-tools/` is gone; `./install.sh` relinks.
-- On a Mac each item opens at its question inside your iTerm2, which is never moved or resized and can stay full screen. No Firefox or Safari is started. The tools need bash 3.2, `tmux`, `osascript` and `python3`, and no Accessibility or Screen Recording permission.
-- A file or terminal item is shown one of three ways, and the line says which: `shown: <id> <title> mode=tmux` (a tmux pane on the right), `mode=iterm` (an iTerm2 split pane) or `mode=tab` (an iTerm2 tab). The three rotate inside one run and the evaluator's last question asks which to keep. `EVSHOW_MAC_MODE=<mode>` fixes one.
-- A web page opens in your default browser through `open` (`mode=browser`) and is yours to close.
-- If iTerm2 is missing or does not answer within 10 s the show prints `mode <mode> failed: <its text>` and uses the tmux pane.
+- On a Mac each item opens at its question as a page in a separate Firefox: a file as its file page, a web page as itself, a terminal item as a snapshot page of its tmux session with colours kept. The line reads `shown: <id> <title> mode=firefox`.
+- That Firefox runs on a fresh profile, so there is no welcome page and none of your tabs. It is closed when the next item is shown and at the end of the run. Your own Firefox is never signalled, and your terminal is never moved, resized or split.
+- If Firefox is missing or does not stay up, the show prints `firefox failed: <reason>` and opens the page in your default browser (`mode=browser`), where it is yours to close.
+- The tools need bash 3.2, `tmux`, `python3` and Firefox, and no Accessibility, Screen Recording or Automation permission.
 - No picture is taken on a Mac: `evshow.sh path shown` prints `no picture (macOS)`.
 - `agents/evaluator.md` has one Desktop helpers section for both computers. It says "window id" and quotes each helper's line as printed.
-- `phone-shot.sh` works on a Mac: Playwright when it is there, else the installed Firefox, headless, on a scratch profile.
+- `claude --agent evaluator "phone"` on a Mac sends the same pictures as on the PC: 780 px wide, a long page cut into 780x1688 parts. `phone-shot.sh` draws them with headless Firefox; Chrome and Playwright are not used there. When no picture comes the evaluator retries once, then sends the error line and goes on; it never makes one another way.
 
 ### Install 🧰
 
-- `./install.sh --check` prints a PASS or FAIL line per evaluator tool, a FAIL for a tool of the other OS, and on a Mac an iTerm2 line (`WARN iTerm2 not installed: tmux pane mode only` when it is missing).
-- New tests: `test/evaluator-tools.sh` (the tools against a stand-in `tmux`, `osascript` and `open`; nothing opened), `test/owner-text.sh`, and the `oswsl` and `osmac` cases of `test/install-scenarios.sh`.
+- `./install.sh --check` prints a PASS or FAIL line per evaluator tool, a FAIL for a tool of the other OS, and on a Mac a Firefox line (`WARN Firefox not installed: items open in the default browser, no phone pictures` when it is missing).
+- New tests: `test/evaluator-tools.sh` (the tools against a stand-in Firefox, `tmux` and `open`, no window opened; real phone pictures from headless Firefox on a Mac), `test/owner-text.sh`, and the `oswsl` and `osmac` cases of `test/install-scenarios.sh`.
 
 ### The author's own text is out of what you install 🧹
 

@@ -7,7 +7,7 @@ For a Claude session installing this repo on a new machine, started by a message
 Run `command -v claude git bash python3 || command -v python`. Claude Code is already running, so `claude` is there.
 
 - If `git` or `python3` is missing, ask once with AskUserQuestion whether to install it, then run `brew install git python` (macOS, needs Homebrew), `sudo apt-get install -y git python3` (Ubuntu/WSL) or `winget install Git.Git Python.Python.3.12` (Windows). If the user says no, STOP and tell them which tool is missing.
-- macOS: check `ls -d /Applications/iTerm.app`. The evaluator shows each item inside the terminal: a tmux pane, an iTerm2 split pane or an iTerm2 tab. Without iTerm2 only the tmux pane works (`./install.sh --check` prints `WARN iTerm2 not installed: tmux pane mode only`). If it is missing, say so in one line and offer `brew install --cask iterm2`; the install goes on either way. Firefox is not needed for the desktop evaluator.
+- macOS: check `ls -d /Applications/Firefox.app`. The evaluator shows each item as a page in a separate Firefox that it closes again, and makes its phone pictures with the same Firefox, headless. Without it items open in the default browser and there are no phone pictures (`./install.sh --check` prints `WARN Firefox not installed: items open in the default browser, no phone pictures`). If it is missing, say so in one line and offer `brew install --cask firefox`; the install goes on either way.
 - `tmux` is needed only if the user picks the terminal setup in step 4. Check for it then, and install it the same way (`brew install tmux` / `sudo apt-get install -y tmux`) after a yes.
 
 ## 2. Clone

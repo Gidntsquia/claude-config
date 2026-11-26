@@ -27,8 +27,8 @@
 # EVSHOW_TRANSCRIPTS=<dir> takes the newest *.jsonl there as the transcript (eval harness); EVSHOW_BEHIND=1 = windows
 # go to the very bottom of the z-order (see win.sh). EVSHOW_TERMHWND=<HWND> uses that window as the terminal (tests).
 # This file is the same on every OS; the window work is in win.sh, of which each install has its own OS's (wsl/ or macos/).
-# EVOS: wsl = whole-display captures, gate loop, z-order sampler, pixel geometry above; mac = the item opens inside the
-# terminal (win.sh picks a pane or a tab: `shown: <id> <title> mode=<mode>`), no geometry is used, there is no picture
+# EVOS: wsl = whole-display captures, gate loop, z-order sampler, pixel geometry above; mac = the item opens as a
+# page in a Firefox of its own (win.sh: `shown: <id> <title> mode=firefox`), no geometry is used, there is no picture
 # (`path shown` prints `no picture (macOS)`), `noflash` is not measured, and `end` prints `now unchanged`: the terminal is never moved.
 case "$(uname -s)" in Darwin) EVOS=mac;; *) if grep -qi microsoft /proc/version 2>/dev/null; then EVOS=wsl; else EVOS=other; fi;; esac
 EVOS=${EVSHOW_OS:-$EVOS}   # EVSHOW_OS=wsl|mac|other (tests)
@@ -80,7 +80,7 @@ fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired
   mode=$(cat "$D/mode"); title=$(cat "$D/title"); old=$(cat "$D/old" 2>/dev/null || echo 0)
   if [ -e "$D/gatepid" ]; then kill -- -"$(cat "$D/gatepid")" 2>/dev/null; pkill -P "$(cat "$D/gatepid")" 2>/dev/null; rm -f "$D/gatepid"; fi
   if [ "$EVOS" = wsl ]; then capl="$WIN_HOME/evshow-shown-$SID8-$(date +%s).png"; capw="$WIN_HOME_W\\$(basename "$capl")"
-  else capl=""; capw=""; TERMG="0 0 0 0"; ITEMG="0 0 0 0"; fi   # mac: no picture, no geometry (the item opens inside the terminal)
+  else capl=""; capw=""; TERMG="0 0 0 0"; ITEMG="0 0 0 0"; fi   # mac: no picture, no geometry (the item opens in a Firefox of its own)
   t0=$(et); read -r ix iy iw ih <<<"$ITEMG"; read -r tx ty tw th <<<"$TERMG"
   local term try
   for try in 1 2; do
@@ -141,7 +141,7 @@ case "${1:-}" in
     shift; mode=${1:-}; shift
     case "$mode" in
       first) [ $# -ge 1 ] || { echo "usage: arm first \"<title1>\" [\"<title2>\" ...]"; exit 1; }
-        rm -f "$D"/{history,queue,idx,current,last-shown,gate.png,shown.png,gate-capture,transcript,zlog,zpid,modeidx}   # term (win.sh me) is kept
+        rm -f "$D"/{history,queue,idx,current,last-shown,gate.png,shown.png,gate-capture,transcript,zlog,zpid}   # term (win.sh me) is kept
         printf '%s\n' "$@" > "$D/queue"; echo 1 > "$D/idx"; echo "queue: $# item(s) (session $(basename "$D"))"; arm first "$1" 0;;
       next) [ $# -ge 2 ] || { echo "usage: arm next <oldHWND> \"<title>\""; exit 1; }; [ -e "$D/queue" ] || { echo "no session: nothing armed for this session ($D)"; exit 1; }; arm next "$2" "$1";;
       *) echo "usage: arm first|next ..."; exit 1;;

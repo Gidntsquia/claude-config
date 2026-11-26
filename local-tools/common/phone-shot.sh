@@ -6,8 +6,10 @@
 #   phone-shot.sh <out-base> text <file> [A-B]          plain text / log / source with line numbers (optional line range)
 #   phone-shot.sh <out-base> tmux <session> [--no-ansi] a tmux pane you created: capture-pane -e, ANSI colours kept
 # Output: <out-base>.png (or <out-base>-pN.png parts, each at most one phone screen, 780x1688); prints "png <path> WxH" per part.
-# Playwright Chromium (390 css px, 2x) via phone-shot.mjs; if node/playwright is missing it says so and falls back to
+# WSL/Linux: Playwright Chromium (390 css px, 2x) via phone-shot.mjs; if node/playwright is missing it says so and falls back to
 # headless Firefox (--screenshot, window 390x844, 1x, first screen only).
+# macOS: the installed Firefox only, headless, over WebDriver BiDi (phone-bidi.py: 390 css px, 2x, the whole page, the same
+# parts and `png` lines). No picture: ONE line `phone-shot.sh: no picture: <reason>`, exit 1, no file left.
 set -e
 base="$1"; kind="$2"; src="$3"; arg4="$4"
 [ -n "$base" ] && [ -n "$kind" ] && [ -n "$src" ] || { sed -n 2,8p "$0"; exit 2; }
@@ -88,28 +90,20 @@ PY
     wrap "tmux $src" "$tmp/body.html"; url="file://$tmp/page.html" ;;
   *) echo "phone-shot.sh: unknown kind '$kind' (url|html|md|text|tmux)"; exit 2 ;;
 esac
+if [ "$(uname -s)" = Darwin ]; then
+  bidi="$here/phone-bidi.py"; [ -f "$bidi" ] || bidi="$here/../macos/phone-bidi.py"
+  [ -f "$bidi" ] || { echo "phone-shot.sh: no picture: phone-bidi.py is not installed (run ./install.sh)"; exit 1; }
+  rc=0; python3 -I "$bidi" "$base" "$url" || rc=$?
+  exit "$rc"
+fi
 # node: the nvm install if the shell has no node on PATH
 command -v node >/dev/null 2>&1 || { for n in "$HOME"/.nvm/versions/node/*/bin; do PATH="$n:$PATH"; done; }
 if command -v node >/dev/null 2>&1 && node "$here/phone-shot.mjs" "$base" "$url"; then exit 0; fi
-note() { echo "phone-shot.sh: playwright screenshot failed; falling back to headless Firefox (1x, no split)" >&2; }
-[ "$(uname -s)" = Darwin ] || note
-out="$base.png"
-if [ "$(uname -s)" = Darwin ]; then
-  # macOS: the installed Firefox, headless, as its own instance on a scratch profile (the user's Firefox and profile are not touched)
-  FF="${PHONE_FIREFOX_APP:-/Applications/Firefox.app}/Contents/MacOS/firefox"
-  [ -x "$FF" ] || { echo "phone-shot.sh: no picture: Playwright is not importable and ${PHONE_FIREFOX_APP:-/Applications/Firefox.app} is not installed"; exit 1; }
-  note; prof="$tmp/ffprofile"; mkdir -p "$prof"; rm -f "$out"
-  "$FF" --headless -new-instance -profile "$prof" --screenshot "$out" --window-size=390,"${PHONE_FF_HEIGHT:-844}" "$url" >/dev/null 2>&1 &
-  fp=$!; n=0
-  while kill -0 "$fp" 2>/dev/null; do [ "$n" -ge 300 ] && { kill "$fp" 2>/dev/null; break; }; sleep 0.1; n=$((n + 1)); done
-  wait "$fp" 2>/dev/null; rm -rf "$prof"
-  [ -s "$out" ] || { echo "phone-shot.sh: firefox fallback produced no file"; exit 1; }
-  python3 -c 'import struct,sys; b=open(sys.argv[1],"rb").read(24); print("png", sys.argv[1], "%dx%d" % struct.unpack(">II", b[16:24]))' "$out"
-  exit 0
-fi
+echo "phone-shot.sh: playwright screenshot failed; falling back to headless Firefox (1x, no split)" >&2
 FF=/mnt/c/Program\ Files/Mozilla\ Firefox/firefox.exe
 [ -x "$FF" ] || FF="$(command -v firefox || true)"
 [ -n "$FF" ] || { echo "phone-shot.sh: no firefox for the fallback"; exit 1; }
+out="$base.png"
 if [ "${url#file://}" != "$url" ] && [ "${FF#/mnt/c}" != "$FF" ]; then url="file:///$(wslpath -w "${url#file://}" | sed 's#\\#/#g')"; fi
 "$FF" --headless --screenshot "$( [ "${FF#/mnt/c}" != "$FF" ] && wslpath -w "$out" || echo "$out" )" --window-size=390,"${PHONE_FF_HEIGHT:-844}" "$url" >/dev/null 2>&1 || true
 [ -s "$out" ] || { echo "phone-shot.sh: firefox fallback produced no file"; exit 1; }

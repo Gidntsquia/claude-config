@@ -41,10 +41,7 @@ change to the repo state (if the user asks for one, record it as an amendment or
    non-zero: follow the failed-open rule in Opening, then `evshow.sh arm next <current window id> "<fresh title>"` and ask. After the LAST
    item's answer: `evshow.sh end`, then `evshow.sh history` and `evshow.sh noflash`: EVAL.md quotes, for EVERY item, its `hidden:`
    line, its `shown:` line, its `elapsed N s (answer -> shown)` line and its `question emitted ... (shown -> question N s)` line
-   verbatim, next to its criterion, and the `no-flash: ...` line once, as printed, on the line after the verdict. When the run's
-   `shown:` lines carry more than one `mode=` value (`mode=browser` not counted), the run's LAST question, after `evshow.sh end`,
-   is one AskUserQuestion: "Which way of showing items should I keep?", one option per mode seen, each named by its `mode=` word
-   and the item shown that way; EVAL.md quotes the answer under "User said".
+   verbatim, next to its criterion, and the `no-flash: ...` line once, as printed, on the line after the verdict.
 7. Conflicts round, only if needed and the only follow-up round: for each finished check whose result contradicts the user's answer
    on the same criterion, ask one question, with the evidence opened first per Opening; never re-ask anything settled.
 8. Write `plans/EVAL.md` (always: if the user cancels, stops or the session is compacted, write it with every answer so far in their
@@ -109,13 +106,14 @@ Exit codes everywhere: 1 failed (one line says why), 2 usage, 3 game.
 - `win.sh me`: finds the terminal window this session runs in and saves it for the watcher; prints `me: <window id> L T W H MAX`
   (of 2+ candidates it takes one and adds `me: took <window id> of <N>`, exit 0). None: exit 1 `not found: 0 windows hold ...`; go
   on, the watcher works without it. `win.sh show "<unique title text>" X Y W H [timeout-s]`: waits for the title, puts the window
-  on screen at its place without taking the keyboard; prints `shown: <window id> <title> L T W H` or `shown: <window id> <title> mode=<mode>` (the item is inside the terminal, shown
-  the way <mode> names, X Y W H unused; `mode=browser` = handed to the user's default browser, which keeps the page: it is theirs to
-  close), else exit 1 `not shown: <cause>`
+  on screen at its place without taking the keyboard; prints `shown: <window id> <title> L T W H` or `shown: <window id> <title> mode=<mode>` (the item is a page
+  in a browser window of its own that the tools close at the next item, X Y W H unused; `mode=browser` = handed to the user's
+  default browser instead, which keeps the page: it is theirs to close), else exit 1 `not shown: <cause>`
   (`no window matches`, `blank window` = nothing loaded, `would overlap terminal`, `covered by` / `not topmost` = hidden again,
-  `<program>: <text>` = that program refused; quote it). A `mode <mode> failed: <text>` line before `shown:` says that way did
+  `<program>: <text>` = that program refused; quote it). A `<program> failed: <text>` line before `shown:` says that way did
   not work and the item is shown the way the `shown:` line names: quote both in EVAL.md. A `mode=` item has no picture: its proof
-  is the `shown:` line and the user's answer.
+  is the `shown:` line and the user's answer. A terminal item shown as `mode=` is a page of the session's text at the show, not
+  a live terminal: redo its `show` (`evshow.sh arm next`) after you change what the session holds.
   By window id only: `win.sh front|untop|close <window id>` (close exits 1 if gone), `win.sh place <window id> X Y W H`,
   `win.sh rect <window id>`, `win.sh list-topmost`; `win.sh find "<title>"`: one match, else exit 1 `not found: N windows hold
   '<title>': ...`. The watcher alone runs `win.sh setwin` on your terminal and `win.sh geom` for the two places.
@@ -135,15 +133,17 @@ Exit codes everywhere: 1 failed (one line says why), 2 usage, 3 game.
 
 Each item reaches the user as a picture in the chat; nothing opens on the desktop; every PNG is produced before the first question.
 - Render each item with `~/.claude/local-tools/phone-shot.sh plans/phone/<NN>-<slug> <kind> <source>` (NN = asking order, 01, 02,
-  ...): a Playwright Chromium full-page screenshot 390 css px wide at device scale 2 (780 px), split into `-p1`, `-p2`, ... parts
+  ...): a full-page picture 390 css px wide at device scale 2 (780 px), split into `-p1`, `-p2`, ... parts
   of at most one phone screen each (844 css px; no part over 780x1688); prints `png <path> WxH` per part. Kinds: `url <url>` (web page or
   running app; start the app yourself first, exact URL/state); `html <file>`; `md <file>` (rendered as formatted text: headings, tables, lists);
   `text <file> [A-B]` (a `<pre>` with line numbers, optionally only those lines); `tmux <session>` for a terminal program: create
   the session yourself with a random-suffix name that `tmux has-session` does not find (e.g. `tmux new-session -d -s ev-<suffix> -x
   100 -y 40 -c <dir>`), drive it only with `tmux send-keys -t <name> ...`, wait for the state, shoot (`capture-pane -e -p` as a
-  coloured `<pre>`), `tmux kill-session -t <name>` after its question. If Playwright fails, the helper says so and falls back to
-  headless Firefox (`--screenshot --window-size=390,<height>`): record that in EVAL.md. If no picture comes even then, ask the user
-  with AskUserQuestion how else they want to see it and do that; never skipped, never BLOCKED.
+  coloured `<pre>`), `tmux kill-session -t <name>` after its question.
+- `phone-shot.sh` is the only way a picture is made. When it exits non-zero: wait 5 s and run the same command once more. If
+  that fails too: send the user the tool's error line as it printed it, mark the item `not shown` in EVAL.md with that line,
+  and go on to the next item. Never make the picture another way (no other browser, script or screenshot command of your
+  own), and never ask the user to go to the desk or to run anything.
 - Per item in order: your message holds exactly one Read call on that item's PNG (every part, in order, one Read each, nothing else
   in the message), and your NEXT message is its AskUserQuestion (drafted in step 3), nothing between. It names the PNG file (e.g.
   "In 02-note.png, ..."); same options (`Works`, `Doesn't work`, `Not what I meant`), ≤25 words, one spot, the Ask in one item.

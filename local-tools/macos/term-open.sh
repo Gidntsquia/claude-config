@@ -1,8 +1,8 @@
 #!/bin/bash
 # usage: term-open.sh <Title> <dir> <command...>   (Title must be unique; random suffix advised)
 # macOS: makes a detached tmux session <Title> you own in <dir>, runs <command> in it, records the terminal item and puts
-# NOTHING on screen; prints "opened <Title> id=<id> (deferred)". `win.sh show "<Title>" ...` shows it inside your terminal
-# by running `env -u TMUX tmux attach -t <Title>` in a tmux pane, an iTerm2 split pane or an iTerm2 tab (win.sh).
+# NOTHING on screen; prints "opened <Title> id=<id> (deferred)". `win.sh show "<Title>" ...` shows a static page of what the
+# session holds at that moment (`tmux capture-pane -e -p -S -`, colours kept) in a Firefox of its own.
 # Drive it only via: tmux send-keys -t <Title> ...   Close: term-close.sh <Title> <id>.
 here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$here/maclib.sh"

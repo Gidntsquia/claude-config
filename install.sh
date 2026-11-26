@@ -362,8 +362,8 @@ PYEOF
     done
   done
   if [ "$OS" = mac ]; then
-    if [ -d "${CLAUDE_CONFIG_ITERM_APP:-/Applications/iTerm.app}" ]; then pass "iTerm2 installed (the evaluator shows items in a tmux pane, an iTerm2 split or an iTerm2 tab)"
-    else warn "iTerm2 not installed: tmux pane mode only"; fi
+    if [ -d "${CLAUDE_CONFIG_FIREFOX_APP:-/Applications/Firefox.app}" ]; then pass "Firefox installed (the evaluator shows each item as a page in a Firefox of its own; phone pictures come from it)"
+    else warn "Firefox not installed: items open in the default browser, no phone pictures"; fi
   fi
   echo "$([ $fails -eq 0 ] && echo "all checks passed" || echo "$fails check(s) failed")"
   [ $fails -eq 0 ]; exit $?
@@ -654,8 +654,8 @@ for d in common $TOOLS_OS; do
   for f in "$R/local-tools/$d"/*; do link "$f" "$C/local-tools/$(basename "$f")"; done
 done
 echo "  evaluator tools: local-tools/common${TOOLS_OS:+ and local-tools/$TOOLS_OS} linked into $C/local-tools"
-if [ "$OS" = mac ] && [ ! -d "${CLAUDE_CONFIG_ITERM_APP:-/Applications/iTerm.app}" ]; then
-  echo "  iTerm2 is not installed: the evaluator shows each item in a tmux pane beside it (the iTerm2 split and tab modes need iTerm2)."
+if [ "$OS" = mac ] && [ ! -d "${CLAUDE_CONFIG_FIREFOX_APP:-/Applications/Firefox.app}" ]; then
+  echo "  Firefox is not installed: the evaluator opens each item in your default browser and cannot make phone pictures (brew install --cask firefox)."
 fi
 if [ "$OS" = wsl ]; then
   if [ ! -e "$C/CLAUDE.local.md" ] || in_clone "$C/CLAUDE.local.md"; then link "$R/wsl/CLAUDE.local.md" "$C/CLAUDE.local.md"
