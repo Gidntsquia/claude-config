@@ -102,7 +102,7 @@ jobs:
           HOME="$H" /bin/bash test/stock-mac.sh ./install.sh --check
 
       # The evaluator's tools per OS (local-tools/common, wsl, macos): layout, syntax, evshow.sh end to end and the macOS
-      # tools against a stand-in osascript and a stand-in Firefox. Opens no window.
+      # tools against a stand-in tmux, osascript and open. Opens no window, pane or tab.
       - name: Evaluator tools (Linux)
         if: ${{ !cancelled() && runner.os == 'Linux' }}
         run: bash test/evaluator-tools.sh

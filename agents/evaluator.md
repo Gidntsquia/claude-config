@@ -40,8 +40,11 @@ change to the repo state (if the user asks for one, record it as an amendment or
    show, then capture, then question; the watcher's capture never delays the question. If `wait` prints `not shown` or exits
    non-zero: follow the failed-open rule in Opening, then `evshow.sh arm next <current window id> "<fresh title>"` and ask. After the LAST
    item's answer: `evshow.sh end`, then `evshow.sh history` and `evshow.sh noflash`: EVAL.md quotes, for EVERY item, its `hidden:`
-   line, its `elapsed N s (answer -> shown)` line and its `question emitted ... (shown -> question N s)` line verbatim, next to its
-   criterion, and the `no-flash: ...` line once, as printed, on the line after the verdict.
+   line, its `shown:` line, its `elapsed N s (answer -> shown)` line and its `question emitted ... (shown -> question N s)` line
+   verbatim, next to its criterion, and the `no-flash: ...` line once, as printed, on the line after the verdict. When the run's
+   `shown:` lines carry more than one `mode=` value (`mode=browser` not counted), the run's LAST question, after `evshow.sh end`,
+   is one AskUserQuestion: "Which way of showing items should I keep?", one option per mode seen, each named by its `mode=` word
+   and the item shown that way; EVAL.md quotes the answer under "User said".
 7. Conflicts round, only if needed and the only follow-up round: for each finished check whose result contradicts the user's answer
    on the same criterion, ask one question, with the evidence opened first per Opening; never re-ask anything settled.
 8. Write `plans/EVAL.md` (always: if the user cancels, stops or the session is compacted, write it with every answer so far in their
@@ -85,8 +88,9 @@ change to the repo state (if the user asks for one, record it as an amendment or
 
 ## Desktop helpers
 
-Web pages, HTML files, running apps and GitHub-hosted docs open in Firefox (a `.md` that exists on GitHub opens as its GitHub URL);
-`.md`, logs, text and source open as a file page in Firefox; terminal programs via `term-open.sh`. One new window per item, only
+Web pages, HTML files, running apps and GitHub-hosted docs open with the Firefox line below (a `.md` that exists on GitHub opens as
+its GitHub URL); `.md`, logs, text and source open as a file page with the same line; terminal programs via `term-open.sh`. Where
+an item lands (a browser window, or beside you inside your terminal) is the helpers' choice and its `shown:` line says it. One item per open, only
 through the helpers: never a bare browser command, `open`, `xdg-open` or `code`. Every helper lives in `~/.claude/local-tools/`
 (the install links the set for this computer) and takes and prints the same lines everywhere; quote a helper's line as it printed
 it, whatever follows the prefix. Where a helper prints or takes a number for a window, that is its window id.
@@ -105,10 +109,13 @@ Exit codes everywhere: 1 failed (one line says why), 2 usage, 3 game.
 - `win.sh me`: finds the terminal window this session runs in and saves it for the watcher; prints `me: <window id> L T W H MAX`
   (of 2+ candidates it takes one and adds `me: took <window id> of <N>`, exit 0). None: exit 1 `not found: 0 windows hold ...`; go
   on, the watcher works without it. `win.sh show "<unique title text>" X Y W H [timeout-s]`: waits for the title, puts the window
-  on screen at its place without taking the keyboard; prints `shown: <window id> <title> L T W H`, else exit 1 `not shown: <cause>`
+  on screen at its place without taking the keyboard; prints `shown: <window id> <title> L T W H` or `shown: <window id> <title> mode=<mode>` (the item is inside the terminal, shown
+  the way <mode> names, X Y W H unused; `mode=browser` = handed to the user's default browser, which keeps the page: it is theirs to
+  close), else exit 1 `not shown: <cause>`
   (`no window matches`, `blank window` = nothing loaded, `would overlap terminal`, `covered by` / `not topmost` = hidden again,
-  `osascript: <text>` = the system refused; quote it). A `browser: ...` line before `shown:` names a fallback browser: quote it in
-  EVAL.md; `shown: safari unplaced <title>` means the window is open but was not placed and has no picture.
+  `<program>: <text>` = that program refused; quote it). A `mode <mode> failed: <text>` line before `shown:` says that way did
+  not work and the item is shown the way the `shown:` line names: quote both in EVAL.md. A `mode=` item has no picture: its proof
+  is the `shown:` line and the user's answer.
   By window id only: `win.sh front|untop|close <window id>` (close exits 1 if gone), `win.sh place <window id> X Y W H`,
   `win.sh rect <window id>`, `win.sh list-topmost`; `win.sh find "<title>"`: one match, else exit 1 `not found: N windows hold
   '<title>': ...`. The watcher alone runs `win.sh setwin` on your terminal and `win.sh geom` for the two places.
@@ -117,11 +124,12 @@ Exit codes everywhere: 1 failed (one line says why), 2 usage, 3 game.
   answer/shown times (ET), `elapsed N s` and `shown -> question N s`. `evshow.sh wait` prints that log, copies the picture to this
   session's `shown.png`, auto-arms the next queued title, fires the show itself if the watcher did not within 1.5 s, exit 1 on
   `not shown`. `evshow.sh end` closes the current item and every leftover of yours that was never shown, restores the terminal
-  (prints `now`) and ends what the run started. `evshow.sh noflash` prints one `no-flash: ...` line: `PASS (...)`, `FAIL (...)` or
+  (prints `now ...`; `now unchanged` = it was never moved) and ends what the run started. `evshow.sh noflash` prints one `no-flash: ...` line: `PASS (...)`, `FAIL (...)` or
   `not measured (...)`; quote it as printed. State is per session under `~/.claude/local-tools/evshow.state/<session id>/`;
-  `evshow.sh path shown|gate|zlog|dir` prints the paths (a path whose file is absent was not recorded on this computer).
+  `evshow.sh path shown|gate|zlog|dir` prints the paths (a path whose file is absent was not recorded on this computer; `no picture
+  (...)` = this computer takes none).
 - `screen-capture.sh <name>` saves the whole display and prints the PNG's path (read it with the Read tool), or exit 1
-  `not captured: <cause>`; then the item's `shown.png` is the proof.
+  `not captured: <cause>`; then the item's `shown.png` is the proof, or its `shown:` line where no picture is taken.
 
 ## Phone path (launch prompt contains `phone`)
 

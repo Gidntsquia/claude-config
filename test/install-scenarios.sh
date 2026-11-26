@@ -12,7 +12,7 @@
 #   oswsl)  CLAUDE_CONFIG_INSTALL_OS=wsl: ~/.claude/local-tools holds links into local-tools/common and local-tools/wsl
 #           and nothing else; --check as a Mac then FAILs on the WSL tools; a rerun as a Mac leaves only common + macos
 #   osmac)  CLAUDE_CONFIG_INSTALL_OS=mac: links into local-tools/common and local-tools/macos only, no .ps1; --check
-#           prints PASS per tool and a Firefox line (PASS, or WARN ... Safari fallback when Firefox is absent)
+#           prints PASS per tool and an iTerm2 line (PASS, or WARN ... tmux pane mode only when iTerm2 is absent)
 #   noguard)   the usage-guard script absent: each of the 7 settings.json hook commands still exits 0
 #   assistant) --agent-clash keep with the user's own agents; the assistant linked into a project finds its MCP
 #              server and guard hook inside the clone
@@ -412,7 +412,7 @@ scn_oswsl() {
   out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=wsl ./install.sh --check 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
   expect "oswsl: --check as WSL exits 0 and ends 'all checks passed' (got $rc, '$(last "$out")')" test "$rc$(last "$out")" = "0all checks passed"
   expect "oswsl: --check prints a PASS line for win.sh (wsl) and for evshow.sh (common)" test "$(printf '%s\n' "$out" | grep -c -e 'PASS.*local-tools/win\.sh (wsl)' -e 'PASS.*local-tools/evshow\.sh (common)')" = 2
-  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=mac CLAUDE_CONFIG_FIREFOX_APP="$H" ./install.sh --check 2>&1)"; rc=$?
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=mac CLAUDE_CONFIG_ITERM_APP="$H" ./install.sh --check 2>&1)"; rc=$?
   expect "oswsl: --check as a Mac FAILs on the WSL tools found installed (got $rc)" test "$rc" != 0
   expect "oswsl: ... and names winctl.ps1 as a wsl tool" has "$out" 'FAIL.*local-tools/winctl\.ps1 is a wsl tool'
   out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=mac ./install.sh 2>&1)"; rc=$?
@@ -427,12 +427,12 @@ scn_osmac() {
   expect "osmac: install.sh as a Mac exits 0 (got $rc)" test "$rc" = 0
   tools_set "$H" "$K" osmac macos
   expect "osmac: no .ps1 is installed" test -z "$(ls "$H/.claude/local-tools" | grep '\.ps1$')"
-  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=mac CLAUDE_CONFIG_FIREFOX_APP="$H" ./install.sh --check 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=mac CLAUDE_CONFIG_ITERM_APP="$H" ./install.sh --check 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
   expect "osmac: --check exits 0 and ends 'all checks passed' (got $rc, '$(last "$out")')" test "$rc$(last "$out")" = "0all checks passed"
   expect "osmac: --check prints a PASS line for win.sh (macos) and for evshow.sh (common)" test "$(printf '%s\n' "$out" | grep -c -e 'PASS.*local-tools/win\.sh (macos)' -e 'PASS.*local-tools/evshow\.sh (common)')" = 2
-  expect "osmac: --check with Firefox present prints its PASS line" has "$out" 'PASS.*Firefox installed'
-  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=mac CLAUDE_CONFIG_FIREFOX_APP="$H/no-Firefox.app" ./install.sh --check 2>&1)"; rc=$?
-  expect "osmac: --check without Firefox prints 'WARN Firefox not installed: Safari fallback, Firefox recommended'" has "$out" 'WARN Firefox not installed: Safari fallback, Firefox recommended'
+  expect "osmac: --check with iTerm2 present prints 'PASS iTerm2'" has "$out" '^PASS iTerm2'
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=mac CLAUDE_CONFIG_ITERM_APP="$H/no-iTerm.app" ./install.sh --check 2>&1)"; rc=$?
+  expect "osmac: --check without iTerm2 prints 'WARN iTerm2 not installed: tmux pane mode only'" has "$out" '^WARN iTerm2 not installed: tmux pane mode only$'
   expect "osmac: ... and still exits 0 with 'all checks passed' (got $rc)" test "$rc$(last "$out")" = "0all checks passed"
   out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=linux ./install.sh 2>&1)"; rc=$?
   expect "osmac: a rerun as plain Linux leaves only local-tools/common ($(ls "$H/.claude/local-tools" | grep -v evshow.state | wc -l | tr -d ' ') names)" test "$(ls "$H/.claude/local-tools" | grep -v '^evshow\.state$' | sort | tr '\n' ' ')" = "$(ls "$K/local-tools/common" | sort | tr '\n' ' ')"
