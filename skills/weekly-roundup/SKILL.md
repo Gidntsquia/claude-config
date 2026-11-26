@@ -487,8 +487,7 @@ across every archive week: 8 columns per week, oldest left, the week label (e.g.
 under each week, a thin rule between weeks, the same y-scale throughout, scrolled to the newest
 week on load. Weeks stored without `days` show as 8 empty columns with a faint "no daily data"
 marker. `build_archive.py` draws it with `daychart.py`. Its weeks are written into the page itself (no `db`), so
-anyone with the public link sees every week. The data lives in `archive_weeks.json` next to this
-file; `archive_template.html` is the page.
+anyone with the public link sees every week. The data lives in `~/.claude/weekly-roundup/archive_weeks.json` (this machine's copy; the published page is the shared one); `archive_template.html` is the page.
 
 After publishing the roundup, write the chosen week to a scratch JSON file, then run
 `python3 "$SKILL_DIR/build_archive.py" --base <archive file read in step 0> --add <file> --out
@@ -497,7 +496,7 @@ update it too, inserts or replaces this week by `weekStart` (the added week must
 kept as they are), saves them to
 `archive_weeks.json` and builds the page) and republish the page with `Artifact`
 (`url: archive_url`; omit `capabilities`).
-Commit `archive_weeks.json` in the claude-config clone (`repo` in `~/.claude/claude-config.json`) if this machine has one. Never give the archive a `db`: a `db` page
+Never give the archive a `db`: a `db` page
 is organization-only, so public viewers would not see the weeks.
 
 ```

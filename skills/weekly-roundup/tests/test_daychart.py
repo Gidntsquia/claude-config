@@ -1,4 +1,5 @@
 """daychart.py (week and archive bar charts) and build_archive.py's `days` handling."""
+import os
 import json
 import re
 import subprocess
@@ -42,16 +43,17 @@ def test_archive_chart_and_days_required(tmp_path):
     week.write_text(json.dumps({**old, "weekStart": "2026-10-04"}))
     base = tmp_path / "base.html"
     base.write_text('<script type="application/json" id="weeks-data">' + json.dumps([old]) + "</script>")
-    weeks_file = HERE / "archive_weeks.json"
-    saved = weeks_file.read_text()
+    weeks_file = tmp_path / "archive_weeks.json"   # never this machine's own weeks
+    saved = "[]"
+    env = {**os.environ, "ROUNDUP_ARCHIVE_WEEKS": str(weeks_file)}
     try:
         r = subprocess.run([sys.executable, str(HERE / "build_archive.py"), "--base", str(base), "--add", str(week),
-                            "--out", str(tmp_path / "a.html")], capture_output=True, text=True)
+                            "--out", str(tmp_path / "a.html")], capture_output=True, text=True, env=env)
         assert r.returncode != 0 and "days" in r.stderr
         out = tmp_path / "o.json"
         out.write_text(json.dumps({"days": DAYS}))
         r = subprocess.run([sys.executable, str(HERE / "build_archive.py"), "--base", str(base), "--add", str(week),
-                            "--days-from", str(out), "--out", str(tmp_path / "a.html")], capture_output=True, text=True)
+                            "--days-from", str(out), "--out", str(tmp_path / "a.html")], capture_output=True, text=True, env=env)
         assert r.returncode == 0, r.stderr
         page = (tmp_path / "a.html").read_text()
         assert "Usage by day" in page and "no daily data" in page and 'title="Alpha · Jet · 10.0%"' in page

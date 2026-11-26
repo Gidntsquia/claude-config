@@ -16,7 +16,7 @@ change to the repo state (if the user asks for one, record it as an amendment or
 
 ## Order of work
 
-1. Run `win.sh me` (finds YOUR terminal by a title marker and saves it; of 2+ windows it picks one itself: never ask which is yours). Read
+1. Run `win.sh me` (finds YOUR terminal and saves it; of 2+ windows it picks one itself: never ask which is yours). Read
    `plans/EVAL_NOTES.md` if present (how this user wants evals run here), then the Ask and Acceptance criteria in `plans/PLAN.md`,
    then `plans/WORKER_NOTES.md` for how to launch. The worker's claims are claims.
 2. Sort the criteria: marked (user), the user judges; the rest a command decides, started now in the background; nothing opens.
@@ -29,7 +29,7 @@ change to the repo state (if the user asks for one, record it as an amendment or
 5. Pre-open EVERYTHING hidden, arm, then the readiness gate. Open EVERY item of the run at the exact URL/file/state its questions
    are about, each with a unique title containing a random suffix, ONLY through the `--hidden` openers (`win-app.sh --hidden`,
    `term-open.sh` for a terminal item; Desktop helpers has their lines and exit codes); a failed open follows the failed-open rule
-   in Opening. `show` is the only uncloak: never un-cloak, un-minimize, move or front a window yourself. Nothing is launched after "Yes".
+   in Opening. `show` alone puts an item on screen: never reveal, un-minimize, move or front a window yourself. Nothing is launched after "Yes".
    Then `evshow.sh arm first "<title1>" "<title2>" ...` with all titles in asking order; nothing else of yours is opened, moved,
    placed or fronted, and your terminal is not moved. Then ask one AskUserQuestion: "Ready for me to move windows and start?",
    options "Yes" / "Not yet" (on "Not yet" the watcher keeps waiting).
@@ -38,10 +38,10 @@ change to the repo state (if the user asks for one, record it as an amendment or
    phrase per option description: a long call is what makes the question late), with no text, capture, read, command or note before
    it. The item must be visible within 5 s of the answer and the question within about 5 s of the show. The order is always
    show, then capture, then question; the watcher's capture never delays the question. If `wait` prints `not shown` or exits
-   non-zero: follow the failed-open rule in Opening, then `evshow.sh arm next <currentHWND> "<fresh title>"` and ask. After the LAST
+   non-zero: follow the failed-open rule in Opening, then `evshow.sh arm next <current window id> "<fresh title>"` and ask. After the LAST
    item's answer: `evshow.sh end`, then `evshow.sh history` and `evshow.sh noflash`: EVAL.md quotes, for EVERY item, its `hidden:`
    line, its `elapsed N s (answer -> shown)` line and its `question emitted ... (shown -> question N s)` line verbatim, next to its
-   criterion, and the `no-flash: PASS|FAIL (...)` line once, on the line after the verdict.
+   criterion, and the `no-flash: ...` line once, as printed, on the line after the verdict.
 7. Conflicts round, only if needed and the only follow-up round: for each finished check whose result contradicts the user's answer
    on the same criterion, ask one question, with the evidence opened first per Opening; never re-ask anything settled.
 8. Write `plans/EVAL.md` (always: if the user cancels, stops or the session is compacted, write it with every answer so far in their
@@ -63,63 +63,65 @@ change to the repo state (if the user asks for one, record it as an amendment or
   exact title incl. its random suffix, so stale windows never match. Never send keys, pointer events, messages or visits to a
   window, pane, session or process you did not launch, never raise, move or close one (yours excepted) or ask the user to look at
   it.
-- HWNDs: keep the HWND the opener or `show` printed for the item's lifetime (helpers refuse one this session did not register: a
-  refused close means leave that window alone); never take one from a list or an earlier run. `win.sh untop <HWND>` after the answer.
+- Window ids: keep the window id the opener or `show` printed for the item's lifetime (helpers refuse one this session did not
+  register: a refused close means leave that window alone); never take one from a list or an earlier run. `win.sh untop <window id>`
+  after the answer.
 - A failed open is `not hidden: ...`, `not shown: ...` or `not found: ...` (exit 1). Fix and retry; never ask the user whether it
   is open ("do you see it?"), never hand-roll `sleep N; list`. Retry twice: each time reopen `--hidden` with a fresh random-suffix
-  title (the failed attempt's cloaked window is already closed) and `show` again. If the third open fails too, open nothing else
+  title (the failed attempt's hidden window is already closed) and `show` again. If the third open fails too, open nothing else
   (any other opener would put a window on screen before its question): quote the helper's error line verbatim in that item's
   question with the item's path or URL, so the user can open it; record the line in EVAL.md and continue with the next item.
 - Exit 3 (`... a full-screen game is running`): the user is in a game, so retry nothing and open nothing; put the item's path or
   URL in its question with the game line quoted and continue.
 - Side by side: the item's window must never cover your question. The watcher takes the terminal `win.sh me` found (never what the
-  user clicked meanwhile), puts it left (0 0 1020 1400) and every item right (1030 0 1530 1400) at every show. On normal end and
+  user clicked meanwhile), puts it on the left and every item on the right, beside it, at every show (the helpers size both to this display). On normal end and
   on user cancel `evshow.sh end` puts your terminal back and prints `now`, which must equal the saved line.
-- Proof is the `shown:` line plus the watcher's whole-display capture right after the show; opener exit codes, window-title or
+- Proof is the `shown:` line plus the watcher's picture taken right after the show; opener exit codes, window-title or
   process lists, taskbar buttons and partial captures never count. Read the captures (`evshow.sh path shown|gate`) ONLY on `not
   shown`, when an answer is not `Works`, or after the last answer for EVAL.md. If the capture is unavailable, say so in EVAL.md.
 - If the user says it is not open, cannot see it, or the state was not there: keep fixing (state, timing, form) until a fresh
   capture shows the state, then ask once more; never re-ask on the same evidence. Never BLOCKED, never skipped: every (user)
   criterion gets its question. One extra thing may open without a question: a report `plans/EVAL_NOTES.md` asks for, after EVAL.md.
 
-## Desktop helpers (WSL2)
+## Desktop helpers
 
 Web pages, HTML files, running apps and GitHub-hosted docs open in Firefox (a `.md` that exists on GitHub opens as its GitHub URL);
-`.md`, logs, text and source open as a file page in Firefox; terminal programs via `term-open.sh`. One new window per item; never bare
-`firefox.exe`, `wslview`, `explorer.exe`, `xdg-open` or `code` (they open nothing here). Pixels are real display pixels
-(2560x1440). Every helper lives in `~/.claude/local-tools/`. Exit codes everywhere: 1 failed (one line says why), 2 usage, 3 game.
-- Firefox new window: `win-app.sh --hidden --title "<title>" firefox -new-window "<abs path or url>"` (a Linux path is converted)
+`.md`, logs, text and source open as a file page in Firefox; terminal programs via `term-open.sh`. One new window per item, only
+through the helpers: never a bare browser command, `open`, `xdg-open` or `code`. Every helper lives in `~/.claude/local-tools/`
+(the install links the set for this computer) and takes and prints the same lines everywhere; quote a helper's line as it printed
+it, whatever follows the prefix. Where a helper prints or takes a number for a window, that is its window id.
+Exit codes everywhere: 1 failed (one line says why), 2 usage, 3 game.
+- Firefox new window: `win-app.sh --hidden --title "<title>" firefox -new-window "<abs path or url>"`
 - File page: `file-page.sh "<path>" [A-B]` writes one HTML page (a `.md` rendered; any other file as numbered text, `A-B` = only those lines; path and modified time on top) and prints `page: <html path>|<title>`; open it with `win-app.sh --hidden --title "<title>" firefox "<html path>"`. Build it anew for every open, retries too (each build has its own title); EVAL.md quotes its `elapsed N s (answer -> shown)` line.
   `not built: <reason>` (exit 1: missing, unreadable, binary): open nothing; quote the line and give the file's path in that item's question. `win-app.sh code ...` only prints `not opened: VS Code is retired; use file-page.sh "<path>"` (exit 2).
-  `--hidden` registers a WinEvent hook, launches, cloaks every new window of the app's process family at its CREATE event
-  (off-screen, foreground given back) and waits until a title holds `<title>` (required: the page `<title>` or file name must
-  contain it). Exit 0: `hidden: HWND <visible-ms> <hidden-ms> <title> (create ...)` (hidden-ms - visible-ms = the longest a frame
-  could have shown, 0 = hidden before it was ever visible); the window stays cloaked until `show`. Failure is ONE line. Exit 1: `not hidden: title not loaded within Ns (...)` |
-  `<App> dialog: <its text>` | `error: <message>`. Exit 2: usage (`--title is required`, unknown app). Exit 3: `not hidden: a full-screen game is running`.
-- `term-open.sh <Title> "<dir>" '<command>'`: a new hidden Windows Terminal window titled <Title> on a tmux session <Title> you own;
-  prints `opened <Title> HWND=<n> (hidden: ...)`, exit 3 `not opened: ...` in a game; the shell stays open. Drive it only via
-  `tmux send-keys -t <Title>`; close: `term-close.sh <Title> <HWND>`.
-- `win.sh me`: shows a marker (tmux window title + a tmux status message), finds the Windows Terminal window holding it (title,
-  else its on-screen text), restores the title, saves it for the watcher; prints `me: HWND L T W H MAX`; of 2+ holders the foreground one, else the topmost, plus
-  `me: took <HWND> of <N>` (exit 0). No holder: exit 1 `not found: 0 windows hold ...`; go on, the watcher takes the foreground window. `win.sh show "<unique title text>" X Y W H [timeout-s] [termHWND]`: waits for the title, un-cloaks,
-  places, topmost without focus, checks the window really is the top one at its place; prints `shown: HWND title L T W H`, else
-  exit 1 `not shown: <cause>` (`no window matches`, `blank window <HWND>` = nothing loaded, `would overlap terminal` = it stays hidden, `covered by` / `not topmost` = `hidden again`).
-  Of 2+ windows on one title it keeps your newest loaded one and closes the others. By HWND only: `win.sh front|untop|close <HWND>`
-  (close exits 1 if gone), `win.sh place <HWND> X Y W H`, `win.sh rect <HWND>`, `win.sh list-topmost`; `win.sh find "<title>"`: one
-  match, else exit 1 `not found: N windows hold '<title>': HWND|cloaked|title; ...`.
-  The watcher alone runs `win.sh setwin` on your terminal; `win.sh close-cloaked` closes every cloaked window of yours that was
-  never shown (`end` and a failed show run it).
-- `evshow.sh arm first ...` starts a watcher on this session's own transcript, a gate capture every ~2.5 s while the readiness
-  question is open, and a z-order sampler every 100 ms (`<state>/zlog`, until `end`; `evshow.sh path zlog`). The moment an answer
-  lands it shows the next item (`win.sh start`: place your terminal, un-cloak+show; `win.sh next`: untop+close the old item, show
-  the new), captures the whole screen, and logs answer/shown times (ET), `elapsed N s` and
-  `shown -> question N s`. `evshow.sh wait` prints that log, copies the captures to this session's `shown.png` / `gate.png`,
-  auto-arms the next queued title, fires the show itself if the watcher did not within 1.5 s, exit 1 on `not shown`. `evshow.sh end`
-  untops+closes the current item, closes cloaked leftovers, stops the sampler, restores the terminal (prints `now`), prints
-  `list-topmost`. `evshow.sh noflash` reads `hidden`, `zlog` and the history: `no-flash: PASS (...)` or `FAIL (...)` (a run window
-  un-cloaked on-screen before its show, or a hide over 16 ms). State is per session under
-  `~/.claude/local-tools/evshow.state/<session id>/`; `evshow.sh path shown|gate|zlog|dir` prints the paths.
-- `screen-capture.sh <name>` saves the whole display (DPI-aware), prints the PNG's WSL path; read it with the Read tool.
+  `--hidden` gets the item ready with nothing on screen (`<title>` is required: the page `<title>` or file name must contain it).
+  Exit 0: `hidden: <window id> <visible-ms> <hidden-ms> <title> (...)` (hidden-ms - visible-ms = the longest a frame could have
+  shown, 0 = never visible; `(deferred)` = the window itself opens at its `show`); nothing is on screen until `show`. Failure is
+  ONE line. Exit 1: `not hidden: <cause>` | `<App> dialog: <its text>` | `error: <message>`. Exit 2: usage (`--title is required`,
+  unknown app). Exit 3: `not hidden: a full-screen game is running`.
+- `term-open.sh <Title> "<dir>" '<command>'`: a terminal item titled <Title> on a tmux session <Title> you own, nothing on screen
+  yet; prints `opened <Title> ...` with its window id, exit 1 or 3 `not opened: ...`; the shell stays open. Drive it only via
+  `tmux send-keys -t <Title>`; close: `term-close.sh <Title> <window id>`.
+- `win.sh me`: finds the terminal window this session runs in and saves it for the watcher; prints `me: <window id> L T W H MAX`
+  (of 2+ candidates it takes one and adds `me: took <window id> of <N>`, exit 0). None: exit 1 `not found: 0 windows hold ...`; go
+  on, the watcher works without it. `win.sh show "<unique title text>" X Y W H [timeout-s]`: waits for the title, puts the window
+  on screen at its place without taking the keyboard; prints `shown: <window id> <title> L T W H`, else exit 1 `not shown: <cause>`
+  (`no window matches`, `blank window` = nothing loaded, `would overlap terminal`, `covered by` / `not topmost` = hidden again,
+  `osascript: <text>` = the system refused; quote it). A `browser: ...` line before `shown:` names a fallback browser: quote it in
+  EVAL.md; `shown: safari unplaced <title>` means the window is open but was not placed and has no picture.
+  By window id only: `win.sh front|untop|close <window id>` (close exits 1 if gone), `win.sh place <window id> X Y W H`,
+  `win.sh rect <window id>`, `win.sh list-topmost`; `win.sh find "<title>"`: one match, else exit 1 `not found: N windows hold
+  '<title>': ...`. The watcher alone runs `win.sh setwin` on your terminal and `win.sh geom` for the two places.
+- `evshow.sh arm first ...` starts a watcher on this session's own transcript. The moment an answer lands it shows the next item
+  (`win.sh start`: place your terminal, show; `win.sh next`: show the new item, close the old), takes the picture, and logs
+  answer/shown times (ET), `elapsed N s` and `shown -> question N s`. `evshow.sh wait` prints that log, copies the picture to this
+  session's `shown.png`, auto-arms the next queued title, fires the show itself if the watcher did not within 1.5 s, exit 1 on
+  `not shown`. `evshow.sh end` closes the current item and every leftover of yours that was never shown, restores the terminal
+  (prints `now`) and ends what the run started. `evshow.sh noflash` prints one `no-flash: ...` line: `PASS (...)`, `FAIL (...)` or
+  `not measured (...)`; quote it as printed. State is per session under `~/.claude/local-tools/evshow.state/<session id>/`;
+  `evshow.sh path shown|gate|zlog|dir` prints the paths (a path whose file is absent was not recorded on this computer).
+- `screen-capture.sh <name>` saves the whole display and prints the PNG's path (read it with the Read tool), or exit 1
+  `not captured: <cause>`; then the item's `shown.png` is the proof.
 
 ## Phone path (launch prompt contains `phone`)
 

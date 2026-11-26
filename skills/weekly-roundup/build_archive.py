@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Roundup Archive page from archive_weeks.json.
+"""Build the Roundup Archive page from archive_weeks.json (~/.claude/weekly-roundup/).
 
   build_archive.py --out <page.html> [--add <week.json> [--days-from <gather output.json>]]
                    [--base <published archive.html>]
@@ -15,7 +15,11 @@ identically from --base.
 import argparse, json, os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-WEEKS = os.path.join(HERE, "archive_weeks.json")
+# This machine's weeks: ~/.claude/weekly-roundup/archive_weeks.json (yours, outside the config repo, so an install never
+# ships another person's weeks). ROUNDUP_ARCHIVE_WEEKS=<file> overrides; a file next to this script is used if present.
+WEEKS = os.environ.get("ROUNDUP_ARCHIVE_WEEKS") or os.path.join(HERE, "archive_weeks.json")
+if not os.path.exists(WEEKS) and not os.environ.get("ROUNDUP_ARCHIVE_WEEKS"):
+    WEEKS = os.path.expanduser("~/.claude/weekly-roundup/archive_weeks.json")
 TEMPLATE = os.path.join(HERE, "archive_template.html")
 sys.path.insert(0, HERE)
 import daychart  # noqa: E402
@@ -29,7 +33,7 @@ ap.add_argument("--base")
 ap.add_argument("--days-from", help="gather_data.py output JSON; its `days` fills the added week's when missing")
 a = ap.parse_args()
 
-weeks = json.load(open(WEEKS, encoding="utf8"))
+weeks = json.load(open(WEEKS, encoding="utf8")) if os.path.exists(WEEKS) else []
 if a.base:
     m = re.search(r'<script type="application/json" id="weeks-data">(.*?)</script>', open(a.base, encoding="utf8").read(), re.S)
     if not m:
@@ -46,6 +50,7 @@ if a.add:
     weeks.append({k: new[k] for k in KEYS})
     weeks.sort(key=lambda w: w["weekStart"])
 if a.add or a.base:
+    os.makedirs(os.path.dirname(WEEKS), exist_ok=True)
     with open(WEEKS, "w", encoding="utf8") as f:
         json.dump(weeks, f, indent=1, ensure_ascii=False)
         f.write("\n")
