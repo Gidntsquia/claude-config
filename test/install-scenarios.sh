@@ -9,6 +9,10 @@
 #   theirs) their own same-name agent, skill, command, hooks folder and settings.json: all stay byte-identical
 #   stock)  /bin/bash with PATH /usr/bin:/bin:/usr/sbin:/sbin; python3 and tmux absent are named before any change
 #   odd)    clone and projects under "My Files/Claude Config"
+#   oswsl)  CLAUDE_CONFIG_INSTALL_OS=wsl: ~/.claude/local-tools holds links into local-tools/common and local-tools/wsl
+#           and nothing else; --check as a Mac then FAILs on the WSL tools; a rerun as a Mac leaves only common + macos
+#   osmac)  CLAUDE_CONFIG_INSTALL_OS=mac: links into local-tools/common and local-tools/macos only, no .ps1; --check
+#           prints PASS per tool and a Firefox line (PASS, or WARN ... Safari fallback when Firefox is absent)
 #   noguard)   the usage-guard script absent: each of the 7 settings.json hook commands still exits 0
 #   assistant) --agent-clash keep with the user's own agents; the assistant linked into a project finds its MCP
 #              server and guard hook inside the clone
@@ -41,7 +45,7 @@ REAL_HOME="$HOME"
 fails=0
 ok()   { echo "ok   $*"; }
 bad()  { echo "FAIL $*"; fails=$((fails+1)); }
-# SCN_ONLY=<name>: run just that one of a, b, sep22, moved, theirs, stock, odd, noguard, assistant, oldtag, nokeychain,
+# SCN_ONLY=<name>: run just that one of a, b, sep22, moved, theirs, stock, odd, oswsl, osmac, noguard, assistant, oldtag, nokeychain,
 #                  nohook, plist, dirty
 # SCN_NEED_OLDTAG=1 (CI): a clone without the old tags and history is a failure, not a skip.
 # SCN_LIB=1: define the functions and run nothing (test/rehearsal.sh sources this file for the dirty start state
@@ -378,6 +382,61 @@ scn_odd() {
   out="$(cd "$K" && ./install.sh 2>&1)"; rc=$?
   expect "odd: rerun with no flags exits 0 (got $rc)" test "$rc" = 0
   closing "odd rerun" "$H" "$K"
+}
+
+# tools_set <H> <clone> <name> <os folder>: ~/.claude/local-tools is exactly local-tools/common + local-tools/<os folder>,
+# each a link to its file in the clone; no file of the other OS's folder is there.
+tools_set() {
+  local H="$1" K="$2" name="$3" d="$4" other f n want_names got_names bad_links=""
+  [ "$d" = wsl ] && other=macos || other=wsl
+  want_names="$( (ls "$K/local-tools/common"; ls "$K/local-tools/$d") | sort | tr '\n' ' ')"
+  got_names="$(ls "$H/.claude/local-tools" 2>/dev/null | grep -v '^evshow\.state$' | sort | tr '\n' ' ')"
+  expect "$name: local-tools holds exactly common + $d ($(echo "$got_names" | wc -w | tr -d ' ') names)" test "$got_names" = "$want_names"
+  for f in "$K/local-tools/common"/* "$K/local-tools/$d"/*; do n="$(basename "$f")"
+    [ -L "$H/.claude/local-tools/$n" ] && [ "$(cd "$(dirname "$(readlink "$H/.claude/local-tools/$n")")" 2>/dev/null && pwd -P)" = "$(cd "$(dirname "$f")" && pwd -P)" ] || bad_links="$bad_links $n"
+  done
+  expect "$name: every tool is a link into local-tools/common or local-tools/$d (not:$bad_links)" test -z "$bad_links"
+  for n in $(ls "$K/local-tools/$other"); do
+    [ -e "$K/local-tools/$d/$n" ] && continue
+    [ -e "$H/.claude/local-tools/$n" ] || [ -L "$H/.claude/local-tools/$n" ] && { bad "$name: $n of local-tools/$other is installed"; return; }
+  done
+  ok "$name: no tool of local-tools/$other is installed"
+}
+scn_oswsl() {
+  local H="$1" K="$1/clone" out rc
+  copy_clone "$K" || { bad "oswsl: could not copy the clone"; return; }
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=wsl ./install.sh --projects "$H/files" --no-terminal --statusline squid --settings merge 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
+  expect "oswsl: install.sh as WSL exits 0 (got $rc)" test "$rc" = 0
+  tools_set "$H" "$K" oswsl wsl
+  expect "oswsl: winctl.ps1 and screen-capture.ps1 are linked" test -L "$H/.claude/local-tools/winctl.ps1" -a -L "$H/.claude/local-tools/screen-capture.ps1"
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=wsl ./install.sh --check 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
+  expect "oswsl: --check as WSL exits 0 and ends 'all checks passed' (got $rc, '$(last "$out")')" test "$rc$(last "$out")" = "0all checks passed"
+  expect "oswsl: --check prints a PASS line for win.sh (wsl) and for evshow.sh (common)" test "$(printf '%s\n' "$out" | grep -c -e 'PASS.*local-tools/win\.sh (wsl)' -e 'PASS.*local-tools/evshow\.sh (common)')" = 2
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=mac CLAUDE_CONFIG_FIREFOX_APP="$H" ./install.sh --check 2>&1)"; rc=$?
+  expect "oswsl: --check as a Mac FAILs on the WSL tools found installed (got $rc)" test "$rc" != 0
+  expect "oswsl: ... and names winctl.ps1 as a wsl tool" has "$out" 'FAIL.*local-tools/winctl\.ps1 is a wsl tool'
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=mac ./install.sh 2>&1)"; rc=$?
+  expect "oswsl: a rerun as a Mac exits 0 (got $rc)" test "$rc" = 0
+  tools_set "$H" "$K" "oswsl rerun as mac" macos
+  expect "oswsl: the clone is unchanged (git status --porcelain is empty)" test -z "$(git -C "$K" status --porcelain 2>&1)"
+}
+scn_osmac() {
+  local H="$1" K="$1/clone" out rc
+  copy_clone "$K" || { bad "osmac: could not copy the clone"; return; }
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=mac ./install.sh --projects "$H/files" --no-terminal --statusline squid --settings merge 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
+  expect "osmac: install.sh as a Mac exits 0 (got $rc)" test "$rc" = 0
+  tools_set "$H" "$K" osmac macos
+  expect "osmac: no .ps1 is installed" test -z "$(ls "$H/.claude/local-tools" | grep '\.ps1$')"
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=mac CLAUDE_CONFIG_FIREFOX_APP="$H" ./install.sh --check 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
+  expect "osmac: --check exits 0 and ends 'all checks passed' (got $rc, '$(last "$out")')" test "$rc$(last "$out")" = "0all checks passed"
+  expect "osmac: --check prints a PASS line for win.sh (macos) and for evshow.sh (common)" test "$(printf '%s\n' "$out" | grep -c -e 'PASS.*local-tools/win\.sh (macos)' -e 'PASS.*local-tools/evshow\.sh (common)')" = 2
+  expect "osmac: --check with Firefox present prints its PASS line" has "$out" 'PASS.*Firefox installed'
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=mac CLAUDE_CONFIG_FIREFOX_APP="$H/no-Firefox.app" ./install.sh --check 2>&1)"; rc=$?
+  expect "osmac: --check without Firefox prints 'WARN Firefox not installed: Safari fallback, Firefox recommended'" has "$out" 'WARN Firefox not installed: Safari fallback, Firefox recommended'
+  expect "osmac: ... and still exits 0 with 'all checks passed' (got $rc)" test "$rc$(last "$out")" = "0all checks passed"
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=linux ./install.sh 2>&1)"; rc=$?
+  expect "osmac: a rerun as plain Linux leaves only local-tools/common ($(ls "$H/.claude/local-tools" | grep -v evshow.state | wc -l | tr -d ' ') names)" test "$(ls "$H/.claude/local-tools" | grep -v '^evshow\.state$' | sort | tr '\n' ' ')" = "$(ls "$K/local-tools/common" | sort | tr '\n' ' ')"
+  expect "osmac: the clone is unchanged (git status --porcelain is empty)" test -z "$(git -C "$K" status --porcelain 2>&1)"
 }
 
 # The 7 usage-guard hook commands of the installed settings.json, run as Claude Code runs them (sh -c, the hook's
@@ -804,6 +863,8 @@ else echo "skip sep22, moved: this account cannot make symlinks, so the older la
 run_in theirs scn_theirs
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) echo "skip stock: the stock PATH is a macOS/Linux case" ;; *) run_in stock scn_stock ;; esac
 run_in odd scn_odd
+if can_link; then run_in oswsl scn_oswsl; run_in osmac scn_osmac
+else echo "skip oswsl, osmac: this account cannot make symlinks, so the linked set cannot be read"; fi
 run_in noguard scn_noguard
 if can_link; then run_in assistant scn_assistant
 else echo "skip assistant: this account cannot make symlinks, so a project cannot link the agent"; fi

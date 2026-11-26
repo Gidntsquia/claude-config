@@ -58,7 +58,7 @@ PY=""
 for p in python3 python; do
   command -v "$p" >/dev/null 2>&1 || continue
   # A stock Mac has /usr/bin/python3 as a stub that opens an "install developer tools" window; do not start it.
-  if [ "$OS" = mac ] && [ "$(command -v "$p")" = "/usr/bin/$p" ] && ! xcode-select -p >/dev/null 2>&1; then continue; fi
+  if [ "$OS" = mac ] && [ "$(uname -s)" = Darwin ] && [ "$(command -v "$p")" = "/usr/bin/$p" ] && ! xcode-select -p >/dev/null 2>&1; then continue; fi
   "$p" -c 'import json' >/dev/null 2>&1 && { PY="$p"; break; }
 done
 if [ -z "$PY" ]; then
