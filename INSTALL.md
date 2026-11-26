@@ -7,6 +7,7 @@ For a Claude session installing this repo on a new machine, started by a message
 Run `command -v claude git bash python3 || command -v python`. Claude Code is already running, so `claude` is there.
 
 - If `git` or `python3` is missing, ask once with AskUserQuestion whether to install it, then run `brew install git python` (macOS, needs Homebrew), `sudo apt-get install -y git python3` (Ubuntu/WSL) or `winget install Git.Git Python.Python.3.12` (Windows). If the user says no, STOP and tell them which tool is missing.
+- macOS: check `ls -d /Applications/Firefox.app`. Firefox is recommended: the evaluator shows each item in its own Firefox window and takes its picture with it. Without it the evaluator falls back to Safari (no pictures, and a window may not be placed). If it is missing, say so in one line and offer `brew install --cask firefox`; the install goes on either way.
 - `tmux` is needed only if the user picks the terminal setup in step 4. Check for it then, and install it the same way (`brew install tmux` / `sudo apt-get install -y tmux`) after a yes.
 
 ## 2. Clone

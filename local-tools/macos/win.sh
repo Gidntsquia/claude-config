@@ -37,6 +37,24 @@ end repeat
 return o
 end tell
 end run'
+# Safari: only a window that holds this one page (1 tab). A page Safari put into one of the user's windows as a tab is never
+# found, so it is never moved or closed.
+S_FIND_SAFARI='on run argv
+tell application "Safari"
+set o to ""
+repeat with w in (every window whose name contains (item 1 of argv))
+if (count of tabs of w) is 1 then set o to o & (id of w) & linefeed
+end repeat
+return o
+end tell
+end run'
+S_CLOSE_SAFARI='if (count of tabs of w) > 1 then
+close current tab of w
+else
+close w
+end if
+end tell
+end run'
 # argv: wid, title guard ("" = none), then L T R B for place
 S_HEAD='on run argv
 tell application "@APP@"
@@ -140,11 +158,11 @@ EOF
   fi
 }
 
-wait_window() {  # wait_window <app> <title> <seconds> -> WID; 1 = none (OSA_ERR holds a real osascript failure, else "")
+wait_window() {  # wait_window <app> <title> <seconds> [osascript timeout, 10] -> WID; 1 = none (OSA_ERR holds a real osascript failure, else "")
   local t0=$SECONDS hard=""
   WID=""
   while :; do
-    if osa 10 "$(forapp "$1" "$S_FIND")" "$2"; then
+    if osa "${4:-10}" "$(if [ "$1" = Safari ]; then printf '%s' "$S_FIND_SAFARI"; else forapp "$1" "$S_FIND"; fi)" "$2"; then
       WID=$(printf '%s\n' "$OSA_OUT" | grep -E '^[0-9]+$' | tail -1)
       [ -n "$WID" ] && return 0
     else
@@ -169,15 +187,19 @@ open_web() {  # open_web <id> <title> <timeout>: 0 opened (app, wid set); 1 = a 
     iset "$id" app Firefox; iset "$id" wid "$WID"; return 0
   fi
   echo "browser: Safari (Firefox recommended: full features)"
-  local made=""
-  if osa "${EVSHOW_SAFARI_WAIT:-10}" 'on run argv
+  # Safari is sandboxed: AppleScript cannot make it load a file:// page (the document stays "Untitled"), `open -a Safari`
+  # can. So a file page is opened with `open`, a web URL as a new document; then the window is found by its title (a window
+  # with that one tab only), placed and later closed by id. No AppleScript answer within 10 s: the page is opened the plain
+  # way (if it is not yet) and the line is `shown: safari unplaced <title>`.
+  local sw="${EVSHOW_SAFARI_WAIT:-10}" opened=""
+  case "$url" in
+    file://*) ${EVSHOW_OPEN:-open} -a Safari "$url" 2>/dev/null && opened=1 ;;
+    *) osa "$sw" 'on run argv
 tell application "Safari" to make new document with properties {URL:(item 1 of argv)}
-end run' "$url"; then
-    made=1
-    if wait_window Safari "$title" "$to"; then iset "$id" app Safari; iset "$id" wid "$WID"; return 0; fi
-  fi
-  # Safari's AppleScript did not answer (a permission prompt, or scripting is off): open it the plain way, unplaced
-  [ -n "$made" ] || ${EVSHOW_OPEN:-open} -a Safari "$url" 2>/dev/null
+end run' "$url" && opened=1 ;;
+  esac
+  if [ -n "$opened" ] && wait_window Safari "$title" "$to" "$sw"; then iset "$id" app Safari; iset "$id" wid "$WID"; return 0; fi
+  [ -n "$opened" ] || ${EVSHOW_OPEN:-open} -a Safari "$url" 2>/dev/null
   iset "$id" app safari-unplaced; iset "$id" state shown
   echo "shown: safari unplaced $title"
   return 3
@@ -223,11 +245,11 @@ do_close() {  # do_close <id>: 0 closed (or nothing to close), 1 gone / not ours
   app=$(iget "$id" app); wid=$(iget "$id" wid); t=$(iget "$id" title)
   iset "$id" state closed
   case "$app" in
-    safari-unplaced) echo "left open: the Safari window of $id was opened without AppleScript and cannot be closed by it"; return 0;;
+    safari-unplaced) echo "left open: the Safari page of $id was not placed by this session (no window of its own, or no AppleScript answer); it is yours to close"; return 0;;
     Firefox) ff_alive || { echo "not found: window $id is gone (this run's Firefox is not running)"; return 1; };;
     iTerm2|Terminal) tmux detach-client -s "$t" 2>/dev/null; sleep 0.3;;
   esac
-  if osa 10 "$(forapp "$app" "$S_HEAD$S_CLOSE")" "$wid" "$(guard_of "$id")"; then echo "closed: $id"; return 0; fi
+  if osa 10 "$(forapp "$app" "$S_HEAD$([ "$app" = Safari ] && printf '%s' "$S_CLOSE_SAFARI" || printf '%s' "$S_CLOSE")")" "$wid" "$(guard_of "$id")"; then echo "closed: $id"; return 0; fi
   case "$app" in iTerm2|Terminal) osa_gone && { echo "closed: $id"; return 0; };; esac   # the window closed itself when tmux detached
   if osa_gone; then echo "not found: window $id is gone"; else echo "not closed: osascript: $OSA_ERR"; fi
   return 1

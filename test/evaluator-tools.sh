@@ -120,8 +120,9 @@ echo "${sc%%$'\n'*} | ${args[*]:-}" >> "$OSA_LOG"
 case "$sc" in
   *NSScreen*) echo "0 30 1440 789";;
   *"tty of s"*) echo "2222 0 0 1440 900";;
+  *"count of tabs of w) is 1"*) [ -n "${OSA_SAFARI_HANG:-}" ] && sleep 30; [ -e "$OSA_WINDOWS" ] && grep -F -- "${args[0]}" "$OSA_WINDOWS" | cut -d'|' -f1;;
   *"every window whose name contains"*) [ -e "$OSA_WINDOWS" ] && grep -F -- "${args[0]}" "$OSA_WINDOWS" | cut -d'|' -f1;;
-  *"make new document"*) [ -n "${OSA_SAFARI_HANG:-}" ] && sleep 30; echo "77|$(basename "${args[0]}" .html | sed 's/%20/ /g')" >> "$OSA_WINDOWS";;
+  *"make new document"*) echo "77|$(basename "${args[0]}" .html | sed 's/%20/ /g')" >> "$OSA_WINDOWS";;
   *"create window with default profile"*) echo 88;;
   *"set bounds"*) echo "${args[2]}, ${args[3]}, ${args[4]}, ${args[5]}";;
   *"set b to bounds"*) echo "734, 30, 1440, 819";;
@@ -137,8 +138,14 @@ if [ -n "$shot" ]; then printf 'PNG' > "$shot"; exit 0; fi
 n=$(( $(wc -l < "$OSA_WINDOWS" 2>/dev/null || echo 0) + 41 )); echo "$n|$(basename "$url" .html | sed 's/%20/ /g')" >> "$OSA_WINDOWS"
 case " $(tail -1 "$FF_LOG") " in *" -new-instance "*) exec sleep 60;; esac
 EOF
+cat > "$W/openstub.sh" <<'EOF'
+#!/bin/bash
+# stand-in `open -a Safari <file url>`: "opens" a Safari window named after the file
+echo "open $*" >> "$OSA_LOG"; u="${3:-}"; echo "78|$(basename "$u" .html | sed 's/%20/ /g')" >> "$OSA_WINDOWS"
+EOF
+chmod +x "$W/openstub.sh"
 mkdir -p "$W/Firefox.app/Contents/MacOS"; cp "$W/Firefox.app.sh" "$W/Firefox.app/Contents/MacOS/firefox"; chmod +x "$W/osastub.sh" "$W/Firefox.app/Contents/MacOS/firefox"
-mac_env() { export EVSHOW_STATE="$W/mac-$1" EVSHOW_TOOLS="$T" EVSHOW_OSASCRIPT="$W/osastub.sh" EVSHOW_OPEN=true OSA_LOG="$W/mac-$1.osa" OSA_WINDOWS="$W/mac-$1.windows" FF_LOG="$W/mac-$1.ff"; : > "$OSA_LOG"; : > "$FF_LOG"; rm -f "$OSA_WINDOWS"; unset OSA_FAIL OSA_SAFARI_HANG EVSHOW_SAFARI_WAIT; }
+mac_env() { export EVSHOW_STATE="$W/mac-$1" EVSHOW_TOOLS="$T" EVSHOW_OSASCRIPT="$W/osastub.sh" EVSHOW_OPEN="$W/openstub.sh" OSA_LOG="$W/mac-$1.osa" OSA_WINDOWS="$W/mac-$1.windows" FF_LOG="$W/mac-$1.ff"; : > "$OSA_LOG"; : > "$FF_LOG"; rm -f "$OSA_WINDOWS"; unset OSA_FAIL OSA_SAFARI_HANG EVSHOW_SAFARI_WAIT; }
 M="$LT/macos"
 
 mac_env ff; export EVSHOW_FIREFOX_APP="$W/Firefox.app"
@@ -186,6 +193,10 @@ out=$("$M/win-app.sh" --hidden --title "page-a k3" firefox "$W/page-a k3.html");
 out=$("$M/win.sh" show "page-a k3" 734 30 706 789); rc=$?
 has "$out" "browser: Safari (Firefox recommended: full features)" "no Firefox: the Safari line"; has "$out" "shown: 1001 page-a k3 734 30 706 789" "Safari answered: placed by id"
 [ ! -s "$FF_LOG" ] && ok "no Firefox was started" || bad "Firefox was started"
+has "$(cat "$OSA_LOG")" "open -a Safari file://" "a file page goes to Safari through open (AppleScript cannot load file:// there)"
+"$M/win-app.sh" --hidden --title "web-b k4" firefox "https://example.com/web-b%20k4.html" >/dev/null
+out=$("$M/win.sh" show "web-b k4" 734 30 706 789); has "$out" "shown: 1002 web-b k4 734 30 706 789" "a web URL opens as a new Safari document, placed by id"
+"$M/win.sh" close 1002 >/dev/null
 out=$("$M/win.sh" close 1001); has "$out" "closed: 1001" "Safari window closed by id"
 mac_env safari2; export EVSHOW_FIREFOX_APP="$W/no-Firefox.app" OSA_SAFARI_HANG=1 EVSHOW_SAFARI_WAIT=1
 "$M/win-app.sh" --hidden --title "page-a k3" firefox "$W/page-a k3.html" >/dev/null
