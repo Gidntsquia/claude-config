@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.3.0 — unreleased
+## v1.3.0 — 2026-11-25
 
 1.3 improves the planner, worker and evaluator loop by adding three core features to it: run-agent, phone modes and the usage guard. Everything since v1.2.1 (2026-10-26) is here.
 

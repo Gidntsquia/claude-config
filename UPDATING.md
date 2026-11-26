@@ -4,7 +4,7 @@ For a Claude (or a person) updating an existing install to the latest release. R
 
 ## What 1.3 adds
 
-1.3 improves the planner, worker and evaluator loop by adding three core features to it: run-agent, phone modes and the usage guard. 1.3 is a release candidate (v1.3.0-rc.1) until it is published, and step 3 skips it until then.
+1.3 improves the planner, worker and evaluator loop by adding three core features to it: run-agent, phone modes and the usage guard.
 
 - run-agent is now a main part of the workflow: each agent ends with the `/run-agent` line that starts the next one in the same tmux pane.
 - Phone modes let you run the loop from your phone, with each item sent as a picture in the chat.
