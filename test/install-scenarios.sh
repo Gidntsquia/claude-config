@@ -863,7 +863,10 @@ else echo "skip sep22, moved: this account cannot make symlinks, so the older la
 run_in theirs scn_theirs
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) echo "skip stock: the stock PATH is a macOS/Linux case" ;; *) run_in stock scn_stock ;; esac
 run_in odd scn_odd
-if can_link; then run_in oswsl scn_oswsl; run_in osmac scn_osmac
+# Not on a real Windows host: a pretend wsl/mac install there splits env.CLAUDE_CODE_PLUGIN_DIRS on ":" while its paths
+# hold "C:", so --check fails on a line that has nothing to do with the tools.
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) on_win=1;; *) on_win=;; esac
+if can_link && [ -z "$on_win" ]; then run_in oswsl scn_oswsl; run_in osmac scn_osmac
 else echo "skip oswsl, osmac: this account cannot make symlinks, so the linked set cannot be read"; fi
 run_in noguard scn_noguard
 if can_link; then run_in assistant scn_assistant
