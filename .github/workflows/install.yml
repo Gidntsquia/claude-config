@@ -101,6 +101,24 @@ jobs:
           echo "$out" | grep -q 'iTerm2 is not installed'
           HOME="$H" /bin/bash test/stock-mac.sh ./install.sh --check
 
+      # The evaluator's tools per OS (local-tools/common, wsl, macos): layout, syntax, evshow.sh end to end and the macOS
+      # tools against a stand-in osascript and a stand-in Firefox. Opens no window.
+      - name: Evaluator tools (Linux)
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
+        run: bash test/evaluator-tools.sh
+
+      - name: Evaluator tools, /bin/bash 3.2 and the stock PATH (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        run: /bin/bash test/stock-mac.sh test/evaluator-tools.sh
+
+      - name: No installed file names the author's project or says to push the config repo (Linux, Windows)
+        if: ${{ !cancelled() && runner.os != 'macOS' }}
+        run: bash test/owner-text.sh
+
+      - name: No installed file names the author's project or says to push the config repo, /bin/bash 3.2 and the stock PATH (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        run: /bin/bash test/stock-mac.sh test/owner-text.sh
+
       - name: Personal-path grep (Linux, Windows)
         if: ${{ !cancelled() && runner.os != 'macOS' }}
         run: bash bin/find-personal-paths.sh

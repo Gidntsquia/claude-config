@@ -91,11 +91,25 @@ esac
 # node: the nvm install if the shell has no node on PATH
 command -v node >/dev/null 2>&1 || { for n in "$HOME"/.nvm/versions/node/*/bin; do PATH="$n:$PATH"; done; }
 if command -v node >/dev/null 2>&1 && node "$here/phone-shot.mjs" "$base" "$url"; then exit 0; fi
-echo "phone-shot.sh: playwright screenshot failed; falling back to headless Firefox (1x, no split)" >&2
+note() { echo "phone-shot.sh: playwright screenshot failed; falling back to headless Firefox (1x, no split)" >&2; }
+[ "$(uname -s)" = Darwin ] || note
+out="$base.png"
+if [ "$(uname -s)" = Darwin ]; then
+  # macOS: the installed Firefox, headless, as its own instance on a scratch profile (the user's Firefox and profile are not touched)
+  FF="${PHONE_FIREFOX_APP:-/Applications/Firefox.app}/Contents/MacOS/firefox"
+  [ -x "$FF" ] || { echo "phone-shot.sh: no picture: Playwright is not importable and ${PHONE_FIREFOX_APP:-/Applications/Firefox.app} is not installed"; exit 1; }
+  note; prof="$tmp/ffprofile"; mkdir -p "$prof"; rm -f "$out"
+  "$FF" --headless -new-instance -profile "$prof" --screenshot "$out" --window-size=390,"${PHONE_FF_HEIGHT:-844}" "$url" >/dev/null 2>&1 &
+  fp=$!; n=0
+  while kill -0 "$fp" 2>/dev/null; do [ "$n" -ge 300 ] && { kill "$fp" 2>/dev/null; break; }; sleep 0.1; n=$((n + 1)); done
+  wait "$fp" 2>/dev/null; rm -rf "$prof"
+  [ -s "$out" ] || { echo "phone-shot.sh: firefox fallback produced no file"; exit 1; }
+  python3 -c 'import struct,sys; b=open(sys.argv[1],"rb").read(24); print("png", sys.argv[1], "%dx%d" % struct.unpack(">II", b[16:24]))' "$out"
+  exit 0
+fi
 FF=/mnt/c/Program\ Files/Mozilla\ Firefox/firefox.exe
 [ -x "$FF" ] || FF="$(command -v firefox || true)"
 [ -n "$FF" ] || { echo "phone-shot.sh: no firefox for the fallback"; exit 1; }
-out="$base.png"
 if [ "${url#file://}" != "$url" ] && [ "${FF#/mnt/c}" != "$FF" ]; then url="file:///$(wslpath -w "${url#file://}" | sed 's#\\#/#g')"; fi
 "$FF" --headless --screenshot "$( [ "${FF#/mnt/c}" != "$FF" ] && wslpath -w "$out" || echo "$out" )" --window-size=390,"${PHONE_FF_HEIGHT:-844}" "$url" >/dev/null 2>&1 || true
 [ -s "$out" ] || { echo "phone-shot.sh: firefox fallback produced no file"; exit 1; }
