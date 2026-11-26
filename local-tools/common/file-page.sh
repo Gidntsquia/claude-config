@@ -137,5 +137,8 @@ try:
     with open(dst, 'w', encoding='utf-8') as f: f.write(page)
 except OSError as e:
     fail('cannot write %s (%s)' % (dst, e.strerror))
+try:   # the source beside the page (path, first line shown): a tool that shows the file itself reads it
+    with open(dst + '.src', 'w', encoding='utf-8') as f: f.write('%s\n%s\n' % (path, a or ''))
+except OSError: pass
 print('page: %s|%s' % (dst, title))
 PY

@@ -27,8 +27,9 @@
 # EVSHOW_TRANSCRIPTS=<dir> takes the newest *.jsonl there as the transcript (eval harness); EVSHOW_BEHIND=1 = windows
 # go to the very bottom of the z-order (see win.sh). EVSHOW_TERMHWND=<HWND> uses that window as the terminal (tests).
 # This file is the same on every OS; the window work is in win.sh, of which each install has its own OS's (wsl/ or macos/).
-# EVOS: wsl = whole-display captures, gate loop, z-order sampler, pixel geometry above; mac = geometry from `win.sh geom`
-# (terminal left 51%, item the rest), the item's picture from win.sh, `noflash` not measured, `end` also runs `win.sh quit`.
+# EVOS: wsl = whole-display captures, gate loop, z-order sampler, pixel geometry above; mac = the item opens inside the
+# terminal (win.sh picks a pane or a tab: `shown: <id> <title> mode=<mode>`), no geometry is used, there is no picture
+# (`path shown` prints `no picture (macOS)`), `noflash` is not measured, and `end` prints `now unchanged`: the terminal is never moved.
 case "$(uname -s)" in Darwin) EVOS=mac;; *) if grep -qi microsoft /proc/version 2>/dev/null; then EVOS=wsl; else EVOS=other; fi;; esac
 EVOS=${EVSHOW_OS:-$EVOS}   # EVSHOW_OS=wsl|mac|other (tests)
 T="${EVSHOW_TOOLS:-$HOME/.claude/local-tools}"   # EVSHOW_TOOLS=<dir> = where the tools are (tests run them from the repo)
@@ -79,12 +80,7 @@ fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired
   mode=$(cat "$D/mode"); title=$(cat "$D/title"); old=$(cat "$D/old" 2>/dev/null || echo 0)
   if [ -e "$D/gatepid" ]; then kill -- -"$(cat "$D/gatepid")" 2>/dev/null; pkill -P "$(cat "$D/gatepid")" 2>/dev/null; rm -f "$D/gatepid"; fi
   if [ "$EVOS" = wsl ]; then capl="$WIN_HOME/evshow-shown-$SID8-$(date +%s).png"; capw="$WIN_HOME_W\\$(basename "$capl")"
-  else capl="$D/picture-$(date +%s).png"; capw="$capl"   # win.sh writes the item's own picture there
-    if [ -z "${EVSHOW_TERM:-}" ] && [ -z "${EVSHOW_ITEM:-}" ] && g=$("$W" geom 2>/dev/null); then   # this display's split
-      TERMG=$(printf '%s\n' "$g" | sed -n 's/^term //p'); ITEMG=$(printf '%s\n' "$g" | sed -n 's/^item //p')
-      [ -n "$TERMG" ] && [ -n "$ITEMG" ] || { TERMG="0 0 1020 1400"; ITEMG="1030 0 1530 1400"; }
-    fi
-  fi
+  else capl=""; capw=""; TERMG="0 0 0 0"; ITEMG="0 0 0 0"; fi   # mac: no picture, no geometry (the item opens inside the terminal)
   t0=$(et); read -r ix iy iw ih <<<"$ITEMG"; read -r tx ty tw th <<<"$TERMG"
   local term try
   for try in 1 2; do
@@ -115,8 +111,7 @@ fire() {  # runs the armed show once (lock), logs, marks $D/done. $1 = who fired
   if printf '%s\n' "$out" | grep -q '^shown: '; then
     printf '%s\n' "$out" | grep '^shown: ' | cut -d' ' -f2 > "$D/current"; echo "$t1" > "$D/last-shown"
     if [ "$EVOS" = wsl ]; then [ -f "$capl" ] && { cp "$capl" "$D/shown.png"; hist "capture $D/shown.png (copy of $capl, taken after shown)"; }
-    elif [ -s "$capl" ]; then mv "$capl" "$D/shown.png"; hist "capture $D/shown.png (the item's own picture, taken after shown)"
-    else rm -f "$D/shown.png"; hist "capture: none for this item"; fi
+    fi
   fi
   [ "$mode" = first ] && [ "$EVOS" = wsl ] && pick_gate
   echo "$rc" > "$D/done"; unlock
@@ -146,14 +141,14 @@ case "${1:-}" in
     shift; mode=${1:-}; shift
     case "$mode" in
       first) [ $# -ge 1 ] || { echo "usage: arm first \"<title1>\" [\"<title2>\" ...]"; exit 1; }
-        rm -f "$D"/{history,queue,idx,current,last-shown,gate.png,shown.png,gate-capture,transcript,zlog,zpid}   # term (win.sh me) is kept
+        rm -f "$D"/{history,queue,idx,current,last-shown,gate.png,shown.png,gate-capture,transcript,zlog,zpid,modeidx}   # term (win.sh me) is kept
         printf '%s\n' "$@" > "$D/queue"; echo 1 > "$D/idx"; echo "queue: $# item(s) (session $(basename "$D"))"; arm first "$1" 0;;
       next) [ $# -ge 2 ] || { echo "usage: arm next <oldHWND> \"<title>\""; exit 1; }; [ -e "$D/queue" ] || { echo "no session: nothing armed for this session ($D)"; exit 1; }; arm next "$2" "$1";;
       *) echo "usage: arm first|next ..."; exit 1;;
     esac;;
   path)
     D=$(ev_state_dir) || { echo "no session"; exit 1; }
-    case "${2:-}" in shown) echo "$D/shown.png";; gate) echo "$D/gate.png";; zlog) echo "$D/zlog";; dir|"") echo "$D";; *) echo "usage: path shown|gate|zlog|dir"; exit 1;; esac;;
+    case "${2:-}" in shown) if [ "$EVOS" = mac ]; then echo "no picture (macOS)"; else echo "$D/shown.png"; fi;; gate) echo "$D/gate.png";; zlog) echo "$D/zlog";; dir|"") echo "$D";; *) echo "usage: path shown|gate|zlog|dir"; exit 1;; esac;;
   noflash) D=$(ev_state_dir) || { echo "no session"; exit 1; }
     [ "$EVOS" = mac ] && { echo "no-flash: not measured (macOS)"; exit 0; }   # nothing opens before its show there: the openers only record
     python3 -I "$T/evshow_noflash.py" "$D";;
@@ -206,8 +201,8 @@ case "${1:-}" in
     cur=$(cat "$D/current" 2>/dev/null); [ -n "$cur" ] && { "$W" untop "$cur"; "$W" close "$cur"; rm -f "$D/current"; }
     [ -e "$D/zpid" ] && { kill "$(cat "$D/zpid")" 2>/dev/null; pkill -P "$(cat "$D/zpid")" 2>/dev/null; rm -f "$D/zpid"; }
     "$W" close-cloaked   # a cloaked (never shown) window is never left behind
-    [ "$EVOS" = wsl ] || "$W" quit   # macOS: this run's Firefox ends with the run (by pid)
-    if [ -s "$D/term" ]; then read -r h l t w ht mx < "$D/term"; echo "saved $h $l $t $w $ht $mx"; "$W" setwin "$h" "$l" "$t" "$w" "$ht" "$mx"; fi
+    if [ "$EVOS" = mac ]; then echo "now unchanged"   # the terminal was never moved
+    elif [ -s "$D/term" ]; then read -r h l t w ht mx < "$D/term"; echo "saved $h $l $t $w $ht $mx"; "$W" setwin "$h" "$l" "$t" "$w" "$ht" "$mx"; fi
     sleep 1; echo "list-topmost:"; "$W" list-topmost; echo "ended $(et)" >> "$D/history"; rm -f "$D/mode";;
   disarm)
     D=$(ev_state_dir) || { echo "no session"; exit 1; }
