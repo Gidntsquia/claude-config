@@ -1,9 +1,9 @@
 # Which tests are kept
 
 Every test as it stood on commit 4bbcc43 (2026-11-27), what break it catches, and a verdict: keep, merge, rewrite
-or delete. The tree matches this page as of the commit that added it; a test added later is not listed here.
+or delete. The tree matches this page as of the commit that added it; a test added later is listed with the verdict new.
 
-Total: before 805, after 754 (10 deleted; 59 merged into 18).
+Total: before 805, after 755 (10 deleted; 59 merged into 18; 1 added after the review, marked new).
 
 - A test is listed once, under the first feature it is tagged with; each table says how many tests of other tables
   also carry its tag.
@@ -790,8 +790,9 @@ status line output.
 | statusline: --preview lists 25 easter eggs for each theme and rejects another name | --preview accepting any theme name or miscounting eggs | keep | one part of the line the user reads all day |
 | statusline: an ordinary session shows the plain mascot of its theme | the mascot of another theme shown | keep | one part of the line the user reads all day |
 | statusline: a session that rolls an easter egg shows that egg in its theme | an easter egg from another theme shown | keep | one part of the line the user reads all day |
+| statusline: while guard allow is in force it shows the unlock time in US Eastern | the unlock time shown in UTC | new | catches the planted fault statusline/unlock-time-utc, which no test caught before |
 
-before 9, after 9
+before 9, after 10
 
 ## agent-prompts
 
@@ -1051,7 +1052,7 @@ test/run: tiers, lint, feature list.
 | bin/release/repeat <n> <files>: adds up the runs of several result files against the planned number | shard results not added up against the plan | keep | the runner's own promise; if this breaks, a pass means nothing |
 | bin/release/trust-report: writes the five numbers between the marks and keeps the rest of TESTING.md | trust-report overwriting the rest of TESTING.md or missing a number | keep | the runner's own promise; if this breaks, a pass means nothing |
 | bin/release/trust-report: repeated runs that all failed the same way are shown as failed | runs that all failed alike shown as agreement | keep | the runner's own promise; if this breaks, a pass means nothing |
-| weekly repeat job: passes at 300 passing runs, fails when all 300 failed the same way | the weekly job passing on 300 identical failures | keep | the runner's own promise; if this breaks, a pass means nothing |
+| weekly repeat job: passes at 300 passing runs on each system, fails when 300 failed the same way or a system is missing | the weekly job passing on 300 identical failures | keep | the runner's own promise; if this breaks, a pass means nothing |
 | weekly repeat job: a shard that dies before finishing leaves no old result to upload | a dead shard uploading an old result | keep | the runner's own promise; if this breaks, a pass means nothing |
 | bin/release/trust-report: a TESTING.md without the marks is left alone and exits 2 | a TESTING.md without marks rewritten | keep | the runner's own promise; if this breaks, a pass means nothing |
 
