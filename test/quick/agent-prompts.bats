@@ -61,7 +61,7 @@ labels() {
   # claude-config.json is written by the installer; wiki/ is a separate clone
   for p in $(grep -ohE '\$(CFG|REPO)/[A-Za-z0-9_./-]+' "${MD[@]}" | sed -E 's/^\$(CFG|REPO)\///; s/[.]+$//' |
     grep -vE '^(claude-config\.json$|wiki/)' | sort -u); do
-    assert_file_exist "$REPO/$p"
+    [ -e "$REPO/$p" ]
     n=$((n + 1))
   done
   test "$n" -ge 7
@@ -72,7 +72,7 @@ labels() {
   local p n=0
   for p in $(grep -ohE '`(docs|skills|agents|local-tools|helper-mcp)/[A-Za-z0-9_./-]+\.(md|sh|py|mjs|json|jsonl)' "${MD[@]}" |
     tr -d '`' | sort -u); do
-    assert_file_exist "$REPO/$p"
+    [ -e "$REPO/$p" ]
     n=$((n + 1))
   done
   test "$n" -ge 2
@@ -187,7 +187,7 @@ labels() {
   local rel
   rel="$(grep -oE '/\.\./[A-Za-z0-9_./-]+server\.py' "$REPO/agents/helper.md")"
   assert_equal "$rel" "/../helper-mcp/server.py"
-  assert_file_exist "$REPO/agents$rel"
+  [ -e "$REPO/agents$rel" ]
 }
 
 # bats test_tags=feature:agent-prompts

@@ -93,3 +93,30 @@ stamp() {
   call '(s.status()["stale"], len(s.status()["differing"]), s.status()["wiki_stamp"])'
   assert_output "(True, 4, None)"
 }
+
+# bats test_tags=feature:helper
+@test "helper server: workflow_status answers as JSON that names the changed files" {
+  stamp
+  echo "new rule" >> "$C/agents/worker.md"
+  call 's.workflow_status()'
+  assert_success
+  run python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d["stale"], d["differing"])' "$output"
+  assert_output "True ['worker']"
+}
+
+# bats test_tags=feature:helper
+@test "stamp-wiki writes a stamp the server reads as in step, and replaces an old one" {
+  cp "$REPO/helper-mcp/stamp-wiki" "$C/helper-mcp/"
+  run bash "$C/helper-mcp/stamp-wiki"
+  assert_success
+  call '(s.status()["stale"], s.status()["differing"])'
+  assert_output "(False, [])"
+  echo "new rule" >> "$C/agents/worker.md"
+  run bash "$C/helper-mcp/stamp-wiki"
+  assert_success
+  call '(s.status()["stale"], s.status()["differing"])'
+  assert_output "(False, [])"
+  assert_equal "$(grep -c '^<!-- Last synced:' "$C/wiki/Workflow.md" | tr -d ' ')" "1"
+  run grep -x 'The planner writes the plan.' "$C/wiki/Workflow.md"
+  assert_success
+}

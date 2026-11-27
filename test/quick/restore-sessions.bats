@@ -117,6 +117,34 @@ eval_copy() {
 }
 
 # bats test_tags=feature:restore-sessions
+@test "find-sessions leaves out a headless session's surviving process file" {
+  session "$A" idle 01:00:00
+  session "$B" robot 01:00:00
+  mkdir -p "$BATS_TEST_TMPDIR/sessions"
+  printf '{"pid":999999001,"sessionId":"%s","kind":"interactive","procStart":"1"}' "$A" > "$BATS_TEST_TMPDIR/sessions/1.json"
+  printf '{"pid":999999002,"sessionId":"%s","kind":"headless","procStart":"1"}' "$B" > "$BATS_TEST_TMPDIR/sessions/2.json"
+  touch -d '2026-10-15T01:00:00-04:00' "$BATS_TEST_TMPDIR/sessions/1.json" "$BATS_TEST_TMPDIR/sessions/2.json"
+  RS_SESSIONS="$BATS_TEST_TMPDIR/sessions" run find_sessions "$STOP" "$P"
+  assert_success
+  assert_equal "$(printf '%s\n' "$output" | cut -f1)" "$A"
+}
+
+# bats test_tags=feature:restore-sessions
+@test "find-sessions leaves out a process file whose process is still alive" {
+  [ -r /proc/self/stat ] || skip "this system has no /proc, which is how a live process is recognised"
+  session "$A" idle 01:00:00
+  session "$B" open 01:00:00
+  mkdir -p "$BATS_TEST_TMPDIR/sessions"
+  started="$(python3 -c 'import sys; print(open("/proc/%s/stat" % sys.argv[1]).read().rsplit(")", 1)[1].split()[19])' "$$")"
+  printf '{"pid":999999001,"sessionId":"%s","kind":"interactive","procStart":"1"}' "$A" > "$BATS_TEST_TMPDIR/sessions/1.json"
+  printf '{"pid":%s,"sessionId":"%s","kind":"interactive","procStart":"%s"}' "$$" "$B" "$started" > "$BATS_TEST_TMPDIR/sessions/2.json"
+  touch -d '2026-10-15T01:00:00-04:00' "$BATS_TEST_TMPDIR/sessions/1.json" "$BATS_TEST_TMPDIR/sessions/2.json"
+  RS_SESSIONS="$BATS_TEST_TMPDIR/sessions" run find_sessions "$STOP" "$P"
+  assert_success
+  assert_equal "$(printf '%s\n' "$output" | cut -f1)" "$A"
+}
+
+# bats test_tags=feature:restore-sessions
 @test "find-sessions explains a missing time, an unreadable time and a missing folder" {
   run find_sessions
   assert_failure 2
@@ -195,6 +223,21 @@ eval_copy() {
   assert_equal "$(grep '^resume' "$OUT/ops.tsv" | cut -f3)" "%3"
   run grep -Ev '^(list-panes|show) ' "$FAKE_TMUX_DIR/calls.log"
   assert_output ""
+}
+
+# bats test_tags=feature:restore-sessions
+@test "plan does not reuse a shell pane that has a program running under it" {
+  pane 0 1 1 %1 terminal-pet 999999001
+  pane 0 1 2 %2 bash 999999002
+  pane 0 1 3 %3 bash 999999003
+  echo "python3 long-job.py" > "$FAKE_TMUX_DIR/kids/999999002"
+  session "$A" alpha 04:50:00
+  candidates
+  run plan
+  assert_success
+  assert_output --partial "| 0:1.3 | $A |"
+  assert_output --partial "Idle shell panes reused (nothing running in them now): 0:1.3"
+  assert_equal "$(grep '^resume' "$OUT/ops.tsv" | cut -f3)" "%3"
 }
 
 # bats test_tags=feature:restore-sessions
@@ -333,4 +376,53 @@ applied() {
   run bash "$S/verify.sh" "$OUT" --no-wait --no-screenshot
   assert_output --partial "FAIL 0:1.2 claude aaaaaaaa: agent: expected worker, shows planner"
   assert_output --partial "PASS 0:1.1 pet dog"
+}
+
+# verify_says <pane> <what is wrong>: verify.sh reports that failure for that pane
+verify_says() {
+  run bash "$S/verify.sh" "$OUT" --no-wait --no-screenshot
+  assert_a_line_matches "^- FAIL $1 .*$2"
+}
+screen() { printf '──────── worker ──\n%s\n  %s\n' "$1" "$2" > "$FAKE_TMUX_DIR/cap/%2"; }
+
+# bats test_tags=feature:restore-sessions
+@test "verify fails a pane with no Claude prompt, typed input, or a trust question" {
+  applied worker
+  printf 'still loading\n' > "$FAKE_TMUX_DIR/cap/%2"
+  verify_says 0:1.2 "no Claude prompt"
+  screen '❯ half a message' 'auto mode on   Sonnet 5.5'
+  verify_says 0:1.2 "input box is not empty"
+  screen '❯ ' 'auto mode on   Sonnet 5.5'
+  printf 'Do you trust this folder?\n' >> "$FAKE_TMUX_DIR/cap/%2"
+  verify_says 0:1.2 "Claude is asking whether to trust"
+}
+
+# bats test_tags=feature:restore-sessions
+@test "verify fails a pane that came back in another mode or model" {
+  applied worker
+  screen '❯ ' 'plan mode on   Sonnet 5.5'
+  verify_says 0:1.2 "mode: expected auto, shows plan"
+  screen '❯ ' 'auto mode on   Opus 5.5'
+  verify_says 0:1.2 "model: expected Sonnet 5.5, shows Opus 5.5"
+}
+
+# bats test_tags=feature:restore-sessions
+@test "verify fails a pane whose resume line is missing or was typed over, or whose session was not found" {
+  applied worker
+  echo '$ ls' > "$FAKE_TMUX_DIR/cap-shell/%2"
+  verify_says 0:1.2 "resume line not found on the shell screen"
+  applied_line="\$ cd '$WORK/alpha' && claude --resume $A --model claude-sonnet-5-5"
+  printf '%s\n$ echo typed-later\n' "$applied_line" > "$FAKE_TMUX_DIR/cap-shell/%2"
+  verify_says 0:1.2 "more input after the resume line"
+  printf '%s\n' "$applied_line" > "$FAKE_TMUX_DIR/cap-shell/%2"
+  screen 'No conversation found with session ID' 'auto mode on'
+  verify_says 0:1.2 "claude says the session was not found"
+}
+
+# bats test_tags=feature:restore-sessions
+@test "verify fails a pet pane that is not running the pet" {
+  applied worker
+  sed 's/terminal-pet/bash/' "$FAKE_TMUX_DIR/panes" > "$FAKE_TMUX_DIR/panes.new"
+  mv "$FAKE_TMUX_DIR/panes.new" "$FAKE_TMUX_DIR/panes"
+  verify_says 0:1.1 "pane runs bash"
 }

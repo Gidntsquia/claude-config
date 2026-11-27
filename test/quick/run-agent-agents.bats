@@ -14,7 +14,7 @@ windows() { TM list-windows -t t | wc -l; }
   as_agent --relaunch "planner \"x\" in $T/sibling split dry"
   assert_equal "$(line 1 "$output")" "ignored: agents replace their own pane"
   has "$output" '^command: claude --agent planner'
-  refute_output --regexp '^opens in'
+  refute_a_line_matches '^opens in'
 }
 
 # old: agent: + group from an agent -> ignored, exit 2

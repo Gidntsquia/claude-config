@@ -97,9 +97,11 @@ jobs_has() { ra --jobs | grep -q -- "$1"; }
 # old: loop: --jobs shows errored: <last log line> | loop: --health exit 1 with a FAIL line | loop: cancel drops the log
 @test "a runner that errors is shown by --jobs and --health, and cancel removes its log" {
   copy_scripts
-  sched2 4 'in 4s'
+  # long enough that the swap below lands before the run fires on a loaded machine (4 s was not)
+  sched2 15 'in 15s'
+  ra_asleep "$ID"
   cp "$RA_FIX/runner-boom.sh" "$C2/runner.sh"
-  wait_until 20 jobs_has "^#$ID  .*\[errored: runner.sh: boom\]\$" || { ra --jobs; return 1; }
+  wait_until 45 jobs_has "^#$ID  .*\[errored: runner.sh: boom\]\$" || { ra --jobs; return 1; }
   run ra --health
   assert_failure 1
   has "$output" "^FAIL  #$ID  errored: runner.sh: boom"

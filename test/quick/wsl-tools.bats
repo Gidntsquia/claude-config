@@ -12,7 +12,7 @@ FONT="Test Nerd Font"
 setup() {
   temp_home
   unset XDG_CACHE_HOME GAME_GUARD GAME_GUARD_PROCS GAME_GUARD_CMD GAME_DEFERRED_LOG TERM_OPEN_PROFILE WSL_DISTRO_NAME
-  unset WIN_HOME WIN_HOME_W WIN_LOCALAPPDATA WIN_PROGRAMFILES TMUX TMUX_PANE EVSHOW_TERMHWND CLAUDE_CODE_SESSION_ID
+  unset WSLENV WIN_HOME WIN_HOME_W WIN_LOCALAPPDATA WIN_PROGRAMFILES TMUX TMUX_PANE EVSHOW_TERMHWND CLAUDE_CODE_SESSION_ID
   export STUB_LOG="$BATS_TEST_TMPDIR/stub.log"
   : > "$STUB_LOG"
   T="$TEST_HOME/.claude/local-tools"
@@ -183,7 +183,7 @@ WIN_PROGRAMFILES=$STUB_MNT/Program Files"
   assert_output --partial "game: deadlock"
   assert_output --partial "deferred: deadlock is running; not touching any window."
   run cat "$DEFERRED"
-  assert_output --regexp '^[0-9-]+ [0-9:]+ ET  game=deadlock  refused: win\.sh show Demo$'
+  assert_a_line_matches '^[0-9-]+ [0-9:]+ ET  game=deadlock  refused: win\.sh show Demo$'
 }
 
 # bats test_tags=feature:wsl-tools
@@ -288,6 +288,7 @@ WIN_PROGRAMFILES=$STUB_MNT/Program Files"
   run cat "$STUB_LOG"
   assert_output --partial "app-arg -new-window
 app-arg $url
+WSLENV=MOZ_DISABLE_SAFE_MODE_KEY
 MOZ_DISABLE_SAFE_MODE_KEY=1"
 }
 
@@ -321,7 +322,7 @@ MOZ_DISABLE_SAFE_MODE_KEY=1"
   assert_output --partial "WINCTL_LINE=hidden|firefox|W:"
   assert_output --partial "firefox.exe|-new-window https://example.invalid/|mytitle|20"
   run cat "$EVSHOW_STATE/hidden"
-  assert_output --regexp 'hidden: 4242 stub window$'
+  assert_a_line_matches 'hidden: 4242 stub window$'
 }
 
 # bats test_tags=feature:wsl-tools
@@ -429,12 +430,16 @@ tmux kill-session -t demo-4"
   run grep -x 'WantedBy=default.target' "$unit"
   assert_success
   assert_file_exist "$REPO/wsl/terminal-volume.ps1"
-  run grep -F 'Pin Windows Terminal Volume' "$REPO/install.sh"
+  code="$BATS_TEST_TMPDIR/install-code"   # install.sh without its comment lines
+  grep -v '^[[:space:]]*#' "$REPO/install.sh" > "$code"
+  run grep -F "Register-ScheduledTask -TaskName 'Pin Windows Terminal Volume'" "$code"
   assert_success
-  run grep -F 'wsl/terminal-volume.ps1' "$REPO/install.sh"
+  run grep -F 'cp "$R/wsl/terminal-volume.ps1" ' "$code"
   assert_success
-  run grep -F -- '-File $WP\\Scripts\\terminal-volume.ps1' "$REPO/install.sh"
+  run grep -F -- '-File $WP\\Scripts\\terminal-volume.ps1' "$code"
   assert_success
-  run grep -F 'wsl/terminal-volume.service' "$REPO/install.sh"
+  run grep -F 'link "$R/wsl/terminal-volume.service" ' "$code"
+  assert_success
+  run grep -F 'systemctl --user enable terminal-volume.service' "$code"
   assert_success
 }

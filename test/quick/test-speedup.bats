@@ -41,12 +41,12 @@ rspec_project() { echo 'gem "rspec"' > Gemfile; export PATH="$FX/rspec-bin:$PATH
 @test "time reports the command, its seconds and its failing status" {
   RESULT_FILE="$BATS_TEST_TMPDIR/result" run measure time -- bash -c 'echo ran-it; exit 7'
   assert_failure 7
-  assert_output --partial "ran-it"
+  assert_a_line_matches '^ran-it$'
   assert_output --partial "CMD=bash -c echo ran-it; exit 7"
   assert_output --partial "EXIT=7"
   assert_output --regexp "WALL_SECONDS=[0-9]+"
   assert_equal "$(sed -n '1p;3,$p' "$BATS_TEST_TMPDIR/result")" "$(printf 'CMD=bash -c echo ran-it; exit 7\nEXIT=7\nDONE')"
-  assert_file_not_exist "$TMPDIR/test-speedup.lock/pid"
+  [ ! -e "$TMPDIR/test-speedup.lock" ]
 }
 
 # bats test_tags=feature:test-speedup
@@ -61,7 +61,7 @@ rspec_project() { echo 'gem "rspec"' > Gemfile; export PATH="$FX/rspec-bin:$PATH
   run measure time -- bash "$M" time -- bash -c 'echo second-ran'
   assert_failure 4
   assert_output --partial "run already in flight (pid "
-  refute_output --regexp "^second-ran"
+  refute_a_line_matches "^second-ran"
   assert_output --partial "EXIT=4"
 }
 
@@ -74,7 +74,8 @@ rspec_project() { echo 'gem "rspec"' > Gemfile; export PATH="$FX/rspec-bin:$PATH
   run measure time -- echo went-ahead
   assert_success
   assert_output --partial "clearing stale lock from pid $dead"
-  assert_output --partial "went-ahead"
+  assert_a_line_matches '^went-ahead$'
+  [ ! -e "$TMPDIR/test-speedup.lock" ]
 }
 
 # bats test_tags=feature:test-speedup
@@ -84,7 +85,7 @@ rspec_project() { echo 'gem "rspec"' > Gemfile; export PATH="$FX/rspec-bin:$PATH
   run measure unlock
   assert_success
   assert_output "lock cleared"
-  assert_file_not_exist "$TMPDIR/test-speedup.lock/pid"
+  [ ! -e "$TMPDIR/test-speedup.lock" ]
 }
 
 # bats test_tags=feature:test-speedup

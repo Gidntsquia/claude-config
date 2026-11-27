@@ -60,7 +60,7 @@ last_line() { printf '%s\n' "$output" | tail -n 1; }
   printf '@%s "broken" {\n  if\n' test >"$R/test/quick/b.bats"
   suite
   assert_failure 1
-  assert_output --regexp '^FAIL [0-9]+ of [0-9]+$'
+  assert_a_line_matches '^FAIL [0-9]+ of [0-9]+$'
 }
 
 # bats test_tags=feature:test-runner
@@ -223,4 +223,60 @@ tagged() {
   suite
   assert_failure 1
   assert_output --partial "features: py: test/features.txt says 3 tests tagged feature:py, found 2"
+}
+
+# bats test_tags=feature:test-runner
+@test "assertions: --regexp reads the output as one string, the line helpers read it line by line" {
+  output="$(printf 'first\nnot ok 2')"
+  refute_output --regexp '^not ok '
+  assert_output --regexp 'not ok [0-9]$'
+  assert_a_line_matches '^not ok '
+  refute_a_line_matches '^second'
+  run assert_a_line_matches '^second'
+  assert_failure
+  output="$(printf 'first\nnot ok 2')"
+  run refute_a_line_matches '^not ok '
+  assert_failure
+}
+
+# bats test_tags=feature:test-runner
+@test "test/run: skipped tests are counted on a line of their own" {
+  put a.bats true
+  put b.bats 'skip "macOS only"'
+  suite
+  assert_success
+  assert_a_line_matches '^skipped 1 '
+  assert_equal "$(last_line)" "PASS 2 tests"
+}
+
+# bats test_tags=feature:test-runner
+@test "test/run: a quick test skipped for a missing tool is a failure" {
+  put a.bats 'skip "node missing"'
+  suite
+  assert_failure 1
+  assert_output --partial "test/quick/a.bats: 1 skipped for a missing tool"
+  assert_equal "$(last_line)" "FAIL 1 of 1"
+}
+
+# bats test_tags=feature:test-runner
+@test "test/run: a machine test may skip for a missing tool" {
+  mkdir -p "$R/test/machine"
+  put a.bats 'skip "node missing"'
+  list
+  mv "$R/test/quick/a.bats" "$R/test/machine/a.bats"
+  : > "$R/own-list"
+  suite machine
+  assert_success
+  assert_equal "$(last_line)" "PASS 1 tests"
+}
+
+# bats test_tags=feature:test-runner
+@test "test/run: the regex operator is not a home folder; a tilde path after an equals sign is" {
+  put a.bats 'v=a; [[ "$v" =~ a ]] || false'
+  suite
+  assert_success
+  put a.bats "v=$(printf '\176')/x"
+  suite
+  assert_failure 1
+  assert_output --partial "lint: test/quick/a.bats:3: "
 }

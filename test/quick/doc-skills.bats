@@ -86,7 +86,8 @@ needs() {
   needs "$REPORT_SKILL" 'claude -p --agent report-writer ". — <question> --out <dir>"' '--no-checker' 'PLAYWRIGHT_DIR' 'ASK.md'
   assert_equal "$(field "$WRITER" name)" "report-writer"
   needs "$WRITER" '--out <dir>' '--no-checker' 'PLAYWRIGHT_DIR' 'ASK.md'
-  needs "$REPO/agents/report-writer/build.py" '--no-checker' 'PLAYWRIGHT_DIR'
+  needs "$REPO/agents/report-writer/build.py" '--no-checker'
+  needs "$REPO/agents/report-writer/cards.mjs" 'process.env.PLAYWRIGHT_DIR'
 }
 
 # bats test_tags=feature:doc-skills
@@ -109,17 +110,16 @@ needs() {
 
 # bats test_tags=feature:doc-skills
 @test "review-skill runs the six passes its description lists, in order" {
-  local desc title n=0
+  local desc listed titles
   desc="$(field "$REVIEW_SKILL" description | tr '[:upper:]' '[:lower:]')"
   run grep -cE '^## Pass [0-9]+ ' "$REVIEW_SKILL"
   assert_output "6"
   assert_equal "$(grep -oE '^## Pass [0-9]+' "$REVIEW_SKILL" | awk '{ printf "%s", $3 }')" "123456"
-  while IFS= read -r title; do
-    echo "pass: $title"
-    printf '%s\n' "$desc" | grep -qF -- "$title"
-    n=$((n + 1))
-  done < <(sed -n 's/^## Pass [1-6] [^A-Za-z]*//p' "$REVIEW_SKILL" | tr '[:upper:]' '[:lower:]')
-  assert_equal "$n" "6"
+  # the list after "(skill.md):" up to the first full stop outside brackets, one name per line
+  listed="$(printf '%s\n' "$desc" | sed -e 's/^[^:]*: *//' -e 's/ ([^)]*)//g' -e 's/\..*//' | tr ',' '\n' | sed -e 's/^ *//' -e 's/^and //')"
+  titles="$(sed -n 's/^## Pass [1-6] [^A-Za-z]*//p' "$REVIEW_SKILL" | tr '[:upper:]' '[:lower:]')"
+  assert_equal "$(printf '%s\n' "$titles" | grep -c '[a-z]')" "6"
+  assert_equal "$titles" "$listed"
 }
 
 # bats test_tags=feature:doc-skills

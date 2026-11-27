@@ -29,7 +29,7 @@ bash_hook() { hook Bash "{\"command\":\"$1\"}"; }
 
 # a private tmux server with one idle shell pane; sets PANE
 panes() {
-  command -v tmux >/dev/null 2>&1 || skip "tmux missing on Windows Git Bash"
+  case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) skip "Windows Git Bash has no tmux" ;; esac
   # a socket path under the test's folder is too long for a Unix socket
   SOCK="$(mktemp -d /tmp/asst.XXXXXX)/s"
   without_bats_fds tmux -S "$SOCK" -f /dev/null new-session -d -s t -x 120 -y 40 'bash --norc --noprofile' >/dev/null 2>&1
@@ -114,6 +114,57 @@ panes() {
   assert_failure 2
   assert_output --partial "is my own pane"
   hook mcp__assistant__assistant_layout "{\"action\":\"close\",\"target\":\"$PANE\",\"self\":true}"
+  assert_success
+}
+
+# screen_pane <line>...: a second pane that shows these lines and stays open; sets P2 and waits for the last line
+screen_pane() {
+  printf '%s\n' "$@" > "$BATS_TEST_TMPDIR/screen.txt"
+  P2="$(tmux -S "$SOCK" split-window -d -P -F '#{pane_id}' -t "$PANE" "cat '$BATS_TEST_TMPDIR/screen.txt'; exec tail -f /dev/null")"
+  wait_until 10 shows "$P2" "${!#}"
+}
+shows() { tmux -S "$SOCK" capture-pane -p -t "$1" | grep -qF -- "$2"; }
+send_hook() { hook mcp__assistant__assistant_send "{\"pane_ids\":[\"$P2\"],$1}"; }
+layout_hook() { hook mcp__assistant__assistant_layout "{\"action\":\"close\",\"target\":\"$1\"$2}"; }
+
+# bats test_tags=feature:assistant
+@test "assistant guard: a pet pane takes no text and is not closed by itself" {
+  panes
+  screen_pane "  a squid" "[f] feed   [p] pet"
+  send_hook '"text":"hi"'
+  assert_failure 2
+  assert_output --partial "pets take no text"
+  layout_hook "$P2" ''
+  assert_failure 2
+  assert_output --partial "close its window"
+}
+
+# bats test_tags=feature:assistant
+@test "assistant guard: answering a judgement menu is blocked, quoting the question; plain text is not" {
+  panes
+  screen_pane "Claude Code v2.1.0" "Ready for me to move windows and start? (y/n)"
+  send_hook '"answer":"y"'
+  assert_failure 2
+  assert_output --partial "is on a judgement call"
+  assert_output --partial "Ready for me to move windows and start?"
+  send_hook '"text":"hi"'
+  assert_success
+}
+
+# bats test_tags=feature:assistant
+@test "assistant guard: force on a running pane needs confirmed=True; on an idle shell it does not" {
+  panes
+  screen_pane "Claude Code v2.1.0" "  working (esc to interrupt)"
+  layout_hook "$P2" ',"force":true'
+  assert_failure 2
+  assert_output --partial "force=True on"
+  assert_output --partial "needs confirmed=True"
+  layout_hook "$P2" ',"force":true,"confirmed":true'
+  assert_success
+  hook mcp__assistant__assistant_layout '{"action":"retile","force":true}'
+  assert_failure 2
+  assert_output --partial "force=True on the retile"
+  layout_hook "$PANE" ',"force":true'
   assert_success
 }
 

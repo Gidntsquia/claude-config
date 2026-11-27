@@ -33,7 +33,7 @@ print(json.dumps(d))' "$1" "$P" "$2" > "$BATS_TEST_TMPDIR/hook.json"
   # cases fail. The suite makes its own scratch folders.
   run env -i PATH="$PATH" HOME="$REAL_HOME" LANG=C.UTF-8 bash "$REPO/hooks/usage-guard/test.sh"
   assert_success
-  assert_output --regexp '^[0-9]+ passed, 0 failed$'
+  assert_a_line_matches '^[0-9]+ passed, 0 failed$'
 }
 
 # bats test_tags=feature:usage-guard

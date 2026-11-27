@@ -22,6 +22,6 @@ load ../helpers/common
 # bats test_tags=feature:installed-text
 @test "no tracked installed file holds a personal home path" {
   run bash "$REPO/bin/find-personal-paths.sh" "$REPO"
-  refute_output --regexp '^[^W]'
+  refute_a_line_matches '^[^W]'
   assert_success
 }

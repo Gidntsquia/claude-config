@@ -179,12 +179,13 @@ tokens=1234567.0"
   rm "$OUT/numbers.json"
   run build --no-cards
   assert_failure
-  assert_output --partial "numbers.json"
-  assert_output --partial "build.py: no "
+  assert_a_line_matches '^build\.py: no .*/numbers\.json'
+  refute_output --partial "Traceback"
   rm "$OUT/report.md"
   run build --no-cards
   assert_failure
-  assert_output --partial "report.md"
+  assert_a_line_matches '^build\.py: no .*/report\.md'
+  refute_output --partial "Traceback"
   run python3 -I "$RW/build.py"
   assert_failure
   assert_output --partial "python3 -I build.py <report dir>"
@@ -225,6 +226,12 @@ print([w["section"] for w in json.load(open(sys.argv[2] + "/cards/measure.json")
 }
 
 # bats test_tags=feature:report-writer
+@test "the card renderer is JavaScript node can parse" {
+  run node --check "$RW/cards.mjs"
+  assert_success
+}
+
+# bats test_tags=feature:report-writer
 @test "check passes the figure checks on a freshly built report" {
   build --no-cards
   run python3 -I "$CHECK" "$OUT" --data "$WORK/data" --mode phone --prose
@@ -233,6 +240,10 @@ print([w["section"] for w in json.load(open(sys.argv[2] + "/cards/measure.json")
   assert_output --partial "PASS one_value_per_quantity: 5 labels, each one value"
   assert_output --partial "PASS figures: 5 keys in report.md all resolve; no digit typed in prose"
   assert_output --partial "PASS checker_line: checker: off"
+  # the tiny study is no essay, so the whole check fails on layout and style, and on nothing about the figures
+  assert_failure 1
+  assert_a_line_matches '^check\.py: FAIL \([0-9]+ failing: paragraphs, '
+  refute_a_line_matches '^FAIL (numbers_|one_value|figures|checker_line|expected)'
 }
 
 # bats test_tags=feature:report-writer
@@ -263,10 +274,13 @@ print([w["section"] for w in json.load(open(sys.argv[2] + "/cards/measure.json")
   printf '{"figures": [{"key": "saved", "value": 2, "tol": 0.01}], "state_words": ["saving"]}\n' >"$WORK/expected.json"
   run python3 -I "$CHECK" "$OUT" --data "$WORK/data" --mode phone --prose --expected "$WORK/expected.json"
   assert_output --partial "PASS expected: 1 figures within tolerance"
+  refute_a_line_matches '^check\.py: FAIL .*expected'
+  assert_a_line_matches '^check\.py: FAIL \([0-9]+ failing: '
   printf '{"figures": [{"key": "saved", "value": 777, "tol": 0.01}], "state_words": ["abandoned"]}\n' >"$WORK/expected.json"
   run python3 -I "$CHECK" "$OUT" --data "$WORK/data" --mode phone --prose --expected "$WORK/expected.json"
   assert_failure 1
   assert_output --partial "FAIL expected: saved: expected 777±0.01, no figure within tolerance; state word 'abandoned' missing from the ending"
+  assert_a_line_matches '^check\.py: FAIL \([0-9]+ failing: .*expected\)'
 }
 
 # bats test_tags=feature:report-writer

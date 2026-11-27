@@ -15,3 +15,4 @@ fi
 load "$REPO/test/helpers/home"
 load "$REPO/test/helpers/wait"
 load "$REPO/test/helpers/proc"
+load "$REPO/test/helpers/lines"

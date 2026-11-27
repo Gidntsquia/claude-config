@@ -62,6 +62,6 @@ epoch, why = parse.fetch_reset()
 print("epoch %s" % epoch if epoch else why)' "$P"
   output="${output//$FAKE/<token>}"
   refute_output --regexp 'SSL|CERTIFICATE|certificate'
-  assert_output --regexp '^HTTPError: HTTP Error 401'
+  assert_a_line_matches '^HTTPError: HTTP Error 401'
   if is_mac; then assert_equal "$(real_keychains)" "$KC_WAS"; fi
 }

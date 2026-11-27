@@ -10,6 +10,6 @@ load ../helpers/common
   docker info >/dev/null 2>&1 || skip "docker is installed but its daemon is not running"
   if [ -n "${CI:-}" ]; then export SCN_NEED_OLDTAG=1; fi
   run bash "$REPO/bin/release/docker-image.sh"
-  refute_output --regexp '^not ok '
+  refute_a_line_matches '^not ok '
   assert_success
 }

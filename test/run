@@ -6,6 +6,8 @@
 #   docker   test/docker/*.bats: needs Docker. Linux.
 #   all      the three tiers in that order.
 #
+# A skipped test is counted in <n>; `skipped <k>` is printed above the result. In the quick tier a skip whose reason
+# says something is "missing" is a failure.
 # Order: lint over the test files, the feature list (test/features.txt), then the tier's tests (several files at once: TEST_JOBS). The last line is `PASS <n> tests` (exit 0) or
 # `FAIL <failed> of <n>` (exit 1). Exit 2 means the suite could not start (bad argument, no bats).
 # bats comes from the submodule test/vendor/bats-core; when that is absent, from a `bats` on PATH
@@ -30,6 +32,8 @@ if [ "$tier" = all ]; then tiers="quick machine docker"; else tiers="$tier"; fi
 
 total=0
 failed=0
+skips=0
+tier_now=""
 
 # ---- lint ---------------------------------------------------------------------------------------------------
 # One problem per line: `lint: <file>:<line>: <rule>`. Each problem counts as one failed test. The rules and why
@@ -59,7 +63,7 @@ lint() {
           bad("sleep: use wait_until <seconds> <command>")
         if (quick && line ~ /(^|[^A-Za-z0-9_.\/-])((\/usr)?\/bin\/)?(curl|wget)([ \t]|$)/)
           bad("curl or wget in the quick tier: no network here")
-        if (!homelib && (line ~ /\$HOME([^A-Za-z0-9_]|$)/ || line ~ /\$\{HOME[}:]/ || line ~ /(^|[ \t="\047:])~(\/|[ \t"\047]|$)/))
+        if (!homelib && (line ~ /\$HOME([^A-Za-z0-9_]|$)/ || line ~ /\$\{HOME[}:]/ || line ~ /(^|[ \t"\047:])~(\/|[ \t"\047]|$)/ || line ~ /=~(\/|["\047]|$)/))
           bad("$HOME or ~: use \"$TEST_HOME\" from temp_home")
         if (file ~ /\.bats$/ && line ~ /^[ \t]*(!|\[\[|\(\()[ \t]/ && line !~ /(\|\||&&|\\$)/)
           bad("a bare !, [[ or (( cannot fail a test under bash 3.2: use [ ], run with assert_failure, or add || false")
@@ -214,6 +218,16 @@ finish_file() {
   notok="$(printf '%s\n' "$out" | grep -c '^not ok ')"
   total=$((total + ok + notok))
   failed=$((failed + notok))
+  skips=$((skips + $(printf '%s\n' "$out" | grep -c '^ok .* # skip')))
+  # In the quick tier a missing tool is a failure, never a skip.
+  if [ "$tier_now" = quick ]; then
+    local lacking
+    lacking="$(printf '%s\n' "$out" | grep -c '^ok .* # skip .*missing')"
+    if [ "$lacking" -gt 0 ]; then
+      echo "$rel: $lacking skipped for a missing tool: in the quick tier that is a failure"
+      failed=$((failed + lacking))
+    fi
+  fi
   # bats itself stopped (a syntax error, a crash, a killed run): that is never a pass, whatever lines it printed.
   # bats also drops the tests of a file it cannot parse and still exits 0, so the tests are counted here too.
   written="$(grep -c '^[[:space:]]*@test[[:space:]]' "$f")"
@@ -301,6 +315,8 @@ run_pytest() {
   f="$(printf '%s\n' "$line" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) failed.*/\1/p; s/^\([0-9][0-9]*\) failed.*/\1/p' | head -1)"
   e="$(printf '%s\n' "$line" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) errors\{0,1\}.*/\1/p; s/^\([0-9][0-9]*\) errors\{0,1\}.*/\1/p' | head -1)"
   p="${p:-0}"; f="${f:-0}"; e="${e:-0}"
+  d="$(printf '%s\n' "$line" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) skipped.*/\1/p; s/^\([0-9][0-9]*\) skipped.*/\1/p' | head -1)"
+  skips=$((skips + ${d:-0}))
   total=$((total + p + f + e))
   failed=$((failed + f + e))
   if [ $((p + f + e)) -eq 0 ]; then total=$((total + 1)); failed=$((failed + 1)); echo "pytest: no result line"
@@ -312,10 +328,12 @@ lint
 features
 find_bats
 for t in $tiers; do
+  tier_now="$t"
   run_bats "$t"
   [ "$t" = quick ] && run_pytest
 done
 
+[ "$skips" -eq 0 ] || echo "skipped $skips (counted in the total below; each says why above)"
 if [ "$failed" -eq 0 ]; then
   echo "PASS $total tests"
   exit 0

@@ -65,6 +65,10 @@ limits() { printf '"rate_limits":{"five_hour":{"used_percentage":%s},"seven_day"
   case "$RAW" in *"48;2;204;36;29"*) return 1 ;; esac
   line "$(limits 90 10)"
   case "$RAW" in *"48;2;204;36;29"*) ;; *) return 1 ;; esac
+  line "$(limits 10 89)"
+  case "$RAW" in *"48;2;204;36;29"*) return 1 ;; esac
+  line "$(limits 10 90)"
+  case "$RAW" in *"48;2;204;36;29"*) ;; *) return 1 ;; esac
 }
 
 # bats test_tags=feature:statusline
@@ -80,6 +84,7 @@ limits() { printf '"rate_limits":{"five_hour":{"used_percentage":%s},"seven_day"
   assert_success
   assert_equal "$(printf '%s\n' "$output" | grep -c '^squid ')" 25
   assert_equal "$(printf '%s\n' "$output" | grep -c '^plane ')" 25
+  assert_equal "$(printf '%s\n' "$output" | grep -cE '^(squid|plane) .*: [^ |]')" 50
   run bash "$REPO/statusline.sh" --preview whale
   assert_failure 1
   assert_output "usage: statusline.sh --preview [squid|plane]"
@@ -94,4 +99,15 @@ limits() { printf '"rate_limits":{"five_hour":{"used_percentage":%s},"seven_day"
   assert_output --partial "🦑 my-project"
   CLAUDE_STATUSLINE_THEME=Plane line '"session_id":"s1"'
   assert_output --partial "✈️ my-project"
+}
+
+# bats test_tags=feature:statusline
+@test "statusline: a session that rolls an easter egg shows that egg in its theme" {
+  # session id "s19" rolls into the 455-575 band: the octopus, and the prop plane in the plane theme
+  roll="$(printf '%s' s19 | cksum | awk '{print $1 % 10000}')"
+  [ "$roll" -ge 455 ] && [ "$roll" -lt 575 ]
+  line '"session_id":"s19"'
+  assert_output --partial "🐙 my-project"
+  CLAUDE_STATUSLINE_THEME=plane line '"session_id":"s19"'
+  assert_output --partial "🛩️ my-project"
 }

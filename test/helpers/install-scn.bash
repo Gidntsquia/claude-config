@@ -468,6 +468,24 @@ scn_plist() {
 
 # Windows without WSL, on any host: install.sh told it is on Windows, and `ln` failing the way it does for an
 # account without symlink rights, so every item has to arrive as a copy that --check accepts.
+# windows_copies_whole <config dir> <clone>: each agent file, agent folder and skill there matches the clone's
+windows_copies_whole() {
+  local p n=0
+  for p in "$2"/agents/* "$2"/skills/*; do
+    diff -rq "$p" "$1${p#"$2"}" || return 1
+    n=$((n + 1))
+  done
+  [ "$n" -gt 5 ]
+}
+# windows_check_lines <--check output> <clone>: no agent or skill is skipped, and each skill has a PASS line
+windows_check_lines() {
+  local p
+  ! printf '%s\n' "$1" | grep -E '^SKIP (agents?|skill)' || return 1
+  printf '%s\n' "$1" | grep -qE '^PASS agents?[ :]' || return 1
+  for p in "$2"/skills/*/; do
+    p="${p%/}"; printf '%s\n' "$1" | grep -qx "PASS skill ${p##*/}" || return 1
+  done
+}
 scn_windows() {
   local H="$1" K="$1/clone" C="$1/.claude" out rc
   copy_clone "$K" || { bad "windows: could not copy the clone"; return; }
@@ -476,12 +494,24 @@ scn_windows() {
   expect "windows: install.sh exits 0 (got $rc)" test "$rc" = 0
   expect "windows: it says it copied what it could not link" has "$out" 'this Windows account cannot make symlinks'
   expect "windows: the planner agent is a real file identical to the repo's" sh -c '[ ! -L "$1" ] && cmp -s "$1" "$2"' _ "$C/agents/planner.md" "$K/agents/planner.md"
+  expect "windows: every installed agent and skill is identical to the repo's" windows_copies_whole "$C" "$K"
   expect "windows: it names what is skipped without WSL" has "$out" '^Skipped on Windows without WSL: status line, tmux and terminal setup'
   expect "windows: no status line is installed or set" sh -c '[ ! -e "$1/statusline.sh" ] && ! grep -q statusline.sh "$1/settings.json"' _ "$C"
   expect "windows: no tmux setup and no run-agent command" sh -c '[ ! -e "$1/.tmux.conf" ] && [ ! -e "$1/.local/bin/run-agent" ] && [ ! -e "$1/.local/bin/guard" ]' _ "$H"
   out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=windows ./install.sh --check 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
   expect "windows: --check exits 0 and ends 'all checks passed' (got $rc, '$(last "$out")')" test "$rc$(last "$out")" = "0all checks passed"
-  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=windows ./install.sh 2>&1)"; rc=$?
+  expect "windows: --check passes every agent and skill and skips none" windows_check_lines "$out" "$K"
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=windows ./install.sh 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
   expect "windows: a rerun replaces its own copies and exits 0 (got $rc)" test "$rc" = 0
+  expect "windows: the rerun keeps none of its copies as yours" sh -c '! printf "%s\n" "$1" | grep -q "kept yours"' _ "$out"
   expect "windows: the clone is unchanged (git status --porcelain is empty)" test -z "$(git -C "$K" status --porcelain 2>&1)"
+  # an update of the repo reaches the copies on the next run; a copy you edited stays yours
+  echo "updated line" >> "$K/agents/planner.md"
+  echo "your line" >> "$C/agents/worker.md"
+  echo "updated line" >> "$K/agents/worker.md"
+  echo "updated line" >> "$K/skills/review-skill/SKILL.md"
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=windows ./install.sh 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
+  expect "windows: a rerun after an update refreshes the copy (got $rc)" sh -c '[ "$1" = 0 ] && cmp -s "$2" "$3"' _ "$rc" "$C/agents/planner.md" "$K/agents/planner.md"
+  expect "windows: a rerun after an update refreshes a copied skill folder" diff -rq "$C/skills/review-skill" "$K/skills/review-skill"
+  expect "windows: a copy you edited is kept through an update" grep -q '^your line$' "$C/agents/worker.md"
 }
