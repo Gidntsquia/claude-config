@@ -370,7 +370,9 @@ fault_repo() {
   mfile a.bats feature:x '[ "$(bash "${BATS_TEST_DIRNAME}/../../app.sh" | head -n 1)" = "total 3" ]'
   list
   git init -q "$R"
-  g add app.sh test
+  # as in the real repo: text stays LF in every clone, whatever the runner's autocrlf says (Windows)
+  printf '* text eol=lf\n' >"$R/.gitattributes"
+  g add .gitattributes app.sh test
   g commit -qm start
 }
 # fault <name> <old line> <new line> [file]: a patch file made by git itself

@@ -116,7 +116,7 @@ limits() { printf '"rate_limits":{"five_hour":{"used_percentage":%s},"seven_day"
 @test "statusline: while guard allow is in force it shows the unlock time in US Eastern" {
   guard="$TEST_HOME/.cache/claude-guard/my-project"
   mkdir -p "$guard"
-  echo 1 > "$guard/$(TZ=America/New_York date +%F).count"
+  echo 1 > "$guard/$(TZ="EST5EDT,M3.2.0,M11.1.0" date +%F).count"
   # 4102444800 is 2100-01-01 00:00 UTC, which is 19:00 the evening before in New York
   echo 4102444800 > "$guard/allow"
   line
