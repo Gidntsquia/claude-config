@@ -436,6 +436,62 @@ fault() {
 }
 
 # bats test_tags=feature:test-runner
+@test "test/run --report: repeated runs that all failed the same way are shown as failed" {
+  put a.bats true
+  list
+  mkdir -p "$R/test/results"
+  printf '# by hand, 11-27 on Test, commit abc\nrun 1 seed 1: FAIL 1 of 4 [x]\nrun 2 seed 2: FAIL 1 of 4 [x]\nagreed 2 of 2\n' >"$R/test/results/repeat.txt"
+  printf '<!-- trust-report:start -->\n<!-- trust-report:end -->\n' >"$R/TESTING.md"
+  suite --report
+  assert_success
+  assert_line "| Repeated shuffled runs that agreed | 2 of 2 (2 of the runs failed) | consistency |"
+}
+
+# workflow_step <step name>: the script of that step of the CI workflow, with its ${{ }} values replaced by 1
+workflow_step() {
+  python3 -c '
+import re, sys
+sys.stdout.reconfigure(newline="\n")   # Windows would write CR LF, which bash reads as part of a command
+lines = open(sys.argv[1]).read().split("\n")
+i = lines.index("      - name: " + sys.argv[2])
+assert lines[i + 1] == "        run: |", lines[i + 1]
+for line in lines[i + 2:]:
+    if not line.startswith("          "):
+        break
+    print(re.sub(r"\$\{\{.*?\}\}", "1", line[10:]))' "$REPO/.github/workflows/install.yml" "$1"
+}
+# as GitHub runs a step on Linux when the job names no shell: bash -e, in the checkout
+run_step() {
+  workflow_step "$1" >"$BATS_TEST_TMPDIR/step.sh"
+  run bash -c 'cd "$1" && PATH=/usr/bin:/bin bash -e "$2"' _ "$R" "$BATS_TEST_TMPDIR/step.sh"
+}
+
+# bats test_tags=feature:test-runner
+@test "weekly repeat job: passes at 300 passing runs, fails when all 300 failed the same way" {
+  local i result
+  mkdir -p "$R/shards/repeat-0"
+  for result in "PASS 4 tests" "FAIL 1 of 4 [x]"; do
+    i=0
+    : >"$R/shards/repeat-0/repeat.txt"
+    while [ "$i" -lt 300 ]; do i=$((i + 1)); echo "run $i seed $i: $result" >>"$R/shards/repeat-0/repeat.txt"; done
+    run_step "test/run --agree"
+    assert_line "agreed 300 of 300"
+    case "$result" in PASS*) assert_success ;; *) assert_failure ;; esac
+  done
+}
+
+# bats test_tags=feature:test-runner
+@test "weekly repeat job: a shard that dies before finishing leaves no old result to upload" {
+  mkdir -p "$R/test/results"
+  echo "run 1 seed 1: PASS 4 tests" >"$R/test/results/repeat.txt"
+  printf '#!/bin/bash\nexit 137\n' >"$R/test/run"
+  chmod +x "$R/test/run"
+  run_step "test/run quick --repeat 30"
+  assert_failure
+  assert_file_not_exist "$R/test/results/repeat.txt"
+}
+
+# bats test_tags=feature:test-runner
 @test "test/run --report: a TESTING.md without the marks is left alone and exits 2" {
   list
   echo "mine" >"$R/TESTING.md"

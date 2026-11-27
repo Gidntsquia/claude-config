@@ -43,6 +43,15 @@ teardown_file() { install_teardown_file; }
 }
 
 # bats test_tags=feature:windows-install
+@test "windows: installing into a home already in use keeps your agent, CLAUDE.md and setting" {
+  passed "windows: a home already in use installs"
+  passed "windows: your own agent and CLAUDE.md"
+  passed "windows: it says it kept your agent"
+  passed "windows: your own setting stays"
+  passed "windows: the agents you did not have"
+}
+
+# bats test_tags=feature:windows-install
 @test "windows: the whole scenario ran to its end with no failed check" {
   ran_clean
 }

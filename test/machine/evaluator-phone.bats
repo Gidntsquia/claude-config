@@ -98,6 +98,18 @@ png $PH/01-three-p3.png 780x1224"
   has "$out" "png $PH/05-range.png 780x"
 }
 
+tall() { size "$1" | cut -dx -f2; }
+
+# The quick tier's range and colour cases swap phone-bidi.py for a copy of the page it is handed (standin:phone-bidi):
+# here the real one takes that page.
+# bats test_tags=feature:phone-pictures,standin:phone-bidi
+@test "the real picture taker draws only the lines of the range it was handed" {
+  seq 101 140 > "$PH/long.txt"
+  shoot 05b-all text "$PH/long.txt"
+  shoot 05b-three text "$PH/long.txt" 10-12
+  [ "$(tall "$PH/05b-three.png")" -lt "$(tall "$PH/05b-all.png")" ]
+}
+
 green_printed() { TMUX_TMPDIR="$TMUX_DIR" tmux capture-pane -p -t evt-phone | grep -qx 'green'; }
 
 # bats test_tags=feature:phone-pictures

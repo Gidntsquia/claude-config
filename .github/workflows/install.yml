@@ -114,7 +114,9 @@ jobs:
           curl -fsSL https://claude.ai/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: test/run quick --repeat 30
-        run: test/run quick --repeat 30 --seed $(( ${{ github.run_number }} * 1000 + ${{ matrix.shard }} * 30 ))
+        run: |
+          rm -f test/results/repeat.txt   # the committed one: a shard that dies early must upload nothing
+          test/run quick --repeat 30 --seed $(( ${{ github.run_number }} * 1000 + ${{ matrix.shard }} * 30 ))
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
@@ -134,6 +136,7 @@ jobs:
       # a shard that left no result file counts against the 300
       - name: test/run --agree
         run: |
+          set -o pipefail   # 300 runs that all failed the same way also "agree": the exit status says so
           test/run --agree shards/*/repeat.txt | tee agreed.txt
           grep -qx 'agreed 300 of 300' agreed.txt
 

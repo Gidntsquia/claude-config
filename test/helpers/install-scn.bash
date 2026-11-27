@@ -514,4 +514,16 @@ scn_windows() {
   expect "windows: a rerun after an update refreshes the copy (got $rc)" sh -c '[ "$1" = 0 ] && cmp -s "$2" "$3"' _ "$rc" "$C/agents/planner.md" "$K/agents/planner.md"
   expect "windows: a rerun after an update refreshes a copied skill folder" diff -rq "$C/skills/review-skill" "$K/skills/review-skill"
   expect "windows: a copy you edited is kept through an update" grep -q '^your line$' "$C/agents/worker.md"
+  # a home already in use: your own agent, CLAUDE.md and setting are there before the first install
+  local L="$H/lived"
+  mkdir -p "$L/.claude/agents"
+  echo "my planner" > "$L/.claude/agents/planner.md"
+  echo "my notes" > "$L/.claude/CLAUDE.md"
+  echo '{"model": "my-model"}' > "$L/.claude/settings.json"
+  out="$(cd "$K" && HOME="$L" CLAUDE_CONFIG_INSTALL_OS=windows ./install.sh --projects "$H/files" --no-terminal --settings merge 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
+  expect "windows: a home already in use installs and exits 0 (got $rc)" test "$rc" = 0
+  expect "windows: your own agent and CLAUDE.md stay byte for byte" sh -c '[ "$(cat "$1/agents/planner.md")" = "my planner" ] && [ "$(cat "$1/CLAUDE.md")" = "my notes" ]' _ "$L/.claude"
+  expect "windows: it says it kept your agent" has "$out" "kept yours: $L/.claude/agents/planner.md"
+  expect "windows: your own setting stays" python3 -c 'import json,sys; sys.exit(json.load(open(sys.argv[1]))["model"] != "my-model")' "$L/.claude/settings.json"
+  expect "windows: the agents you did not have are installed beside yours" cmp -s "$L/.claude/agents/evaluator.md" "$K/agents/evaluator.md"
 }

@@ -203,7 +203,10 @@ report_block() {
   else echo "| Planted faults caught | not run | sensitivity |"; fi
   echo "| Past real-machine errors with a test | $have of $m | fidelity |"
   f="$RESULTS/repeat.txt"
-  if [ -f "$f" ]; then echo "| Repeated shuffled runs that agreed | $(result_count "$f" agreed) | consistency |"
+  if [ -f "$f" ]; then
+    id="$(grep -cE '^run [0-9]+ seed [0-9]+: FAIL ' "$f")"
+    [ "$id" = 0 ] && id="" || id=" ($id of the runs failed)"
+    echo "| Repeated shuffled runs that agreed | $(result_count "$f" agreed)$id | consistency |"
   else echo "| Repeated shuffled runs that agreed | not run | consistency |"; fi
   echo "| Stand-ins with a test against the real tool | $sh of $sm | fidelity |"
   echo

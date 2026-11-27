@@ -79,8 +79,8 @@ Still open from the November 2026 Mac update, where 11 errors reached a real Mac
 - Resuming a session with its model (`restore-sessions` `apply.sh`) needs bash 4: the test skips on macOS, and the
   planted fault there is caught only on Linux.
 - Report cards are drawn for real only where Playwright is installed (`PLAYWRIGHT_DIR`); elsewhere that test skips.
-- Two evaluator picture tests (line range, colours) replace the repo's `phone-bidi.py` with a file copy; the real
-  pictures are checked only by the `phone-pictures` tests.
+- Two evaluator picture tests (line range, colours) replace the repo's `phone-bidi.py` with a file copy and check the
+  page's text; the machine tier checks that the real tool draws only the range it is handed, not the colours' pixels.
 
 Some machine tests run only where their tool exists and say why they skipped: GNU `ps`, `pgrep`, `date`,
 `journalctl` (Linux), Maven, RSpec, Docker. A pass with skips did not compare those.
