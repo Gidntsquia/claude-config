@@ -12,3 +12,4 @@
 - `settings.json` cannot be edited from a Claude session: the usage guard blocks writes to it. The user edits it.
 - No file that installs into `~/.claude` names the author's own repos or projects; `test/owner-text.sh` checks it.
 - A Mac set to always show scroll bars (a mouse, the CI runner) gives a long page 375 css px; `phone-bidi.py` sets `ui.useOverlayScrollbars` and hides the root scroll bar so pictures stay 780 px wide. `PHONE_OVERLAY_SCROLLBARS=0` reproduces the case.
+- Branch `test-overhaul`: `test/run [quick|machine|docker|all]` is the new single test command (lint, then bats files in `test/<tier>/`, then pytest). It needs the bats submodules in `test/vendor/`, which are not added yet, so it exits 2 after the lint; until they are, the scripts in the line above remain the tests.

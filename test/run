@@ -1,0 +1,157 @@
+#!/bin/bash
+# The one test command.   test/run [quick|machine|docker|all]      (default: quick)
+#
+#   quick    test/quick/*.bats and the pytest files: temp HOME, no network, no installed app. Every OS.
+#   machine  test/machine/*.bats: the real tools (Firefox, keychain, network). macOS and Linux.
+#   docker   test/docker/*.bats: needs Docker. Linux.
+#   all      the three tiers in that order.
+#
+# Order: lint over the test files, then the tier's tests. The last line is `PASS <n> tests` (exit 0) or
+# `FAIL <failed> of <n>` (exit 1). Exit 2 means the suite could not start (bad argument, missing submodules).
+# bash 3.2, no dependency beyond the submodules in test/vendor/ and pytest for the python files.
+
+set -u
+export TZ=UTC LC_ALL=C
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$HERE/.." && pwd)"
+BATS="$HERE/vendor/bats-core/bin/bats"
+
+tier="quick"
+[ $# -gt 0 ] && { tier="$1"; shift; }
+case "$tier" in
+  quick|machine|docker|all) ;;
+  *) echo "usage: test/run [quick|machine|docker|all]" >&2; exit 2 ;;
+esac
+[ $# -gt 0 ] && { echo "test/run: unknown argument: $1" >&2; echo "usage: test/run [quick|machine|docker|all]" >&2; exit 2; }
+
+if [ "$tier" = all ]; then tiers="quick machine docker"; else tiers="$tier"; fi
+
+total=0
+failed=0
+
+# ---- lint ---------------------------------------------------------------------------------------------------
+# One problem per line: `lint: <file>:<line>: <rule>`. Each problem counts as one failed test. The rules and why
+# they exist are in plans/research/testing-framework.md ("False reds"); there is no per-line way to switch one off.
+#   sleep            waiting is `wait_until <seconds> <command>` (test/helpers/wait.bash)
+#   curl, wget       no network in the quick tier
+#   $HOME, ~         a test's home is "$TEST_HOME" from temp_home (test/helpers/home.bash)
+#   bare skip        `skip "<tool> missing"`: a skip says why
+#   fixed port       two runs on one machine would collide; ask the OS for a free port
+lint() {
+  local f rel problems=0 out
+  for f in "$HERE"/quick/*.bats "$HERE"/machine/*.bats "$HERE"/docker/*.bats "$HERE"/helpers/*.bash; do
+    [ -f "$f" ] || continue
+    rel="${f#$REPO/}"
+    out="$(awk -v file="$rel" '
+      function bad(rule) { printf "lint: %s:%d: %s\n", file, NR, rule; n++ }
+      BEGIN {
+        quick   = (file ~ /^test\/quick\//)
+        waitlib = (file == "test/helpers/wait.bash")
+        homelib = (file == "test/helpers/home.bash")
+      }
+      /^[ \t]*#/ { next }
+      {
+        line = $0
+        if (!waitlib && line ~ /(^|[^A-Za-z0-9_.\/-])sleep([ \t]|$)/)
+          bad("sleep: use wait_until <seconds> <command>")
+        if (quick && line ~ /(^|[^A-Za-z0-9_.\/-])(curl|wget)([ \t]|$)/)
+          bad("curl or wget in the quick tier: no network here")
+        if (!homelib && (line ~ /\$HOME([^A-Za-z0-9_]|$)/ || line ~ /\$\{HOME[}:]/ || line ~ /(^|[ \t="\047:])~(\/|[ \t"\047]|$)/))
+          bad("$HOME or ~: use \"$TEST_HOME\" from temp_home")
+        if (line ~ /(^|[ \t;&|])skip[ \t]*($|;|\}|#)/)
+          bad("skip with no reason: skip \"<tool> missing\"")
+        if (line ~ /(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):[0-9][0-9]+/ || line ~ /(--port|-port|PORT)[ =][0-9][0-9]+/)
+          bad("fixed port number: ask the OS for a free port")
+      }
+      END { exit (n > 0) }
+    ' "$f")"
+    if [ -n "$out" ]; then
+      echo "$out"
+      problems=$((problems + $(printf '%s\n' "$out" | wc -l)))
+    fi
+  done
+  total=$((total + problems))
+  failed=$((failed + problems))
+  [ "$problems" -eq 0 ] && echo "lint: clean" || echo "lint: $problems problem(s)"
+}
+
+# ---- bats ---------------------------------------------------------------------------------------------------
+need_submodules() {
+  local m
+  for m in bats-core/bin/bats bats-support/load.bash bats-assert/load.bash bats-file/load.bash; do
+    if [ ! -f "$HERE/vendor/$m" ]; then
+      echo "test/vendor/${m%%/*} is missing"
+      echo "run: git submodule update --init"
+      # A lint problem is a failure whether or not the tests could start.
+      [ "$failed" -gt 0 ] && { echo "FAIL $failed of $total"; exit 1; }
+      exit 2
+    fi
+  done
+}
+
+# Files whose name starts with `_` (the template) are not run.
+run_bats() {
+  local t="$1" f files="" out ok notok
+  for f in "$HERE/$t"/*.bats; do
+    [ -f "$f" ] || continue
+    case "$(basename "$f")" in _*) continue ;; esac
+    files="$files$f
+"
+  done
+  if [ -z "$files" ]; then echo "$t: no test files"; return; fi
+  echo "== $t"
+  out="$(printf '%s' "$files" | (IFS='
+'; set -f; set -- $(cat); cd "$REPO" && "$BATS" --tap "$@") 2>&1)"
+  printf '%s\n' "$out"
+  ok="$(printf '%s\n' "$out" | grep -c '^ok ')"
+  notok="$(printf '%s\n' "$out" | grep -c '^not ok ')"
+  total=$((total + ok + notok))
+  failed=$((failed + notok))
+  # bats itself stopped (a syntax error in a file): no test line, yet not a pass.
+  if [ $((ok + notok)) -eq 0 ]; then total=$((total + 1)); failed=$((failed + 1)); echo "$t: bats ran no test"; fi
+}
+
+# ---- pytest (the python helpers; quick tier) ----------------------------------------------------------------
+run_pytest() {
+  local dirs="" d out line p f e
+  for d in "$REPO"/skills/*/tests "$REPO"/hooks/*/tests "$REPO"/helper-mcp/tests "$REPO"/assistant/tests; do
+    ls "$d"/test_*.py >/dev/null 2>&1 && dirs="$dirs $d"
+  done
+  [ -n "$dirs" ] || return 0
+  echo "== pytest"
+  if python3 -c 'import pytest' 2>/dev/null; then
+    # shellcheck disable=SC2086
+    out="$(cd "$REPO" && python3 -m pytest -q -p no:cacheprovider $dirs 2>&1)"
+  elif command -v uv >/dev/null 2>&1; then
+    # shellcheck disable=SC2086
+    out="$(cd "$REPO" && uv run --quiet --group dev python -m pytest -q -p no:cacheprovider $dirs 2>&1)"
+  else
+    echo "pytest is missing: pip install pytest, or install uv"
+    total=$((total + 1)); failed=$((failed + 1)); return
+  fi
+  printf '%s\n' "$out"
+  line="$(printf '%s\n' "$out" | grep -E '^[0-9]+ (passed|failed|error)|, [0-9]+ (passed|failed|error)' | tail -1)"
+  p="$(printf '%s\n' "$line" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) passed.*/\1/p; s/^\([0-9][0-9]*\) passed.*/\1/p' | head -1)"
+  f="$(printf '%s\n' "$line" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) failed.*/\1/p; s/^\([0-9][0-9]*\) failed.*/\1/p' | head -1)"
+  e="$(printf '%s\n' "$line" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) errors\{0,1\}.*/\1/p; s/^\([0-9][0-9]*\) errors\{0,1\}.*/\1/p' | head -1)"
+  p="${p:-0}"; f="${f:-0}"; e="${e:-0}"
+  total=$((total + p + f + e))
+  failed=$((failed + f + e))
+  if [ $((p + f + e)) -eq 0 ]; then total=$((total + 1)); failed=$((failed + 1)); echo "pytest: no result line"; fi
+}
+
+# ---- run ----------------------------------------------------------------------------------------------------
+lint
+need_submodules
+for t in $tiers; do
+  run_bats "$t"
+  [ "$t" = quick ] && run_pytest
+done
+
+if [ "$failed" -eq 0 ]; then
+  echo "PASS $total tests"
+  exit 0
+fi
+echo "FAIL $failed of $total"
+exit 1
