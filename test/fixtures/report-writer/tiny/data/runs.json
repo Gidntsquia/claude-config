@@ -1,0 +1,5 @@
+[
+ {"name": "slow", "arm": "old", "seconds": 12.5},
+ {"name": "fast", "arm": "new", "seconds": 10.0},
+ {"name": "fast-again", "arm": "new", "seconds": 11.0}
+]

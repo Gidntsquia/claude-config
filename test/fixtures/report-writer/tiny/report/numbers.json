@@ -1,0 +1,7 @@
+{
+ "old_s": {"label": "old arm seconds", "value": null, "unit": "s", "fmt": 1, "run": "slow", "file": "runs.json", "field": "[name=slow].seconds"},
+ "new_mean": {"label": "new arm mean", "value": null, "unit": "s", "fmt": 2, "run": "fast", "file": "runs.json", "field": "[?arm=new].seconds|mean"},
+ "saved": {"label": "seconds saved", "value": 99, "unit": "s", "fmt": 2, "derived": {"op": "diff", "of": ["old_s", "new_mean"]}},
+ "saved_share": {"label": "share saved", "unit": "", "fmt": "%1", "derived": {"op": "ratio", "of": ["saved", "old_s"]}},
+ "tokens": {"label": "tokens used", "value": null, "unit": "tokens", "fmt": ",", "file": "run.log", "field": "tokens used: ([0-9,]+)"}
+}

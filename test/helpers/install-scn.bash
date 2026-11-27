@@ -10,6 +10,7 @@
 #   noguard the usage-guard script absent: each of the 7 hook commands still exits 0
 #   assistant  --agent-clash keep; the assistant linked into a project finds its MCP server and guard hook
 #   oldtag  v1.2.1's own install.sh installs, the clone is pulled to this version, the current install.sh runs
+#   windows CLAUDE_CONFIG_INSTALL_OS=windows with an `ln` that fails, as for an account without symlink rights
 #   nohook  every hook command of the installed settings file exits 0 when the file it runs is missing
 #   plist   a September install: the update as UPDATING.md gives it leaves iTerm2's plist in place, byte for byte
 # a and b run from this clone; the others from a copy of it inside the throwaway home, and each ends with
@@ -463,4 +464,24 @@ scn_plist() {
   expect "plist: --check exits 0 and ends 'all checks passed' (got $rc, '$(last "$out")')" test "$rc$(last "$out")" = "0all checks passed"
   expect "plist: the kept plist is the only thing git status lists" test "$(git -C "$K" status --porcelain 2>&1)" = "?? $PLIST"
   expect "plist: no .pre-link anywhere under the home" test -z "$(find "$H" -name '*.pre-link*' 2>/dev/null)"
+}
+
+# Windows without WSL, on any host: install.sh told it is on Windows, and `ln` failing the way it does for an
+# account without symlink rights, so every item has to arrive as a copy that --check accepts.
+scn_windows() {
+  local H="$1" K="$1/clone" C="$1/.claude" out rc
+  copy_clone "$K" || { bad "windows: could not copy the clone"; return; }
+  printf '#!/bin/sh\necho "ln: Operation not permitted" >&2\nexit 1\n' > "$H/.local/bin/ln"; chmod +x "$H/.local/bin/ln"
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=windows ./install.sh --projects "$H/files" --terminal --statusline squid --settings merge 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
+  expect "windows: install.sh exits 0 (got $rc)" test "$rc" = 0
+  expect "windows: it says it copied what it could not link" has "$out" 'this Windows account cannot make symlinks'
+  expect "windows: the planner agent is a real file identical to the repo's" sh -c '[ ! -L "$1" ] && cmp -s "$1" "$2"' _ "$C/agents/planner.md" "$K/agents/planner.md"
+  expect "windows: it names what is skipped without WSL" has "$out" '^Skipped on Windows without WSL: status line, tmux and terminal setup'
+  expect "windows: no status line is installed or set" sh -c '[ ! -e "$1/statusline.sh" ] && ! grep -q statusline.sh "$1/settings.json"' _ "$C"
+  expect "windows: no tmux setup and no run-agent command" sh -c '[ ! -e "$1/.tmux.conf" ] && [ ! -e "$1/.local/bin/run-agent" ] && [ ! -e "$1/.local/bin/guard" ]' _ "$H"
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=windows ./install.sh --check 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
+  expect "windows: --check exits 0 and ends 'all checks passed' (got $rc, '$(last "$out")')" test "$rc$(last "$out")" = "0all checks passed"
+  out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=windows ./install.sh 2>&1)"; rc=$?
+  expect "windows: a rerun replaces its own copies and exits 0 (got $rc)" test "$rc" = 0
+  expect "windows: the clone is unchanged (git status --porcelain is empty)" test -z "$(git -C "$K" status --porcelain 2>&1)"
 }

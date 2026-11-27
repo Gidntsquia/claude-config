@@ -1,3 +1,4 @@
+# feature:weekly-roundup
 """daychart.py (week and archive bar charts) and build_archive.py's `days` handling."""
 import os
 import json

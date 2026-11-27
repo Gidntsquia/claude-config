@@ -20,7 +20,7 @@ teardown_file() { install_teardown_file; }
   passed -n "$(cat "$SCN_OUT/hooks")" "nohook: hook "
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "a hook's script missing: --check passes, the clone is unchanged, no .pre-link file" {
   passed "nohook: --check exits 0 and ends 'all checks passed'"
   passed "nohook: the clone is unchanged"

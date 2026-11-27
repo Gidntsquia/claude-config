@@ -22,7 +22,7 @@ teardown_file() { install_teardown_file; }
   passed "assistant: the guard hook resolves"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "--agent-clash keep: --check passes the assistant, the clone is unchanged, no .pre-link file" {
   passed "assistant: --check has a PASS line"
   passed "assistant: --check exits 0 and ends 'all checks passed'"

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Fake `ps -o args= --ppid <pid>`: prints the children listed in $FAKE_TMUX_DIR/kids/<pid>.
+if [ "${3:-}" = --ppid ]; then
+  cat "$FAKE_TMUX_DIR/kids/$4" 2>/dev/null || exit 1
+else
+  exec /bin/ps "$@"
+fi

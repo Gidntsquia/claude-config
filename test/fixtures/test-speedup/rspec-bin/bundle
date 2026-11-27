@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Fake `bundle exec rspec`: logs its arguments, prints a slow-test profile, exits $FAKE_STATUS.
+echo "$*" >> "${FAKE_LOG:?}"
+cat <<'OUT'
+Top 2 slowest examples (1.5 seconds, 90.0% of total time):
+  Cart adds an item
+    1.2 seconds ./spec/cart_spec.rb:3
+  Cart empties
+    0.3 seconds ./spec/cart_spec.rb:9
+
+  1) Cart empties
+7 examples, 1 failure
+OUT
+exit "${FAKE_STATUS:-0}"

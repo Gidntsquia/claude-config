@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+# Fake tmux: answers from files in $FAKE_TMUX_DIR and logs every call. No server is ever contacted.
+#   panes        one line per pane: session window pane id command pid (tab separated); absent = no server
+#   cap/<id>     what capture-pane shows; cap-shell/<id> = the saved normal screen (capture-pane -a)
+import os, re, sys
+d = os.environ["FAKE_TMUX_DIR"]
+args = sys.argv[1:]
+if args[:1] == ["-L"]:
+    args = args[2:]
+with open(os.path.join(d, "calls.log"), "a") as log:
+    log.write(" ".join(args).replace("\t", " ") + "\n")
+try:
+    with open(os.path.join(d, "panes")) as f:
+        panes = [dict(zip(("session_name", "window_index", "pane_index", "pane_id", "pane_current_command", "pane_pid"),
+                          l.rstrip("\n").split("\t"))) for l in f if l.strip()]
+except OSError:
+    sys.exit("no server running")
+def fill(fmt, pane):
+    return re.sub(r"#\{(\w+)\}", lambda m: pane.get(m.group(1), ""), fmt)
+cmd = args[0] if args else ""
+def opt(name):
+    return args[args.index(name) + 1]
+if cmd == "list-panes":
+    for p in panes:
+        print(fill(opt("-F"), p))
+elif cmd == "show":
+    print(1)
+elif cmd in ("capture-pane", "display"):
+    pane = next((p for p in panes if p["pane_id"] == opt("-t")), None)
+    if pane is None:
+        sys.exit("can't find pane")
+    shell = os.path.join(d, "cap-shell", pane["pane_id"])
+    if cmd == "display":
+        pane["alternate_on"] = "1" if os.path.exists(shell) else "0"
+        print(fill(args[-1], pane))
+    else:
+        path = shell if "-a" in args else os.path.join(d, "cap", pane["pane_id"])
+        with open(path, "rb") as f:
+            sys.stdout.buffer.write(f.read())
+else:
+    sys.exit("fake tmux: unexpected command " + cmd)

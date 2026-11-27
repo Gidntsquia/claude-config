@@ -8,7 +8,7 @@ load ../helpers/install-bats
 setup_file() { install_setup_file b; }
 teardown_file() { install_teardown_file; }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "existing settings: install.sh exits 0 and install.sh --check passes" {
   passed "b: install.sh exits 0"
   passed "b: install.sh --check exits 0"
@@ -30,7 +30,7 @@ teardown_file() { install_teardown_file; }
   passed "b: claude-config.json names this clone"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:user-settings
 @test "existing settings: your model, status line and deny list stay, and the repo's keys are added" {
   passed "b: model unchanged"
   passed "b: statusLine unchanged"
@@ -38,13 +38,13 @@ teardown_file() { install_teardown_file; }
   passed "b: repo keys added"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:user-settings
 @test "existing settings: your plugin dirs and hooks stay, with the repo's added after them" {
   passed "b: your CLAUDE_CODE_PLUGIN_DIRS kept"
   passed "b: your hooks key kept"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:user-settings
 @test "existing settings: CLAUDE.md stays byte-identical and --agent-clash replace installs the repo's planner" {
   passed "b: CLAUDE.md byte-identical"
   passed "b: planner.md is now the repo's"
@@ -57,7 +57,7 @@ teardown_file() { install_teardown_file; }
   passed "b: rerun lists the mod dir once"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "existing settings: no .pre-link file is left and --check shows every repo agent installed or kept" {
   passed "b: no .pre-link anywhere under the home"
   passed "b: --check shows every repo agent installed or kept"

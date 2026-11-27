@@ -1,0 +1,4 @@
+#!/bin/bash
+# Stand-in Windows program (copied to firefox.exe): logs each argument on its own line and the safe-mode switch.
+for a in "$@"; do echo "app-arg $a" >> "$STUB_LOG"; done
+echo "MOZ_DISABLE_SAFE_MODE_KEY=${MOZ_DISABLE_SAFE_MODE_KEY:-unset}" >> "$STUB_LOG"

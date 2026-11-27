@@ -1,0 +1,4 @@
+#!/bin/bash
+# Stand-in tmux: logs each call; list-clients reports one attached client.
+echo "tmux $*" >> "$STUB_LOG"
+[ "$1" != list-clients ] || echo "/dev/pts/9: stub client"

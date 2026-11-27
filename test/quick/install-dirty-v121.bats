@@ -8,7 +8,7 @@ load ../helpers/install-bats
 setup_file() { install_setup_file dirty-v121; }
 teardown_file() { install_teardown_file; }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:updates
 @test "update from v1.2.1 with your edits: the starting install is as described" {
   passed "dirty: the install.sh of v1.2.1 exits 0"
   passed "dirty: the clone is clean after that install"
@@ -17,7 +17,7 @@ teardown_file() { install_teardown_file; }
   passed "dirty: .claude/skills/review-skill is a link before"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:updates
 @test "update from v1.2.1 with your edits: the merge, the settings conflict and install.sh keeping your skill happen" {
   passed "update: the current install.sh, no flags, exits 0"
   passed "dirty from v1.2.1: step 6 was a merge"
@@ -25,7 +25,7 @@ teardown_file() { install_teardown_file; }
   passed "dirty from v1.2.1: install.sh said it kept his skill"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:updates
 @test "update from v1.2.1 with your edits: your commits, your files in them and your branch are still there" {
   passed "dirty: the clone holds the release"
   passed "dirty: his two commits are still in main's history"
@@ -36,13 +36,13 @@ teardown_file() { install_teardown_file; }
   passed "dirty: his branch my-experiments"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:updates
 @test "update from v1.2.1 with your edits: session files, history and plugins are byte-identical" {
   passed "dirty: his session files, history.jsonl"
   passed "dirty: there were 5 such files"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:updates,feature:user-settings
 @test "update from v1.2.1 with your edits: your settings file stays yours, with your keys and your edit" {
   passed "dirty: .claude's settings file is still his own copy"
   passed "dirty: his settings keys remain"
@@ -50,7 +50,7 @@ teardown_file() { install_teardown_file; }
   passed "dirty: .claude's settings file parses as JSON"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:updates
 @test "update from v1.2.1 with your edits: your uncommitted lines and notes file are back and the stash is empty" {
   passed "dirty: his line is still in CLAUDE.md"
   passed "dirty: his line is still in agents/helper.md"
@@ -59,14 +59,14 @@ teardown_file() { install_teardown_file; }
   passed "dirty: .claude/CLAUDE.md shows his line too"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:updates,feature:user-settings
 @test "update from v1.2.1 with your edits: the clone's settings file keeps your edit, takes the release's values, no conflict markers" {
   passed "dirty: his edit is still in the clone's settings file"
   passed "dirty: no conflict markers"
   passed "dirty: the settings file parses as JSON and holds"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:updates
 @test "update from v1.2.1 with your edits: your own skill folder is untouched and everything else links into the clone" {
   passed "dirty: his real folder"
   passed "dirty: ... and is still a real folder"
@@ -75,14 +75,14 @@ teardown_file() { install_teardown_file; }
   passed "dirty: every link under .claude points into the clone"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:updates,feature:install-check
 @test "update from v1.2.1 with your edits: --check passes, no new .pre-link copy, git status lists only your four files" {
   passed "dirty: --check exits 0"
   passed "dirty: the update made no .pre-link copy"
   passed "dirty: git status lists his four files"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:updates
 @test "dirty-v121: the whole scenario ran to its end with no failed check" {
   ran_clean
 }

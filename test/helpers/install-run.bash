@@ -36,7 +36,7 @@ unset TMUX TMUX_PANE
 kc_begin
 case "$name" in
   a|b) scenario "$name" ;;
-  theirs|odd|noguard|nohook) run_in "$name" "scn_$name" ;;
+  theirs|odd|noguard|nohook|windows) run_in "$name" "scn_$name" ;;
   sep22|moved) if needs_links "the older layouts cannot be built"; then run_in "$name" "scn_$name"; fi ;;
   assistant) if needs_links "a project cannot link the agent"; then run_in assistant scn_assistant; fi ;;
   stock) if on_win_host; then skipped "the stock PATH is a macOS/Linux case"; else run_in stock scn_stock; fi ;;

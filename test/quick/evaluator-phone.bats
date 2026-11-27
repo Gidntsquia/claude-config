@@ -19,7 +19,7 @@ teardown() { evt_cleanup; }
 
 none_running() { ! pgrep -f -- "$(evt_re "$W/tmp/phone-ff-")" >/dev/null; }
 
-# bats test_tags=feature:evaluator-tools
+# bats test_tags=feature:phone-pictures
 @test "a Firefox that never opens its port means no picture, no file and no process left" {
   export PHONE_FIREFOX_APP="$W/Firefox.app"
   evo "$LT/common/phone-shot.sh" "$PH/09-stand" html "$W/own k4.html"
@@ -36,7 +36,7 @@ none_running() { ! pgrep -f -- "$(evt_re "$W/tmp/phone-ff-")" >/dev/null; }
   wait_until 5 none_running
 }
 
-# bats test_tags=feature:evaluator-tools
+# bats test_tags=feature:phone-pictures
 @test "a phone picture without Firefox installed says it is not installed" {
   export PHONE_FIREFOX_APP="$W/no-Firefox.app"
   evo "$LT/common/phone-shot.sh" "$PH/10-none" html "$W/own k4.html"

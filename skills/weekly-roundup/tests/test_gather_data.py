@@ -1,3 +1,4 @@
+# feature:weekly-roundup
 """Merge rules of gather_data.py: no Claude, no Docker, no network. Run: uv run pytest skills/weekly-roundup/tests"""
 import json
 import os

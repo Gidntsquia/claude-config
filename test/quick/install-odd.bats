@@ -19,7 +19,7 @@ teardown_file() { install_teardown_file; }
   passed "odd: claude-config.json keeps both paths whole"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "paths with spaces: --check passes, the clone is unchanged, no .pre-link file" {
   passed "odd: --check exits 0 and ends 'all checks passed'"
   passed "odd: the clone is unchanged"

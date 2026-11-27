@@ -8,7 +8,7 @@ load ../helpers/install-bats
 setup_file() { install_setup_file a; }
 teardown_file() { install_teardown_file; }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "fresh install: install.sh exits 0 and install.sh --check passes" {
   passed "a: install.sh exits 0"
   passed "a: install.sh --check exits 0"
@@ -45,7 +45,7 @@ teardown_file() { install_teardown_file; }
   passed "a: rerun lists the mod dir once"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "fresh install: no .pre-link file is left and --check shows every repo agent installed or kept" {
   passed "a: no .pre-link anywhere under the home"
   passed "a: --check shows every repo agent installed or kept"

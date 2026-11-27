@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+# `touch -d <ISO time with offset> files...`, for systems whose touch cannot read that form.
+import os, sys
+from datetime import datetime
+args = sys.argv[1:]
+if len(args) < 3 or args[0] != "-d":
+    os.execv("/usr/bin/touch", ["touch"] + args)
+t = datetime.fromisoformat(args[1]).timestamp()
+for path in args[2:]:
+    os.utime(path, (t, t))

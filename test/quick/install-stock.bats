@@ -34,7 +34,7 @@ teardown_file() { install_teardown_file; }
   passed "stock: rerun once claude is on PATH"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "stock PATH: --check passes, the clone is unchanged, no .pre-link file" {
   passed "stock: --check exits 0 and ends 'all checks passed'"
   passed "stock: the clone is unchanged"

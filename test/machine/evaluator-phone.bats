@@ -36,7 +36,7 @@ three_screens() {
   printf '<!doctype html><meta name="viewport" content="width=device-width"><style>html,body{margin:0}div{height:2300px;background:linear-gradient(#fff,#36c)}</style><div>three screens</div>' > "$PH/three.html"
 }
 
-# bats test_tags=feature:evaluator-tools
+# bats test_tags=feature:phone-pictures
 @test "a page of three screens becomes three phone-width pictures and nothing else" {
   three_screens
   shoot 01-three html "$PH/three.html"
@@ -51,7 +51,7 @@ png $PH/01-three-p3.png 780x1224"
   assert_output ""
 }
 
-# bats test_tags=feature:evaluator-tools
+# bats test_tags=feature:phone-pictures
 @test "pictures stay 780 wide where the Mac always shows scroll bars" {
   three_screens
   export PHONE_OVERLAY_SCROLLBARS=0
@@ -59,7 +59,7 @@ png $PH/01-three-p3.png 780x1224"
   has "$out" "png $PH/01b-bars-p3.png 780x1224"
 }
 
-# bats test_tags=feature:evaluator-tools
+# bats test_tags=feature:phone-pictures
 @test "a short page becomes one picture no taller than a screen" {
   printf '<!doctype html><meta name="viewport" content="width=device-width"><p id="o"></p><script>document.getElementById("o").textContent=innerWidth+" "+devicePixelRatio+" "+matchMedia("(max-width:400px)").matches</script>' > "$PH/probe.html"
   shoot 02-short html "$PH/probe.html"
@@ -68,21 +68,21 @@ png $PH/01-three-p3.png 780x1224"
   [ "$h" -ge 240 ] && [ "$h" -le 1688 ]
 }
 
-# bats test_tags=feature:evaluator-tools
+# bats test_tags=feature:phone-pictures
 @test "a Markdown file becomes a phone-width picture" {
   printf '# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n- item\n' > "$PH/doc.md"
   shoot 03-md md "$PH/doc.md"
   has "$out" "png $PH/03-md.png 780x"
 }
 
-# bats test_tags=feature:evaluator-tools
+# bats test_tags=feature:phone-pictures
 @test "a long text file is cut into phone screens" {
   seq 1 400 > "$PH/long.txt"
   shoot 04-text text "$PH/long.txt"
   has "$out" "png $PH/04-text-p1.png 780x1688"
 }
 
-# bats test_tags=feature:evaluator-tools
+# bats test_tags=feature:phone-pictures
 @test "a range of lines of a text file becomes a picture" {
   seq 1 400 > "$PH/long.txt"
   shoot 05-range text "$PH/long.txt" 10-12
@@ -91,7 +91,7 @@ png $PH/01-three-p3.png 780x1224"
 
 green_printed() { TMUX_TMPDIR="$TMUX_DIR" tmux capture-pane -p -t evt-phone | grep -qx 'green'; }
 
-# bats test_tags=feature:evaluator-tools
+# bats test_tags=feature:phone-pictures
 @test "a terminal session becomes a phone-width picture" {
   command -v tmux >/dev/null 2>&1 || skip "tmux is not installed"
   unset TMUX TMUX_PANE
@@ -105,14 +105,14 @@ green_printed() { TMUX_TMPDIR="$TMUX_DIR" tmux capture-pane -p -t evt-phone | gr
   has "$out" "png $PH/06-tmux.png 780x"
 }
 
-# bats test_tags=feature:evaluator-tools
+# bats test_tags=feature:phone-pictures
 @test "a web address becomes phone-width pictures" {
   three_screens
   shoot 07-url url "file://$PH/three.html"
   has "$out" "png $PH/07-url-p3.png 780x1224"
 }
 
-# bats test_tags=feature:evaluator-tools
+# bats test_tags=feature:phone-pictures
 @test "an address that does not answer gives no picture and says why" {
   evo "$LT/common/phone-shot.sh" "$PH/08-bad" url "http://127.0.0.1:1/nothing"
   assert_equal "$rc" 1

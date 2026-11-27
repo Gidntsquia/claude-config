@@ -26,7 +26,7 @@ teardown_file() { install_teardown_file; }
   passed -n 6 "noguard: call "
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "usage-guard script missing: a rerun and --check pass, the clone is unchanged, no .pre-link file" {
   passed "noguard: rerun exits 0"
   passed "noguard: --check exits 0 and ends 'all checks passed'"

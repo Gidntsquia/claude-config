@@ -1,0 +1,8 @@
+#!/bin/bash
+# Stand-in powershell.exe: logs its arguments. The game query answers with $STUB_GAME (empty: no game);
+# anything else also logs WINCTL_LINE, prints $STUB_PS_OUT and exits $STUB_PS_EXIT.
+echo "powershell.exe $*" >> "$STUB_LOG"
+case "$*" in
+  *Get-Process*) [ -z "${STUB_GAME:-}" ] || printf '%s\r\n' "$STUB_GAME" ;;
+  *) echo "WINCTL_LINE=${WINCTL_LINE:-}" >> "$STUB_LOG"; printf '%s\r\n' "${STUB_PS_OUT:-ok}"; exit "${STUB_PS_EXIT:-0}" ;;
+esac

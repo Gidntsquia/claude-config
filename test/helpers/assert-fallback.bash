@@ -25,3 +25,5 @@ refute_output() {
 }
 assert_file_exist()     { [ -e "$1" ] || { echo "no such file: $1" >&2; return 1; }; }
 assert_file_not_exist() { [ ! -e "$1" ] || { echo "file exists: $1" >&2; return 1; }; }
+# assert_line <text>: one whole line of the output is <text>
+assert_line() { printf '%s\n' "$output" | grep -Fxq -- "$1" || _show "no output line is: $1"; }

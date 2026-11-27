@@ -35,7 +35,7 @@ teardown_file() { install_teardown_file; }
   passed "theirs: ... and no FAIL line"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "your own files: --check passes, the clone is unchanged, no .pre-link file" {
   passed "theirs: --check exits 0 and ends 'all checks passed'"
   passed "theirs: the clone is unchanged"

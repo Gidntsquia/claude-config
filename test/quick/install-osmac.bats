@@ -17,13 +17,13 @@ teardown_file() { install_teardown_file; }
   passed "osmac: no .ps1 is installed"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "install as a Mac: --check passes and lists win.sh and evshow.sh" {
   passed "osmac: --check exits 0"
   passed "osmac: --check prints a PASS line"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "install as a Mac: --check says whether Firefox is installed, and a missing one is only a warning" {
   passed "osmac: --check with Firefox present"
   passed "osmac: --check without Firefox"

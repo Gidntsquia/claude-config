@@ -17,13 +17,13 @@ teardown_file() { install_teardown_file; }
   passed "oswsl: winctl.ps1 and screen-capture.ps1"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "install as WSL: --check passes and lists win.sh and evshow.sh" {
   passed "oswsl: --check as WSL exits 0"
   passed "oswsl: --check prints a PASS line"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,feature:install-check
 @test "--check as a Mac on a WSL install fails and names the WSL tools" {
   passed "oswsl: --check as a Mac FAILs"
   passed "oswsl: ... and names winctl.ps1"
