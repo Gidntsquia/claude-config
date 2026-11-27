@@ -1,0 +1,12 @@
+The stale-guide warning no longer says that an agent file has uncommitted edits.
+--- a/helper-mcp/server.py
++++ b/helper-mcp/server.py
+@@ -100,7 +100,7 @@
+         "differing": differing,
+         "summary": ("Wiki is in step with the agent files." if not differing else
+                     "Guide may be behind the agents: " + ", ".join(
+-                        f"{n} changed {agents[n]['last_commit']}" + (" (uncommitted edits)" if agents[n]['uncommitted_changes'] else "")
++                        f"{n} changed {agents[n]['last_commit']}"
+                         for n in differing) + (f"; guide stamped {stamp['date']}" if stamp else "; Workflow.md has no stamp")),
+     }
+ 

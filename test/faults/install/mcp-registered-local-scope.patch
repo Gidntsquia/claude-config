@@ -1,0 +1,12 @@
+run-agent MCP server is registered for the current folder only instead of every session.
+--- a/install.sh
++++ b/install.sh
+@@ -587,7 +587,7 @@
+   elif mcp_registered; then echo "  run-agent MCP server: already registered"
+   else
+     claude mcp remove --scope user run-agent >/dev/null 2>&1 || true   # an older registration pointing elsewhere
+-    if claude mcp add --transport stdio --scope user run-agent -- "$(mcp_server)" >/dev/null 2>&1; then echo "  run-agent MCP server: registered (user scope, $(mcp_server))"
++    if claude mcp add --transport stdio --scope local run-agent -- "$(mcp_server)" >/dev/null 2>&1; then echo "  run-agent MCP server: registered (user scope, $(mcp_server))"
+     else echo "  run-agent MCP server: not registered (claude mcp add failed). Run: $(mcp_add_cmd)"; fi
+   fi
+ fi

@@ -1,0 +1,12 @@
+The run-agent MCP tool 'next' the agents call is renamed.
+--- a/skills/run-agent/mcp/server.py
++++ b/skills/run-agent/mcp/server.py
+@@ -136,7 +136,7 @@
+ 
+ 
+ @mcp.tool()
+-def next(agent: str, prompt: str = "", run: bool = False) -> str:
++def next_agent(agent: str, prompt: str = "", run: bool = False) -> str:
+     """The closing next step an agent ends its turn with: returns the three lines `run-agent.sh --next <agent>
+     ["<prompt>"]` prints (a sentence, the `/run-agent` line, a `Without run-agent: claude ...` line) for the agent to
+     print as they are. agent = worker | evaluator | planner | helper. run=True also starts that agent 2 s later in

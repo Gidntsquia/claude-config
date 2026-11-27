@@ -46,3 +46,18 @@ teardown_file() { install_teardown_file; }
 @test "windows: the whole scenario ran to its end with no failed check" {
   ran_clean
 }
+
+# bats test_tags=feature:windows-install,escape:6
+@test "windows: the test workflow runs the quick tier on Windows for every push to main and pull request" {
+  run python3 -I -c '
+import re, sys
+y = open(sys.argv[1]).read()
+on = y[y.index("\non:"):y.index("\njobs:")]
+job = re.search(r"\n  test:\n(.*?)(?=\n  [a-z-]+:\n|\Z)", y, re.S).group(1)
+assert re.search(r"\n  push:\n    branches: \[main\]", on), "not on push to main"
+assert re.search(r"\n  pull_request:", on), "not on pull requests"
+assert re.search(r"os: \[[^]]*windows-latest", job), "no Windows runner in the test job"
+assert re.search(r"run: test/run quick\n", job), "the test job does not run the quick tier"
+print("ok")' "$REPO/.github/workflows/install.yml"
+  assert_output "ok"
+}

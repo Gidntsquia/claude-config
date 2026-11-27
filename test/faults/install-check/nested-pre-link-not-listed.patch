@@ -1,0 +1,12 @@
+--check misses leftover .pre-link skills and agents (looks only at the top of ~/.claude).
+--- a/install.sh
++++ b/install.sh
+@@ -318,7 +318,7 @@
+   w="$(echo "$out" | sed -n 's/^WARN //p' | tr '\n' ' ')"
+   [ -n "$w" ] && warn "personal paths in untracked files (not pushed, so not a failure): $w"
+   # a leftover backup from an older install.sh: a .pre-link skill or agent still loads in every session
+-  while IFS= read -r l; do [ -n "$l" ] && warn "leftover from an older install, safe to delete: $l"; done < <(find "$C" -maxdepth 3 -name '*.pre-link*' 2>/dev/null | grep -v -e "^$C/projects/" -e "^$C/file-history/" || true)
++  while IFS= read -r l; do [ -n "$l" ] && warn "leftover from an older install, safe to delete: $l"; done < <(find "$C" -maxdepth 1 -name '*.pre-link*' 2>/dev/null | grep -v -e "^$C/projects/" -e "^$C/file-history/" || true)
+   if [ "$OS" != windows ]; then
+     if in_clone "$HOME/.local/bin/run-agent"; then pass "run-agent shell command (~/.local/bin/run-agent)"
+     else fail "run-agent shell command missing (rerun install.sh)"; fi

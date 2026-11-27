@@ -1,0 +1,12 @@
+The usage request relies on python's own CA store; a python without one fails certificate checks.
+--- a/skills/run-agent/scripts/parse.py
++++ b/skills/run-agent/scripts/parse.py
+@@ -142,7 +142,7 @@
+                 tok = oauth_token()
+                 if not tok:
+                     return None, "no OAuth token (credentials file and Keychain)"
+-                ctx = ssl.create_default_context(cafile=CA_FILE if os.path.isfile(CA_FILE) else None)
++                ctx = ssl.create_default_context()
+                 req = urllib.request.Request(
+                     "https://api.anthropic.com/api/oauth/usage",
+                     headers={"Authorization": f"Bearer {tok}", "anthropic-beta": "oauth-2025-04-20"})

@@ -359,3 +359,35 @@ user_process() {
   assert_equal "$out" "no picture (macOS)"
   alive "$USER_PID"
 }
+
+watcher_judged() { grep -qE 'watcher: (answer was not Yes|answer seen)' "$D/log"; }
+
+# bats test_tags=feature:evaluator-tools
+@test "an answer other than Yes to the readiness question shows nothing" {
+  export EVSHOW_TRANSCRIPTS="$D/tr" EVSHOW_WIN="$EVT_FIX/win-stub.sh" EVSHOW_OS=mac
+  mkdir -p "$D/tr"; : > "$D/tr/s.jsonl"
+  evo "$T/evshow.sh" arm first "item-a x1" "item-b x2"
+  assert_equal "$rc" 0
+  evt_question q1 first "$D/tr/s.jsonl" "$D"
+  evt_answer q1 "Not yet" "$D/tr/s.jsonl"
+  wait_until 20 watcher_judged
+  run cat "$D/log"
+  assert_output --partial "watcher: answer was not Yes"
+  assert_file_not_exist "$D/answer"
+  run cat "$D/calls"
+  refute_output --partial "start"
+}
+
+# bats test_tags=feature:evaluator-tools
+@test "the page of a line range starts with the first line asked for" {
+  printf 'line one\nline two\nline three\nline four\nline five\n' > "$W/five.txt"
+  evo "$LT/common/file-page.sh" "$W/five.txt" 2-4
+  assert_equal "$rc" 0
+  local pg=${out#page: }
+  run cat "${pg%%|*}"
+  assert_output --partial '<span class="note">lines 2-4</span>'
+  assert_output --partial '<span class="n">2</span>line two'
+  assert_output --partial '<span class="n">4</span>line four'
+  refute_output --partial 'line one'
+  refute_output --partial 'line five'
+}

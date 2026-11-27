@@ -1,0 +1,11 @@
+A reply logged more than once with growing output has its whole usage added again.
+--- a/skills/weekly-roundup/gather_data.py
++++ b/skills/weekly-roundup/gather_data.py
+@@ -344,7 +344,6 @@
+                 prev_out = seen[key]
+                 if out_t <= prev_out:
+                     continue
+-                deltas = {"output": out_t - prev_out}
+             if msg_id:
+                 seen[key] = max(out_t, seen.get(key, 0))
+             tier = model

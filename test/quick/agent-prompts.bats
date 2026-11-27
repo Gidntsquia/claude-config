@@ -207,3 +207,10 @@ labels() {
   assert_equal "$(field "$REPO/agents/researcher.md" name)" "researcher"
   assert_equal "$(field "$REPO/agents/report-checker.md" name)" "report-checker"
 }
+
+# bats test_tags=feature:agent-prompts
+@test "the planner can start the researcher it is told to use" {
+  local f="$REPO/agents/planner.md"
+  grep -q '`researcher` subagent' "$f"
+  field "$f" tools | tr -d ' ' | tr ',' '\n' | grep -qE '^Agent(\(.*researcher.*\))?$'
+}

@@ -1,0 +1,12 @@
+A scheduled job that wakes hours late (machine asleep) runs instead of being skipped.
+--- a/skills/run-agent/scripts/runner.sh
++++ b/skills/run-agent/scripts/runner.sh
+@@ -78,7 +78,7 @@
+   }
+   wait_until "$run_at"
+   local late=$(( $(now) - run_at )) outcome=fired
+-  if [ "$late" -gt 3600 ]; then
++  if [ "$late" -gt 86400 ]; then
+     log skipped "woke $((late / 60)) min late (was due $(fmt "$run_at"))"; exit 0
+   fi
+   [ "$late" -gt 60 ] && outcome="fired late"

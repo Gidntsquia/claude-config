@@ -26,6 +26,11 @@ needs() {
   done
 }
 
+# says <file> <sentence>: the file holds the sentence, wherever its lines wrap.
+says() {
+  tr '\n' ' ' < "$1" | tr -s ' ' | grep -qF -- "$2" || { echo "${1#"$REPO"/} does not say: $2"; return 1; }
+}
+
 # bats test_tags=feature:doc-skills
 @test "each documentation skill is named after its folder and says when to use it" {
   local s f desc
@@ -127,4 +132,16 @@ needs() {
   test -n "$(field "$REVIEW_SKILL" argument-hint)"
   needs "$REVIEW_SKILL" 'Resolve `$ARGUMENTS` to a SKILL.md path' 'if empty, ask which skill' \
     '**Wait for approval before editing**'
+}
+
+# bats test_tags=feature:doc-skills
+@test "write-report does not deliver a report with an open high checker finding" {
+  says "$REPORT_SKILL" 'An open `high` finding is treated like `check.py: FAIL`.'
+  says "$REPORT_SKILL" 'the report is not written'
+}
+
+# bats test_tags=feature:doc-skills
+@test "write-readme asks before it creates a GitHub repo" {
+  says "$README_SKILL" 'ask with AskUserQuestion before creating anything'
+  says "$README_SKILL" 'On approval: `gh repo create'
 }

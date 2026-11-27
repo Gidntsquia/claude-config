@@ -15,7 +15,7 @@ teardown_file() { install_teardown_file; }
   passed "noguard: the installed settings.json has 7"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,escape:1b
 @test "usage-guard script missing: each of the 7 hook commands exits 0" {
   passed -n 7 "noguard: hook command "
 }

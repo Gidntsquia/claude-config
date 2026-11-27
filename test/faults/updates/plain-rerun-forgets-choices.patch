@@ -1,0 +1,12 @@
+A plain ./install.sh ignores the saved choices unless some flag is also given.
+--- a/install.sh
++++ b/install.sh
+@@ -146,7 +146,7 @@
+   local var="$1" key="$2" fb="$3" cur s
+   eval "cur=\${$var}"
+   [ -n "$cur" ] && return 0
+-  s="$(saved "$key")"
++  s=""; [ "$NFLAGS" -gt 0 ] && s="$(saved "$key")"
+   if [ -n "$s" ]; then eval "$var=\$s"; reused="$reused $key"; else eval "$var=\$fb"; fi
+ }
+ had_statusline() { [ -f "$C/settings.json" ] && "$PY" -c 'import json,sys; sys.exit(0 if "statusLine" in json.load(open(sys.argv[1])) else 1)' "$C/settings.json" 2>/dev/null; }

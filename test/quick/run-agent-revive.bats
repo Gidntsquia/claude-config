@@ -117,3 +117,10 @@ jobs_has() { ra --jobs | grep -q -- "$1"; }
   logged 30 "  #$ID  fired late  "
   claude_ran 'arg=worker: repo'
 }
+
+@test "a run that wakes more than an hour late is skipped and does not start claude" {
+  copy_scripts
+  sched2 -7200 'in 10m'
+  logged 30 "  #$ID  skipped  .*(woke 1[0-9][0-9] min late"
+  [ ! -s "$RA_OUT" ]
+}

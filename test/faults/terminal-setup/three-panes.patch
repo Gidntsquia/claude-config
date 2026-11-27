@@ -1,0 +1,11 @@
+The new tmux session opens with 3 panes instead of 4.
+--- a/bin/tmux-quad
++++ b/bin/tmux-quad
+@@ -15,7 +15,6 @@
+ fi
+ exec tmux new-session -c "$dir" \; \
+   split-window -h -c "$dir" \; \
+-  split-window -v -c "$dir" \; \
+   select-pane -t 1 \; \
+   split-window -v -c "$dir" \; \
+   select-layout tiled \; \

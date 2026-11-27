@@ -89,6 +89,26 @@ stamp() {
 }
 
 # bats test_tags=feature:helper
+@test "helper server: an agent file edited but not committed is said to have uncommitted edits" {
+  git -C "$C" init -q
+  git -C "$C" add .
+  git -C "$C" -c user.name=t -c user.email=t@example.com commit -q -m start
+  stamp
+  echo "new rule" >> "$C/agents/worker.md"
+  call 's.status()["summary"]'
+  assert_success
+  assert_output --regexp 'worker changed [0-9-]+ \(uncommitted edits\)'
+}
+
+# bats test_tags=feature:helper
+@test "helper server: an agent file the stamp does not list is named as ahead of the guide" {
+  call 's.agent_hashes()["planner"]["hash"]'
+  printf '<!-- Last synced: 2026-11-01 | planner=%s -->\n' "$output" >> "$C/wiki/Workflow.md"
+  call '(s.status()["stale"], sorted(s.status()["differing"]))'
+  assert_output "(True, ['USAGE', 'evaluator', 'worker'])"
+}
+
+# bats test_tags=feature:helper
 @test "helper server: a wiki with no stamp counts every agent as ahead of it" {
   call '(s.status()["stale"], len(s.status()["differing"]), s.status()["wiki_stamp"])'
   assert_output "(True, 4, None)"

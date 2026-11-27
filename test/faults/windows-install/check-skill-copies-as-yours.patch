@@ -1,0 +1,12 @@
+--check reports the installer's skill copies as the user's own, skipped.
+--- a/install.sh
++++ b/install.sh
+@@ -280,7 +280,7 @@
+     else fail "assistant agent: the frontmatter of $ad/assistant.md does not resolve to $ad/mcp/server.py and $ad/hooks/guard.py"; fi
+   fi
+   for s in $(repo_skills); do
+-    if in_clone "$C/skills/$s" "$R/skills/$s"; then pass "skill $s"
++    if in_clone "$C/skills/$s"; then pass "skill $s"
+     elif [ -d "$C/skills/$s-claude-config" ]; then pass "skill $s (yours kept; repo copy is $s-claude-config)"
+     elif [ -e "$C/skills/$s" ]; then skip "skill $s (yours kept, repo's skipped)"
+     else fail "skill $s: $C/skills/$s missing"; fi

@@ -18,14 +18,14 @@ tools() {
   run python3 "$REPO/test/fixtures/mcp-list-tools.py" uv run --script --quiet "$1"
 }
 
-# bats test_tags=feature:helper
+# bats test_tags=feature:helper,standin:mcp
 @test "the real helper server starts and lists its five tools" {
   tools "$REPO/helper-mcp/server.py"
   assert_success
   assert_line "agent_read wiki_list wiki_read wiki_search workflow_status"
 }
 
-# bats test_tags=feature:assistant
+# bats test_tags=feature:assistant,standin:mcp
 @test "the real assistant server starts and lists its seven tools" {
   tools "$REPO/assistant/mcp/server.py"
   assert_success

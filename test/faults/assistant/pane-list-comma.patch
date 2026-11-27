@@ -1,0 +1,12 @@
+assistant_send given "%5, %6" as one string no longer splits it into two panes.
+--- a/assistant/mcp/server.py
++++ b/assistant/mcp/server.py
+@@ -1418,7 +1418,7 @@
+     ~/.cache/assistant-agent/launches.tsv (time ET, pane, agent, dir, text): a log, never read as truth.
+     Example: assistant_send(pane_ids=["%5"], text='/run-agent evaluator "phone"')."""
+     if isinstance(pane_ids, str):
+-        pane_ids = [x for x in re.split(r"[\s,]+", pane_ids) if x]
++        pane_ids = [x for x in re.split(r"\s+", pane_ids) if x]
+     if not pane_ids or not isinstance(pane_ids, list) or not all(isinstance(p, str) and p for p in pane_ids):
+         raise ValueError("pane_ids must be a non-empty list of pane ids from assistant_panes, e.g. "
+                          "assistant_send(pane_ids=[\"%5\"], text=\"/run-agent worker\")")

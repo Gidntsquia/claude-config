@@ -104,6 +104,7 @@ full() { handoff 'Done: x\nIn progress: y\nNext: z\n' worker "." -- --model haik
 }
 
 # old: handoff: 3 at once: the three writers were not held together | handoff: 3 at once in one frozen instant -> 3 distinct job ids, each job its own lane's folder
+# bats test_tags=escape:4
 @test "three handoffs at the same instant get three job ids, each for its own folder" {
   usage_at $(( $(date +%s) + 600 ))
   local frozen i id ids="" own=0
@@ -127,4 +128,13 @@ full() { handoff 'Done: x\nIn progress: y\nNext: z\n' worker "." -- --model haik
   done
   assert_equal "$(printf '%s' "$ids" | sort -u | wc -l)" 3
   assert_equal "$(ra --jobs | grep -c '^#')" 3
+}
+
+@test "a handoff keeps plans/ out of the commit even when git does not ignore it" {
+  rm "$H/.gitignore"
+  full
+  assert_success
+  assert_equal "$(git -C "$H" ls-files a.txt)" "a.txt"
+  assert_equal "$(git -C "$H" ls-files plans)" ""
+  assert_file_exist "$H/plans/WORKER_NOTES.md"
 }

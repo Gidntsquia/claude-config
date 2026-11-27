@@ -268,6 +268,19 @@ WIN_PROGRAMFILES=$STUB_MNT/Program Files"
 }
 
 # bats test_tags=feature:wsl-tools
+@test "win.sh will not move on to the next window while a game is running" {
+  as_wsl
+  export EVSHOW_STATE="$BATS_TEST_TMPDIR/state" STUB_GAME=project8
+  run /bin/bash "$T/win.sh" next 1001 Demo
+  assert_failure 3
+  assert_output --partial "not shown: a full-screen game is running (game-guard.sh)"
+  run cat "$STUB_LOG"
+  refute_output --partial "winctl.ps1"
+  run cat "$DEFERRED"
+  assert_output --partial "refused: win.sh next 1001 Demo"
+}
+
+# bats test_tags=feature:wsl-tools
 @test "win-app finds Firefox under the Windows Program Files folder" {
   as_wsl
   fake_firefox

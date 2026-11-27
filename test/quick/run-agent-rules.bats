@@ -84,6 +84,7 @@ rules() { python3 "$RA_FIX/rules.py" "$REPO" "$1"; }
 }
 
 # old: jobs: 12 schedulers at once -> 12 ids, each job file holds its own caller's pane and command, no tmp file left
+# bats test_tags=escape:4
 @test "twelve runs scheduled at the same instant each get their own id and job" {
   local R="$T/race" i id at; mkdir -p "$R"; : > "$R.err"
   at=$(( $(date +%s) + 600 ))

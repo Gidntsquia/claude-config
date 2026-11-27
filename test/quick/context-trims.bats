@@ -62,3 +62,11 @@ value() { python3 -c 'import json,sys; m=json.load(open(sys.argv[1], encoding="u
   run cmp "$OUT" "$BATS_TEST_TMPDIR/first.json"
   assert_success
 }
+
+# bats test_tags=feature:context-trims
+@test "a new user of this repo's settings gets workflows and their keyword trigger switched off" {
+  run python3 "$REPO/bin/merge-settings.py" "$REPO/settings.json" "$BATS_TEST_TMPDIR/absent.json" "$OUT"
+  assert_success
+  run value '[m.get("enableWorkflows"), m.get("workflowKeywordTriggerEnabled")]'
+  assert_output '[false, false]'
+}

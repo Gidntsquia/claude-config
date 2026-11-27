@@ -139,3 +139,11 @@ never() { no grep -qi -- "$1" <<<"$output"; }
   says '--model fable'
   never default
 }
+
+@test "a run aimed at a folder that does not exist asks before creating it" {
+  step "worker $T/new-folder"
+  assert_success
+  asks 'Run?'
+  says 'will be created'
+  [ ! -e "$T/new-folder" ]
+}

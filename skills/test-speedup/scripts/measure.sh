@@ -72,15 +72,18 @@ cap() {
 need_jq() { command -v jq >/dev/null 2>&1 || { echo "measure.sh: jq not installed; falling back" >&2; return 1; }; }
 has_dep() { grep -qE "$1" package.json 2>/dev/null; }
 
+# any_file <name>...: one of them exists (`ls a b` fails unless all do)
+any_file() { local f; for f in "$@"; do [ -f "$f" ] && return 0; done; return 1; }
+
 detect() {
   if [ -f go.mod ]; then echo go
   elif [ -f Cargo.toml ]; then echo rust
   elif has_dep '"vitest"'; then echo vitest
   elif has_dep '"jest"'; then echo jest
   elif [ -f Gemfile ] && grep -qi rspec Gemfile 2>/dev/null; then echo rspec
-  elif ls build.gradle build.gradle.kts >/dev/null 2>&1; then echo gradle
+  elif any_file build.gradle build.gradle.kts; then echo gradle
   elif [ -f pom.xml ]; then echo maven
-  elif command -v pytest >/dev/null 2>&1 && ls pyproject.toml pytest.ini setup.cfg tox.ini >/dev/null 2>&1; then echo pytest
+  elif command -v pytest >/dev/null 2>&1 && any_file pyproject.toml pytest.ini setup.cfg tox.ini; then echo pytest
   else echo unknown
   fi
 }
@@ -170,7 +173,7 @@ slowest_from_run() {
     gradle|maven)
             find . \( -path '*test-results*' -o -path '*surefire-reports*' \) -name '*.xml' 2>/dev/null \
               | xargs grep -ho 'testcase name="[^"]*"[^>]*time="[^"]*"' 2>/dev/null \
-              | sed 's/.*name="\([^"]*\)".*time="\([^"]*\)"/\2\t\1/' | sort -rn | head -"$n" ;;
+              | sed 's/^testcase name="\([^"]*\)".*[[:space:]]time="\([^"]*\)"/\2\t\1/' | sort -rn | head -"$n" ;;
     *) echo "(no per-test timing for $RUNNER)" ;;
   esac
 }

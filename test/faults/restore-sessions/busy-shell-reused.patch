@@ -1,0 +1,12 @@
+A pane whose shell is running a command counts as idle, so a resume line is typed into it.
+--- a/skills/restore-sessions/scripts/plan.sh
++++ b/skills/restore-sessions/scripts/plan.sh
+@@ -193,7 +193,7 @@
+         if cmd == "terminal-pet" or "terminal-pet" in args:
+             m = re.search(r"terminal-pet(?:\s+--pet\s+(\w+))?", args)
+             s.pet = (m.group(1) if m and m.group(1) else "squid")
+-        s.idle = (not new) and cmd in SHELLS and not kids.strip("\x1f").strip()
++        s.idle = (not new) and cmd in SHELLS
+         s.role, s.row, s.reuse = None, None, False
+ class Window:
+     def __init__(s, sess, idx, exists): s.sess, s.idx, s.exists, s.panes, s.ops = sess, idx, exists, [], []

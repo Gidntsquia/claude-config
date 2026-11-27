@@ -4,6 +4,7 @@
 
 load ../helpers/common
 load ../helpers/install-bats
+load ../helpers/bare-install
 
 setup_file() { install_setup_file moved; }
 teardown_file() { install_teardown_file; }
@@ -13,7 +14,7 @@ teardown_file() { install_teardown_file; }
   passed "moved: first install exits 0"
 }
 
-# bats test_tags=feature:install,feature:updates
+# bats test_tags=feature:install,feature:updates,escape:1c
 @test "moved clone: plain ./install.sh from the new path relinks everything and calls nothing yours" {
   passed "moved: plain ./install.sh from the new path exits 0"
   passed "moved: it says what it relinked"
@@ -57,4 +58,18 @@ teardown_file() { install_teardown_file; }
 # bats test_tags=feature:install,feature:updates
 @test "moved: the whole scenario ran to its end with no failed check" {
   ran_clean
+}
+
+# bats test_tags=feature:updates
+@test "plain ./install.sh keeps every choice made at the first install" {
+  bare_home
+  cfg="$TEST_HOME/.claude/claude-config.json"
+  run bash "$REPO/install.sh" --projects "$TEST_HOME/work" --no-terminal --agent-clash skip --statusline keep --settings keep
+  assert_success
+  cp "$cfg" "$BATS_TEST_TMPDIR/first.json"
+  run bash "$REPO/install.sh"
+  assert_success
+  run diff "$BATS_TEST_TMPDIR/first.json" "$cfg"
+  assert_output ""
+  assert_success
 }

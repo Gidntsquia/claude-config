@@ -29,7 +29,7 @@ teardown_file() { install_teardown_file; }
   passed "theirs: the repo's other agents and skills"
 }
 
-# bats test_tags=feature:install
+# bats test_tags=feature:install,escape:1e
 @test "your own files: an untracked file with a personal path is a warning naming it, not a failure" {
   passed "theirs: an untracked file with a personal path"
   passed "theirs: ... and no FAIL line"

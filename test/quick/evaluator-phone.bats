@@ -43,3 +43,18 @@ none_running() { ! pgrep -f -- "$(evt_re "$W/tmp/phone-ff-")" >/dev/null; }
   assert_equal "$rc" 1
   assert_equal "$(cat "$W/out" "$W/err")" "phone-shot.sh: no picture: $W/no-Firefox.app is not installed"
 }
+
+# bats test_tags=feature:phone-pictures
+@test "a picture of a line range numbers the lines as the file does" {
+  # the tool beside a picture taker that keeps the page it was handed, as <out>.html
+  mkdir "$W/cap"
+  cp "$LT/common/phone-shot.sh" "$W/cap/"
+  printf 'import shutil, sys\nshutil.copy(sys.argv[2][len("file://"):], sys.argv[1] + ".html")\n' > "$W/cap/phone-bidi.py"
+  seq 101 140 > "$W/long.txt"
+  evo "$W/cap/phone-shot.sh" "$PH/11-range" text "$W/long.txt" 10-12
+  assert_equal "$rc" 0
+  run cat "$PH/11-range.html"
+  assert_output --partial "  10  110"
+  assert_output --partial "  12  112"
+  refute_output --partial "   1  110"
+}

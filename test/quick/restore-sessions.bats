@@ -426,3 +426,27 @@ screen() { printf '──────── worker ──\n%s\n  %s\n' "$1" "$2"
   mv "$FAKE_TMUX_DIR/panes.new" "$FAKE_TMUX_DIR/panes"
   verify_says 0:1.1 "pane runs bash"
 }
+
+# apply.sh uses associative arrays; prints the first bash found that has them
+newer_bash() {
+  local b
+  for b in "$(command -v bash)" /opt/homebrew/bin/bash /usr/local/bin/bash /bin/bash; do
+    [ -x "$b" ] && "$b" -c '[ "${BASH_VERSINFO[0]}" -ge 4 ]' && { echo "$b"; return 0; }
+  done
+  return 1
+}
+
+# bats test_tags=feature:restore-sessions
+@test "apply resumes each session with the model it was using" {
+  local b
+  b="$(newer_bash)" || skip "apply.sh needs bash 4 or newer and this system has only an older one"
+  mkdir -p "$OUT" "$WORK/alpha"
+  pane 0 0 0 %0 bash 100
+  echo '$ ' > "$FAKE_TMUX_DIR/cap/%0"
+  printf 'resume\t0:0\t%%0\t%s\t%s\tclaude-sonnet-5-5\n' "$WORK/alpha" "$A" > "$OUT/ops.tsv"
+  : > "$OUT/plan.tsv"
+  RS_NO_WT=1 run "$b" "$S/apply.sh" "$OUT"
+  assert_success
+  run grep -F "claude --resume $A" "$FAKE_TMUX_DIR/calls.log"
+  assert_output --partial "cd '$WORK/alpha' && claude --resume $A --model claude-sonnet-5-5"
+}

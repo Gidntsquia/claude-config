@@ -1,0 +1,12 @@
+A refused second run removes the first run's lock on exit.
+--- a/skills/test-speedup/scripts/measure.sh
++++ b/skills/test-speedup/scripts/measure.sh
+@@ -38,7 +38,7 @@
+ # `git status` and commits per step, so run state must not dirty the repo.
+ LOCKDIR="${TMPDIR:-/tmp}/test-speedup.lock"
+ 
+-cleanup() { rm -f "$OUT" "$OUT.json"; [ "${HELD_LOCK:-0}" = 1 ] && rm -rf "$LOCKDIR"; return 0; }
++cleanup() { rm -rf "$OUT" "$OUT.json" "$LOCKDIR"; return 0; }
+ trap cleanup EXIT
+ 
+ # mkdir is atomic, so this is a real mutex rather than a check-then-write race.

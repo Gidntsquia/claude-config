@@ -18,7 +18,7 @@ setup() {
   cp -R "$REPO/test/fixtures/report-writer/tiny/." "$WORK/"
 }
 
-# bats test_tags=feature:report-writer
+# bats test_tags=feature:report-writer,standin:report-node
 @test "a full build with the real card renderer draws a picture for every card" {
   run python3 -I "$REPO/agents/report-writer/build.py" "$WORK/report" --data "$WORK/data"
   case "$output" in *"playwright not found"*|*"Executable doesn't exist"*) skip "playwright missing" ;; esac
@@ -28,4 +28,25 @@ setup() {
   [ "$pictures" -ge 1 ]
   run python3 -c 'import json,sys; print(all(c["css_height_px"] > 0 for c in json.load(open(sys.argv[1]))["cards"]))' "$WORK/report/cards/measure.json"
   assert_output "True"
+}
+
+# bats test_tags=feature:report-writer,standin:report-node
+@test "a table too long for one card is split and every part keeps the header row" {
+  python3 -I -c 'import io, sys
+p = sys.argv[1]
+old = "::table arm | seconds ;; old | {old_s} ;; new | {new_mean}"
+s = io.open(p, encoding="utf-8").read()
+assert old in s
+long = "::table arm | seconds" + " ;; old | {old_s} ;; new | {new_mean}" * 40
+io.open(p, "w", encoding="utf-8").write(s.replace(old, long))' "$WORK/report/report.md"
+  run python3 -I "$REPO/agents/report-writer/build.py" "$WORK/report" --data "$WORK/data"
+  case "$output" in *"playwright not found"*|*"Executable doesn't exist"*) skip "playwright missing" ;; esac
+  assert_success
+  # <split into parts> <parts without a header row naming both columns>
+  run python3 -I -c 'import re, sys
+page = open(sys.argv[1], encoding="utf-8").read()
+parts = re.findall(r"<figure[^>]*data-block=.table.*?</figure>", page, re.S)
+bare = [p for p in parts if not ("<thead>" in p and "arm" in p.split("</thead>")[0] and "seconds" in p.split("</thead>")[0])]
+print(len(parts) > 1, len(bare))' "$WORK/report/report.html"
+  assert_output "True 0"
 }

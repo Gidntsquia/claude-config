@@ -6,6 +6,9 @@
 #   docker   test/docker/*.bats: needs Docker. Linux.
 #   all      the three tiers in that order.
 #
+# Trust modes (test/lib/trust.bash): --only <feature> | --faults [<feature>...] | --report | --agree <file>... |
+# quick --repeat <n> [--seed <s>]. TESTING.md says what each answers.
+#
 # A skipped test is counted in <n>; `skipped <k>` is printed above the result. In the quick tier a skip whose reason
 # says something is "missing" is a failure.
 # Order: lint over the test files, the feature list (test/features.txt), then the tier's tests (several files at once: TEST_JOBS). The last line is `PASS <n> tests` (exit 0) or
@@ -20,13 +23,34 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
 BATS="$HERE/vendor/bats-core/bin/bats"
 
-tier="quick"
-[ $# -gt 0 ] && { tier="$1"; shift; }
-case "$tier" in
-  quick|machine|docker|all) ;;
-  *) echo "usage: test/run [quick|machine|docker|all]" >&2; exit 2 ;;
+USAGE="usage: test/run [quick|machine|docker|all]
+       test/run quick --repeat <n> [--seed <s>]
+       test/run --only <feature> | --faults [<feature>...] | --report | --agree <file>..."
+usage() { [ -z "${1:-}" ] || echo "test/run: $1" >&2; echo "$USAGE" >&2; exit 2; }
+number() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; }
+
+mode="tiers"; tier="quick"; repeat=""; seed=""; args=()
+case "${1:-}" in
+  --only) mode=only; shift; [ $# -eq 1 ] || usage "--only takes one feature"; args=("$1") ;;
+  --faults) mode=faults; shift; args=(${@+"$@"}) ;;
+  --report) mode=report; shift; [ $# -eq 0 ] || usage "unknown argument: $1" ;;
+  --agree) mode=agree; shift; [ $# -gt 0 ] || usage "--agree takes result files"; args=("$@") ;;
+  *)
+    [ $# -gt 0 ] && { tier="$1"; shift; }
+    case "$tier" in
+      quick|machine|docker|all) ;;
+      *) usage ;;
+    esac
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --repeat) [ "$tier" = quick ] && number "${2:-}" && [ "$2" -gt 0 ] || usage "--repeat <n> goes with the quick tier"; repeat="$2"; shift 2 ;;
+        --seed) number "${2:-}" || usage "--seed takes a number"; seed="$2"; shift 2 ;;
+        *) usage "unknown argument: $1" ;;
+      esac
+    done
+    [ -z "$seed" ] || [ -n "$repeat" ] || usage "--seed goes with --repeat"
+    [ -z "$repeat" ] || mode=repeat ;;
 esac
-[ $# -gt 0 ] && { echo "test/run: unknown argument: $1" >&2; echo "usage: test/run [quick|machine|docker|all]" >&2; exit 2; }
 
 if [ "$tier" = all ]; then tiers="quick machine docker"; else tiers="$tier"; fi
 
@@ -34,6 +58,31 @@ total=0
 failed=0
 skips=0
 tier_now=""
+
+# ---- the escape: and standin: lists ---------------------------------------------------------------------------
+# With test/escapes.txt: every past error has a test tagged escape:<id>. With test/standins.txt: every row that
+# says standin:<id> has a machine test so tagged. No test carries an id its list lacks.
+trust_tags() {
+  local kind list id used
+  for kind in escape standin; do
+    list="$HERE/${kind}s.txt"
+    [ -f "$list" ] || continue
+    used="$(grep -hE '^[[:space:]]*#[[:space:]]*bats[[:space:]]+(file|test)_tags=' "$@" /dev/null | grep -oE "$kind:[A-Za-z0-9_-]+" | sort -u)"
+    for id in $used; do
+      grep -qE "^[[:space:]]*${id#*:}[[:space:]]*\|" "$list" || echo "features: $id is tagged on a test but test/${kind}s.txt does not list it"
+    done
+    if [ "$kind" = escape ]; then
+      for id in $(sed -n 's/^[[:space:]]*\([A-Za-z0-9_-][A-Za-z0-9_-]*\)[[:space:]]*|.*/\1/p' "$list"); do
+        printf '%s\n' "$used" | grep -qx "escape:$id" || echo "features: no test is tagged escape:$id (test/escapes.txt)"
+      done
+    else
+      for id in $(grep -oE '\|[[:space:]]*standin:[A-Za-z0-9_-]+' "$list" | grep -oE 'standin:.*'); do
+        grep -qE "^[[:space:]]*#[[:space:]]*bats[[:space:]]+(file|test)_tags=(.*,)?$id([[:space:],]|\$)" "$HERE"/machine/*.bats /dev/null 2>/dev/null ||
+          echo "features: no machine test is tagged $id (test/standins.txt)"
+      done
+    fi
+  done
+}
 
 # ---- lint ---------------------------------------------------------------------------------------------------
 # One problem per line: `lint: <file>:<line>: <rule>`. Each problem counts as one failed test. The rules and why
@@ -163,6 +212,7 @@ features() {
       }
     ' "$list" ${files[@]+"${files[@]}"})"
   fi
+  [ ! -f "$list" ] || out="$(printf '%s\n' "$out" "$(trust_tags ${files[@]+"${files[@]}"})" | grep . || true)"
   if [ -n "$out" ]; then
     echo "$out"
     problems=$(printf '%s\n' "$out" | wc -l)
@@ -198,12 +248,16 @@ find_bats() {
 JOBS="${TEST_JOBS:-4}"
 FILE_TIMEOUT="${TEST_FILE_TIMEOUT:-900}"
 WORK=""
+WORK_EXTRA=""   # the scratch folder of a trust mode (test/lib/trust.bash)
+ONLY_TAG=""     # --only: run just the tests with this tag
+SHUFFLE_SEED="" # --repeat: the order of the test files
 pids=()    # slot -> process group of the running file, "" when free
 
 stop_all() {
   local p
   for p in ${pids[@]+"${pids[@]}"}; do [ -n "$p" ] && kill -9 -- "-$p" 2>/dev/null; done
   [ -n "$WORK" ] && rm -rf "$WORK"
+  [ -n "$WORK_EXTRA" ] && rm -rf "${WORK_EXTRA:?}"
 }
 trap stop_all EXIT
 trap 'exit 130' INT
@@ -231,6 +285,8 @@ finish_file() {
   # bats itself stopped (a syntax error, a crash, a killed run): that is never a pass, whatever lines it printed.
   # bats also drops the tests of a file it cannot parse and still exits 0, so the tests are counted here too.
   written="$(grep -c '^[[:space:]]*@test[[:space:]]' "$f")"
+  # --only runs part of a file: bats' own plan line is then the count to meet.
+  [ -z "$ONLY_TAG" ] || written=0
   plan="$(printf '%s\n' "$out" | sed -n 's/^1\.\.\([0-9][0-9]*\)$/\1/p' | head -1)"
   [ -n "$plan" ] && [ "$plan" -gt "$written" ] && written="$plan"
   missing=$((written - ok - notok))
@@ -256,10 +312,16 @@ run_bats() {
   for f in "$HERE/$t"/*.bats; do
     [ -f "$f" ] || continue
     case "$(basename "$f")" in _*) continue ;; esac
+    [ -z "$ONLY_TAG" ] || has_tag "$f" "$ONLY_TAG" || continue
     files[${#files[@]}]="$f"
   done
   n=${#files[@]}
   if [ "$n" -eq 0 ]; then echo "$t: no test files"; return; fi
+  if [ -n "$SHUFFLE_SEED" ]; then
+    local order=()
+    while IFS= read -r f; do order[${#order[@]}]="$f"; done < <(printf '%s\n' "${files[@]}" | shuffle "$SHUFFLE_SEED")
+    files=("${order[@]}")
+  fi
   echo "== $t ($n files, $JOBS at a time)"
   WORK="$(mktemp -d "${TMPDIR:-/tmp}/test-run.XXXXXX")"
   while [ "$next" -lt "$n" ] || [ "$running" -gt 0 ]; do
@@ -267,7 +329,7 @@ run_bats() {
     while [ "$i" -lt "$JOBS" ]; do
       if [ -z "${pids[$i]:-}" ] && [ "$next" -lt "$n" ]; then
         set -m   # a process group of its own, so a hung file can be killed whole
-        ( cd "$REPO" && exec "$BATS" --tap "${files[$next]}" </dev/null >"$WORK/$i.log" 2>&1 ) &
+        ( cd "$REPO" && exec "$BATS" --tap ${ONLY_TAG:+--filter-tags "$ONLY_TAG"} "${files[$next]}" </dev/null >"$WORK/$i.log" 2>&1 ) &
         pids[$i]=$!
         set +m
         slot_file[$i]="${files[$next]}"; slot_start[$i]=$SECONDS
@@ -295,7 +357,9 @@ run_bats() {
 run_pytest() {
   local dirs="" d out line p f e rc
   for d in "$REPO"/skills/*/tests "$REPO"/hooks/*/tests "$REPO"/helper-mcp/tests "$REPO"/assistant/tests; do
-    ls "$d"/test_*.py >/dev/null 2>&1 && dirs="$dirs $d"
+    ls "$d"/test_*.py >/dev/null 2>&1 || continue
+    if [ -z "$ONLY_TAG" ]; then dirs="$dirs $d"; continue; fi
+    for f in "$d"/test_*.py; do has_tag "$f" "$ONLY_TAG" && dirs="$dirs $f"; done
   done
   [ -n "$dirs" ] || return 0
   echo "== pytest"
@@ -324,14 +388,29 @@ run_pytest() {
 }
 
 # ---- run ----------------------------------------------------------------------------------------------------
-lint
-features
-find_bats
-for t in $tiers; do
-  tier_now="$t"
-  run_bats "$t"
-  [ "$t" = quick ] && run_pytest
-done
+. "$HERE/lib/trust.bash"
+
+case "$mode" in
+  faults) run_faults ${args[@]+"${args[@]}"}; exit $? ;;
+  report) run_report; exit $? ;;
+  agree)
+    scratch; cat "${args[@]}" > "$WORK_EXTRA/runs" || exit 2
+    agree "$WORK_EXTRA/runs"; exit $? ;;
+  repeat)
+    lint; features
+    [ "$failed" -eq 0 ] || { echo "FAIL $failed of $total"; exit 1; }
+    run_repeat "$repeat" "${seed:-$(date +%s)}"; exit $? ;;
+  only) run_only "${args[0]}" ;;
+  tiers)
+    lint
+    features
+    find_bats
+    for t in $tiers; do
+      tier_now="$t"
+      run_bats "$t"
+      [ "$t" = quick ] && run_pytest
+    done ;;
+esac
 
 [ "$skips" -eq 0 ] || echo "skipped $skips (counted in the total below; each says why above)"
 if [ "$failed" -eq 0 ]; then

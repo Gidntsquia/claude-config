@@ -1,0 +1,12 @@
+Every reinstall appends the repo's list entries again.
+--- a/bin/merge-settings.py
++++ b/bin/merge-settings.py
+@@ -20,7 +20,7 @@
+             out[k] = merge(user[k], v) if k in user else v
+         return out
+     if isinstance(user, list) and isinstance(repo, list):
+-        return user + [x for x in repo if x not in user]
++        return user + repo
+     return user
+ 
+ 

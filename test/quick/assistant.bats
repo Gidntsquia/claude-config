@@ -169,6 +169,18 @@ layout_hook() { hook mcp__assistant__assistant_layout "{\"action\":\"close\",\"t
 }
 
 # bats test_tags=feature:assistant
+@test "assistant guard: force on a pane waiting on a question needs confirmed=True" {
+  panes
+  screen_pane "Claude Code v2.1.0" "Ready for me to move windows and start? (y/n)"
+  layout_hook "$P2" ',"force":true'
+  assert_failure 2
+  assert_output --partial "force=True on"
+  assert_output --partial "needs confirmed=True"
+  layout_hook "$P2" ',"force":true,"confirmed":true'
+  assert_success
+}
+
+# bats test_tags=feature:assistant
 @test "assistant server: it offers the seven assistant_ tools and sees the panes of this tmux server" {
   panes
   run python3 -c '
@@ -181,4 +193,21 @@ print([argv[0] for _, _, argv in a._proc_tree(a.list_panes()[0]["pane_pid"])][0]
   assert_line "assistant_jobs assistant_launch assistant_layout assistant_panes assistant_projects assistant_schedule assistant_send"
   assert_line "$PANE"
   assert_line "bash"
+}
+
+# bats test_tags=feature:assistant
+@test "assistant server: pane ids given as one comma-separated line are answered one by one" {
+  panes
+  run python3 -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("a", sys.argv[1]); a = importlib.util.module_from_spec(spec); spec.loader.exec_module(a)
+r = a.assistant_send(pane_ids="%901,%902, %903", text="hi", enter=True, allow_running=False, self=False, answer="")
+for item in r.refused:
+    print(item.pane_id, item.reason.split(";")[0])
+print("sent", len(r.sent))' "$REPO/assistant/mcp/server.py"
+  assert_success
+  assert_line "%901 no such pane"
+  assert_line "%902 no such pane"
+  assert_line "%903 no such pane"
+  assert_line "sent 0"
 }

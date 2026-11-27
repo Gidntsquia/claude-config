@@ -7,11 +7,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "17 7 * * 1"   # Mondays: the repeat jobs only
 
 # Every job runs one command, test/run <tier>. The steps before it only put tools on the runner.
 # What each tier holds and what a pass means: TESTING.md.
 jobs:
   test:
+    if: github.event_name != 'schedule'
     strategy:
       fail-fast: false
       matrix:
@@ -73,6 +76,7 @@ jobs:
         run: test/run machine
 
   docker:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -84,6 +88,54 @@ jobs:
         run: '[ -f test/vendor/bats-core/bin/bats ] || { sudo apt-get update && sudo apt-get install -y bats; }'
       - name: test/run docker
         run: test/run docker
+
+  # Weekly (and on demand): the quick tier 300 times with the file order shuffled, 30 runs on each of 10 runners
+  # (one runner would pass GitHub's 6 h limit). `repeat` then adds them up: `agreed 300 of 300`.
+  repeat-shard:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Install tmux
+        run: sudo apt-get update && sudo apt-get install -y tmux
+      - name: bats from a package when the submodule is absent
+        run: '[ -f test/vendor/bats-core/bin/bats ] || sudo apt-get install -y bats'
+      - uses: astral-sh/setup-uv@v5
+      - name: Install Claude Code
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: test/run quick --repeat 30
+        run: test/run quick --repeat 30 --seed $(( ${{ github.run_number }} * 1000 + ${{ matrix.shard }} * 30 ))
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: repeat-${{ matrix.shard }}
+          path: test/results/repeat.txt
+
+  repeat:
+    needs: repeat-shard
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: shards
+      # a shard that left no result file counts against the 300
+      - name: test/run --agree
+        run: |
+          test/run --agree shards/*/repeat.txt | tee agreed.txt
+          grep -qx 'agreed 300 of 300' agreed.txt
 
   # The update rehearsal (an older, lived-in install, then README's update sentence typed into claude -p) does not
   # run here: it needs a Claude login, and none is stored on GitHub. bin/release/rehearsal.sh runs it in Docker on the

@@ -1,0 +1,12 @@
+Models with a cheaper cache-read rate are priced at the default 0.1x.
+--- a/skills/weekly-roundup/gather_data.py
++++ b/skills/weekly-roundup/gather_data.py
+@@ -188,7 +188,7 @@
+     cost = (
+         input_t * in_rate
+         + output_t * out_rate
+-        + cache_read_t * (in_rate * p.get("cache_read_mult", 0.1))
++        + cache_read_t * (in_rate * 0.1)
+         + cache_5m_t * (in_rate * 1.25)
+         + cache_1h_t * (in_rate * 2.0)
+     ) / 1_000_000

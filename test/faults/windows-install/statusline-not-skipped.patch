@@ -1,0 +1,12 @@
+Windows without WSL gets the status line it cannot run.
+--- a/install.sh
++++ b/install.sh
+@@ -520,7 +520,7 @@
+ 
+ # 5. settings.json.
+ statusline_on=false
+-[ "$STATUSLINE" != keep ] && [ "$OS" != windows ] && statusline_on=true
++[ "$STATUSLINE" != keep ] && statusline_on=true
+ case "$SETTINGS" in
+   replace)
+     # a generated copy, not a link: the installed file names this clone's absolute path in the run-agent allow

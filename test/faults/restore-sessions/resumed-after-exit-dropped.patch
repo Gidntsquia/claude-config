@@ -1,0 +1,12 @@
+A session resumed after an /exit still counts as exited.
+--- a/skills/restore-sessions/scripts/find-sessions.sh
++++ b/skills/restore-sessions/scripts/find-sessions.sh
+@@ -88,7 +88,7 @@
+                 if t == "user" and isinstance(c, str) and ("<command-name>/exit</command-name>" in c or "<command-name>/quit</command-name>" in c):
+                     exited = True
+                 elif t == "assistant" or (t == "user" and not (isinstance(c, str) and c.lstrip().startswith("<local-command-"))):
+-                    exited = False             # the session went on after the /exit (e.g. resumed)
++                    pass
+     mid = "no"
+     if last is not None:
+         t = last.get("type")

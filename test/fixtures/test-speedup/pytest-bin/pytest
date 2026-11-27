@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Fake `pytest -q`: two of seven tests fail; the last line is pytest's own count of each outcome.
+echo "$*" >> "${FAKE_LOG:?}"
+echo "FAILED test_cart.py::test_empty - assert 1 == 0"
+echo "2 failed, 3 passed, 1 skipped, 1 xfailed in 0.10s"
+exit 1

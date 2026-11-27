@@ -25,3 +25,16 @@ load ../helpers/common
   refute_a_line_matches '^[^W]'
   assert_success
 }
+
+# bats test_tags=feature:installed-text
+@test "a tracked file holding a personal home path fails the check and is named" {
+  temp_home
+  clone="$BATS_TEST_TMPDIR/clone"
+  git init -q "$clone"
+  printf 'see %s\n' "/Us""ers/somebody/notes" > "$clone/notes.md"
+  git -C "$clone" add notes.md
+  run bash "$REPO/bin/find-personal-paths.sh" "$clone"
+  assert_failure 1
+  assert_output --partial "notes.md"
+  refute_output --partial "WARN"
+}

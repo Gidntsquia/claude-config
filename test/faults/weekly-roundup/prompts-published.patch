@@ -1,0 +1,13 @@
+The published page stores each session's first prompt.
+--- a/skills/weekly-roundup/gather_data.py
++++ b/skills/weekly-roundup/gather_data.py
+@@ -455,8 +455,7 @@
+                 "name": p["name"],
+                 "remote_url": p["remote_url"],
+                 "commits": p["commits"],
+-                "sessions": {sid: {"start": s["start"], "usage": s["usage"], "days": s["days"]}
+-                             for sid, s in p["sessions"].items()},
++                "sessions": p["sessions"],
+             }
+             for p in c["projects"]
+         ],

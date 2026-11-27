@@ -1,0 +1,14 @@
+A page shorter than a screen is pictured a full screen tall, with a blank tail.
+--- a/local-tools/macos/phone-bidi.py
++++ b/local-tools/macos/phone-bidi.py
+@@ -151,10 +151,6 @@
+         if r.get('type') == 'exception' or 'value' not in (r.get('result') or {}): raise Fail('BiDi script.evaluate: the page gave no height')
+         height = int(r['result']['value'])
+         if height <= SCREEN:   # short content: no blank tail (scrollHeight is never under the viewport's; the boxes are)
+-            r = b.cmd('script.evaluate', target={'context': ctx}, awaitPromise=False,
+-                      expression='Math.ceil(Math.max(document.documentElement.getBoundingClientRect().bottom, document.body ? document.body.getBoundingClientRect().bottom : 0, 1))')
+-            try: height = min(SCREEN, int(r['result']['value']))
+-            except (KeyError, TypeError, ValueError): pass
+             vh = max(120, height)
+             b.cmd('browsingContext.setViewport', context=ctx, viewport={'width': W, 'height': vh}, devicePixelRatio=SCALE)
+             boxes = [('%s.png' % base, 0, vh)]

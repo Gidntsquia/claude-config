@@ -1,0 +1,11 @@
+--- a/statusline.sh
++++ b/statusline.sh
+@@ -393,7 +393,7 @@
+     "")    preview squid plane ;;
+     squid) preview squid ;;
+     plane) preview plane ;;
+-    *)     echo "usage: statusline.sh --preview [squid|plane]" >&2; exit 1 ;;
++    *)     preview squid ;;
+   esac
+   exit 0
+ fi

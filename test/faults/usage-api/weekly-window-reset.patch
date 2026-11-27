@@ -1,0 +1,12 @@
+The reset time returned is the weekly window's, so a relaunch waits days instead of hours.
+--- a/skills/run-agent/scripts/parse.py
++++ b/skills/run-agent/scripts/parse.py
+@@ -159,7 +159,7 @@
+         break
+     else:
+         return None, err
+-    fh = data.get("five_hour") if isinstance(data, dict) else None
++    fh = (data.get("seven_day") or data.get("five_hour")) if isinstance(data, dict) else None
+     if not fh or not fh.get("resets_at"):
+         return None, "no five_hour.resets_at in the reply (stale token?)"
+     try:

@@ -1,0 +1,11 @@
+--- a/test/lib/trust.bash
++++ b/test/lib/trust.bash
+@@ -80,7 +80,7 @@
+       fault_run "$id" "$w" "$c" > "$w/$id.$short.log" 2>&1; rc=$?
+       case "$rc" in
+         1) echo "caught $name" >> "$out" ;;
+-        0) echo "missed $name" >> "$out" ;;
++        0) echo "caught $name" >> "$out" ;;
+         *) echo "error $name: test/run exited $rc" >> "$out" ;;
+       esac
+     fi

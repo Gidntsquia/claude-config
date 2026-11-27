@@ -388,3 +388,43 @@ def test_thirteen_projects_cycle(tmp_path):
     check_days_invariants(out)
     again = json.loads(run(root, A, "Jet", pool_in=tmp_path / "p1.json", colors=tmp_path / "ca.json").stdout)
     assert [p["accent"] for p in again["projects"]] == [p["accent"] for p in out["projects"]]
+
+
+def alpha_sessions(world):
+    return world["a"] / ".claude/projects" / slug_for(world["a"] / "files" / "alpha-app")
+
+
+def write_usage(pdir, sid, records):
+    """One session jsonl: records = [(message id, model, usage)], all inside the week."""
+    pdir.mkdir(parents=True, exist_ok=True)
+    (pdir / f"{sid}.jsonl").write_text("".join(
+        json.dumps({"type": "assistant", "timestamp": "2026-10-06T16:00:00Z", "uuid": f"u{k}{sid}", "sessionId": sid,
+                    "message": {"role": "assistant", "id": mid, "model": model, "usage": usage}}) + "\n"
+        for k, (mid, model, usage) in enumerate(records)))
+
+
+def test_cache_reads_cost_less_on_a_model_with_a_cheaper_cache_rate(world):
+    before = json.loads(run(world["a"], A, "Jet").stdout)["combined_cost"]
+    write_usage(alpha_sessions(world), "eeeeeeee-0000-4000-8000-000000000001",
+                [("msg-cached", mf.FAB, {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 1_000_000})])
+    after = json.loads(run(world["a"], A, "Jet").stdout)["combined_cost"]
+    assert after - before == pytest.approx(0.25, abs=0.001)  # $10 input rate x 0.025, not the usual 0.1
+
+
+def test_a_reply_written_to_the_log_twice_while_streaming_is_counted_once(world):
+    sid = "eeeeeeee-0000-4000-8000-000000000002"
+    part = {"input_tokens": 1_000, "output_tokens": 100, "cache_read_input_tokens": 5_000}
+    write_usage(alpha_sessions(world), sid,
+                [("msg-streamed", mf.SON, part), ("msg-streamed", mf.SON, {**part, "output_tokens": 300})])
+    out = world["tmp"] / "p.json"
+    run(world["a"], A, "Jet", pool_out=out)
+    [sess] = [p["sessions"][sid] for p in pool_of(out)["devices"][0]["projects"] if sid in p["sessions"]]
+    [[counts]] = [list(efforts.values()) for efforts in sess["usage"].values()]
+    assert (counts["input"], counts["output"], counts["cache_read"]) == (1_000, 300, 5_000)
+
+
+def test_the_published_data_does_not_hold_what_you_asked_in_a_session(world):
+    out = world["tmp"] / "p.json"
+    run(world["a"], A, "Jet", pool_out=out)
+    assert any(p["sessions"] for p in pool_of(out)["devices"][0]["projects"])
+    assert "fixture task" not in out.read_text()

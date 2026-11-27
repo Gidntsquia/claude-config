@@ -1,0 +1,12 @@
+The pytest baseline COUNT leaves out failed, skipped and xfail tests.
+--- a/skills/test-speedup/scripts/measure.sh
++++ b/skills/test-speedup/scripts/measure.sh
+@@ -102,7 +102,7 @@
+   case "$RUNNER" in
+     pytest)
+       cap pytest -q -p no:randomly --durations="$n" "$@" >"$OUT" 2>&1; status=$?
+-      count=$(grep -oE '[0-9]+ (passed|failed|skipped|xfailed|xpassed|error)' "$OUT" \
++      count=$(grep -oE '[0-9]+ passed' "$OUT" \
+               | awk '{s+=$1} END{print s+0}')
+       ;;
+     jest)

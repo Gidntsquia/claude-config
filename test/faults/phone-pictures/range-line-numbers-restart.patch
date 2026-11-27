@@ -1,0 +1,12 @@
+A picture of lines A-B numbers them from 1 instead of A.
+--- a/local-tools/common/phone-shot.sh
++++ b/local-tools/common/phone-shot.sh
+@@ -31,7 +31,7 @@
+   text)
+     range="${arg4:-}"
+     { printf '<pre>'
+-      if [ -n "$range" ]; then sed -n "${range%-*},${range#*-}p" "$src" | nl -ba -v "${range%-*}" -w4 -s'  ' | esc
++      if [ -n "$range" ]; then sed -n "${range%-*},${range#*-}p" "$src" | nl -ba -w4 -s'  ' | esc
+       else nl -ba -w4 -s'  ' "$src" | esc; fi
+       printf '</pre>'; } > "$tmp/body.html"
+     wrap "$(basename "$src")${range:+ lines $range}" "$tmp/body.html"; url="file://$tmp/page.html" ;;

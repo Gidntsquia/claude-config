@@ -123,7 +123,7 @@ shown_alone() { # <n>: item n has the run's only Firefox, with one window on scr
   assert_equal "$(cat "$L/wins.registered")" "$(cat "$L/wins.before")"
 }
 
-# bats test_tags=feature:evaluator-tools
+# bats test_tags=feature:evaluator-tools,standin:win-sh
 @test "live: the file item opens in a separate Firefox after the answer, with one window on screen" {
   ran arm; ran q1; ran wait1
   has "$out" "shown: 1001 $(cat "$L/t1") mode=firefox"

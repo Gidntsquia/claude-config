@@ -1,0 +1,12 @@
+win.sh next moves windows over a full-screen game.
+--- a/local-tools/wsl/win.sh
++++ b/local-tools/wsl/win.sh
+@@ -36,7 +36,7 @@
+ grep -qi microsoft /proc/version 2>/dev/null || { echo "win.sh: WSL only (this is $(uname))" >&2; exit 1; }
+ . "$HOME/.claude/local-tools/evsession.sh"
+ ev_export || { echo "error: no session state dir (no transcript for this cwd; set EVSHOW_STATE)"; exit 1; }
+-case "${1:-}" in show|showcheck|start|next|front|place|placefg|setwin|restore) "$HOME/.claude/local-tools/game-guard.sh" "win.sh $*" >/dev/null && { echo "not shown: a full-screen game is running (game-guard.sh)"; exit 3; };; esac
++case "${1:-}" in show|showcheck|start|front|place|placefg|setwin|restore) "$HOME/.claude/local-tools/game-guard.sh" "win.sh $*" >/dev/null && { echo "not shown: a full-screen game is running (game-guard.sh)"; exit 3; };; esac
+ if [ "${1:-}" = me ]; then
+   # Marker routes, all at once: tmux window name + OSC title on the pane tty (title match) and a tmux status message on this
+   # pane's client (text match: a WT tab renamed by hand ignores application titles). No /dev/tty needed (the Bash tool has none).

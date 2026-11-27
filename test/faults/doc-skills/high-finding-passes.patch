@@ -1,0 +1,12 @@
+write-report no longer treats an open high checker finding as a failed report.
+--- a/skills/write-report/SKILL.md
++++ b/skills/write-report/SKILL.md
+@@ -50,7 +50,7 @@
+   cause the last line names (for `blocked:`, install or fix what it says, then record it in WORKER_NOTES) and rerun the
+   same prompt. Never record it as done and never edit `report.md`, `numbers.json` or `report.html` by hand.
+ - Checker findings: `NOTES.md ## Checker` needs a row per finding, "fixed" or "rejected: <reason>". An open `high`
+-  finding is treated like `check.py: FAIL`.
++  finding is noted in the reply and the report is delivered.
+ 
+ The writer never asks the user anything and never edits the data directory beyond its output directory. A report that
+ fails `check.py` is not done; rerun the writer rather than editing `report.md` by hand.

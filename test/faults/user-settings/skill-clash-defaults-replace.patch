@@ -1,0 +1,13 @@
+Without --agent-clash, a skill of the user's own with a repo name is deleted and replaced.
+--- a/install.sh
++++ b/install.sh
+@@ -499,7 +499,8 @@
+ for s in $(repo_skills); do
+   d="$C/skills/$s"
+   if replaceable "$d" "$R/skills/$s" || { [ ! -e "$d" ] && [ ! -L "$d" ]; }; then link "$R/skills/$s" "$d"; continue; fi
+-  case "$(clash_mode "$s")" in
++  mode="$(clash_mode "$s")"
++  case "${mode:-replace}" in
+     keep)    k="$C/skills/$s-claude-config"; rm -rf "$k"; mkdir -p "$k"
+              for f in "$R/skills/$s"/*; do [ "$(basename "$f")" = SKILL.md ] || link "$f" "$k/$(basename "$f")"; done
+              sed "s/^name: *$s *\$/name: $s-claude-config/" "$R/skills/$s/SKILL.md" > "$k/SKILL.md"

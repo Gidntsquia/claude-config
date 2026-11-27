@@ -1,0 +1,12 @@
+A read-only tmux command chained to a destructive one is allowed.
+--- a/assistant/hooks/guard.py
++++ b/assistant/hooks/guard.py
+@@ -89,7 +89,7 @@
+             sub = w
+             break
+         chained = re.search(r"""\\;|';'|";"|\s\\$""", cmd[m.end():m.end() + len(rest) + 3])
+-        if sub and (sub.startswith("list-") or sub in TMUX_READ) and not chained:
++        if sub and (sub.startswith("list-") or sub in TMUX_READ):
+             continue
+         tool = next((t for names, t in TMUX_TOOL if sub in names), "")
+         if not tool:

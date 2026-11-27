@@ -31,6 +31,17 @@ rspec_project() { echo 'gem "rspec"' > Gemfile; export PATH="$FX/rspec-bin:$PATH
 }
 
 # bats test_tags=feature:test-speedup
+@test "detect names pytest or gradle from any one of its project files" {
+  for case in pyproject.toml:pytest pytest.ini:pytest setup.cfg:pytest tox.ini:pytest build.gradle:gradle build.gradle.kts:gradle; do
+    rm -f pyproject.toml pytest.ini setup.cfg tox.ini build.gradle build.gradle.kts
+    touch "${case%:*}"
+    PATH="$FX/pytest-bin:$PATH" run measure detect
+    assert_success
+    assert_output "${case#*:}"
+  done
+}
+
+# bats test_tags=feature:test-speedup
 @test "detect says unknown and exits 3 in a folder with no test runner" {
   run measure detect
   assert_failure 3
@@ -119,7 +130,7 @@ rspec_project() { echo 'gem "rspec"' > Gemfile; export PATH="$FX/rspec-bin:$PATH
   PATH="$FX/maven-bin:$PATH" run measure baseline 2
   assert_success
   assert_output --partial "COUNT=3"
-  assert_equal "$(printf '%s\n' "$output" | sed -n '/^SLOWEST/,/^DONE/p' | cut -f1)" "$(printf 'SLOWEST\n9.50\n2.00\nDONE')"
+  assert_equal "$(printf '%s\n' "$output" | sed -n '/^SLOWEST/,/^DONE/p' )" "$(printf 'SLOWEST\n9.50\tslowest\n2.00\tmiddle\nDONE')"
 }
 
 # bats test_tags=feature:test-speedup
@@ -137,4 +148,22 @@ rspec_project() { echo 'gem "rspec"' > Gemfile; export PATH="$FX/rspec-bin:$PATH
   run measure frobnicate
   assert_failure 2
   assert_output --partial "usage: measure.sh {detect|baseline [N]|run|time -- <cmd>|count|profile|unlock}"
+}
+
+# bats test_tags=feature:test-speedup
+@test "a refused second run leaves the first run's lock in place" {
+  mkdir "$TMPDIR/test-speedup.lock"
+  echo "$$" > "$TMPDIR/test-speedup.lock/pid"
+  run measure time -- echo second-ran
+  assert_failure 4
+  assert_equal "$(cat "$TMPDIR/test-speedup.lock/pid")" "$$"
+}
+
+# bats test_tags=feature:test-speedup
+@test "a pytest baseline counts failed, skipped and expected-to-fail tests as well as passed" {
+  touch pyproject.toml
+  PATH="$FX/pytest-bin:$PATH" run measure baseline 1
+  assert_failure 1
+  assert_a_line_matches '^RUNNER=pytest$'
+  assert_a_line_matches '^COUNT=7$'
 }

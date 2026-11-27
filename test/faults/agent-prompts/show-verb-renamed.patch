@@ -1,0 +1,12 @@
+The evaluator's 'evshow.sh noflash' is no longer a command.
+--- a/local-tools/common/evshow.sh
++++ b/local-tools/common/evshow.sh
+@@ -149,7 +149,7 @@
+   path)
+     D=$(ev_state_dir) || { echo "no session"; exit 1; }
+     case "${2:-}" in shown) if [ "$EVOS" = mac ]; then echo "no picture (macOS)"; else echo "$D/shown.png"; fi;; gate) echo "$D/gate.png";; zlog) echo "$D/zlog";; dir|"") echo "$D";; *) echo "usage: path shown|gate|zlog|dir"; exit 1;; esac;;
+-  noflash) D=$(ev_state_dir) || { echo "no session"; exit 1; }
++  no-flash) D=$(ev_state_dir) || { echo "no session"; exit 1; }
+     [ "$EVOS" = mac ] && { echo "no-flash: not measured (macOS)"; exit 0; }   # nothing opens before its show there: the openers only record
+     python3 -I "$T/evshow_noflash.py" "$D";;
+   gateloop)  # captures the screen every ~2.5 s until the answer (30 min at most); rotates 4 files; records finish time (ET) + path

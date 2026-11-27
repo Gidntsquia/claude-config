@@ -8,7 +8,7 @@ load ../helpers/install-bats
 setup_file() { install_setup_file sep22; }
 teardown_file() { install_teardown_file; }
 
-# bats test_tags=feature:install,feature:updates
+# bats test_tags=feature:install,feature:updates,escape:1a
 @test "updating a pre-v1.3 layout: hooks becomes a real folder of links and the clone keeps its own" {
   passed "sep22: install.sh exits 0"
   passed "sep22: .claude/hooks is now a real folder"

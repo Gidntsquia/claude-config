@@ -4,6 +4,7 @@
 
 load ../helpers/common
 load ../helpers/install-bats
+load ../helpers/bare-install
 
 setup_file() { install_setup_file b; }
 teardown_file() { install_teardown_file; }
@@ -66,4 +67,30 @@ teardown_file() { install_teardown_file; }
 # bats test_tags=feature:install
 @test "b: the whole scenario ran to its end with no failed check" {
   ran_clean
+}
+
+# bats test_tags=feature:user-settings
+@test "a skill of yours with the same name stays as it is when --agent-clash is not given" {
+  bare_home
+  mine="$TEST_HOME/.claude/skills/run-agent"
+  mkdir -p "$mine"
+  printf -- '---\nname: run-agent\n---\nmy own skill\n' > "$mine/SKILL.md"
+  cp "$mine/SKILL.md" "$BATS_TEST_TMPDIR/before.md"
+  run bash "$REPO/install.sh" --projects "$TEST_HOME/files" --no-terminal
+  assert_success
+  assert_output --partial "kept yours: $mine (repo's not installed)"
+  run cmp "$mine/SKILL.md" "$BATS_TEST_TMPDIR/before.md"
+  assert_success
+}
+
+# bats test_tags=feature:install-check
+@test "--check names a leftover .pre-link backup inside skills and agents" {
+  bare_home
+  c="$TEST_HOME/.claude"
+  mkdir -p "$c/skills/old.pre-link" "$c/agents"
+  : > "$c/agents/planner.md.pre-link"
+  run bash "$REPO/install.sh" --check
+  # --check fails here (nothing is installed); the leftovers are listed either way
+  assert_output --partial "WARN leftover from an older install, safe to delete: $c/skills/old.pre-link"
+  assert_output --partial "WARN leftover from an older install, safe to delete: $c/agents/planner.md.pre-link"
 }

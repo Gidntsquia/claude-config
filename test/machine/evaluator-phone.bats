@@ -69,6 +69,15 @@ png $PH/01-three-p3.png 780x1224"
 }
 
 # bats test_tags=feature:phone-pictures
+@test "the picture of a one-line page ends near the text, with no blank screen below it" {
+  printf '<!doctype html><meta name="viewport" content="width=device-width"><p>one line</p>' > "$PH/one.html"
+  shoot 02b-one html "$PH/one.html"
+  has "$out" "png $PH/02b-one.png 780x"
+  h=${out##*x}
+  [ "$h" -ge 240 ] && [ "$h" -lt 600 ]
+}
+
+# bats test_tags=feature:phone-pictures
 @test "a Markdown file becomes a phone-width picture" {
   printf '# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n- item\n' > "$PH/doc.md"
   shoot 03-md md "$PH/doc.md"
@@ -103,6 +112,26 @@ green_printed() { TMUX_TMPDIR="$TMUX_DIR" tmux capture-pane -p -t evt-phone | gr
   wait_until 20 green_printed
   shoot 06-tmux tmux evt-phone
   has "$out" "png $PH/06-tmux.png 780x"
+}
+
+# bats test_tags=feature:phone-pictures
+@test "text a terminal prints in green stays green in its picture" {
+  command -v tmux >/dev/null 2>&1 || skip "tmux is not installed"
+  unset TMUX TMUX_PANE
+  TMUX_DIR=$(mktemp -d /tmp/evt.XXXXXX)
+  export TMUX_TMPDIR="$TMUX_DIR"
+  EVT_PATH=$(dirname "$(command -v tmux)")
+  without_bats_fds tmux -f /dev/null new-session -d -s evt-phone -x 100 -y 40 >/dev/null 2>&1
+  tmux send-keys -t evt-phone "printf '\\033[32mgreen\\033[0m\\n'" Enter
+  wait_until 20 green_printed
+  # the tool beside a picture taker that keeps the page it was handed, as <out>.html
+  mkdir "$W/cap"
+  cp "$LT/common/phone-shot.sh" "$W/cap/"
+  printf 'import shutil, sys\nshutil.copy(sys.argv[2][len("file://"):], sys.argv[1] + ".html")\n' > "$W/cap/phone-bidi.py"
+  evo "$W/cap/phone-shot.sh" "$PH/06b-colour" tmux evt-phone
+  assert_equal "$rc" 0
+  run cat "$PH/06b-colour.html"
+  assert_output --partial '<span style="color:#3a3">green</span>'
 }
 
 # bats test_tags=feature:phone-pictures

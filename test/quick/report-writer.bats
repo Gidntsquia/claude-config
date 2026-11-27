@@ -108,6 +108,17 @@ tokens=1234567.0"
 }
 
 # bats test_tags=feature:report-writer
+@test "build refuses to read a figure from a file outside the data folder" {
+  printf '[{"name": "slow", "seconds": 1}]\n' >"$WORK/side.json"
+  replace "$OUT/numbers.json" '"file": "runs.json", "field": "[name=slow]' '"file": "../side.json", "field": "[name=slow]'
+  run build --no-cards
+  assert_success
+  assert_output --partial "numbers: old_s: file ../side.json is a writer-made data file"
+  run values
+  assert_output --partial "old_s=None"
+}
+
+# bats test_tags=feature:report-writer
 @test "build stops on a figure the numbers file does not have" {
   replace "$OUT/report.md" "over {tokens}" "over {nothing}"
   run build --no-cards

@@ -1,0 +1,12 @@
+An agent file missing from the wiki stamp is reported as in step.
+--- a/helper-mcp/server.py
++++ b/helper-mcp/server.py
+@@ -91,7 +91,7 @@
+         differing = list(agents)
+     else:
+         for n, info in agents.items():
+-            if stamp["hashes"].get(n) != info["hash"]:
++            if stamp["hashes"].get(n, info["hash"]) != info["hash"]:
+                 differing.append(n)
+     return {
+         "stale": bool(differing),

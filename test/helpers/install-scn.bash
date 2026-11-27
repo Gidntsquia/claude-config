@@ -100,7 +100,7 @@ scn_sep22() {
   expect "sep22: 'removed' printed for commands and the old skill" test "$(printf '%s\n' "$out" | grep -c '^  removed ')" = 2
   expect "sep22: settings.json is a generated file, not a link" sh -c "[ -f '$C/settings.json' ] && [ ! -L '$C/settings.json' ]"
   if [ "$(uname -s)" = Darwin ]; then
-    expect "sep22: iTerm2 no longer loads its preferences from the clone" sh -c "! defaults read com.googlecode.iterm2 PrefsCustomFolder >/dev/null 2>&1 && [ \"\$(defaults read com.googlecode.iterm2 LoadPrefsFromCustomFolder)\" = false ]"
+    expect "sep22: iTerm2 no longer loads its preferences from the clone" sh -c "! defaults read com.googlecode.iterm2 PrefsCustomFolder >/dev/null 2>&1 && [ \"\$(defaults read com.googlecode.iterm2 LoadPrefsFromCustomFolder)\" = 0 ]"
   fi
   closing sep22 "$H" "$K"
   out="$(cd "$K" && ./install.sh 2>&1)"; rc=$?
@@ -389,7 +389,7 @@ scn_oldtag() {
   expect "oldtag: the clone's hooks/usage-guard is still a real folder" sh -c "[ -d '$K/hooks/usage-guard' ] && [ ! -L '$K/hooks/usage-guard' ]"
   expect "oldtag: settings.json is a generated file, not a link" sh -c "[ -f '$C/settings.json' ] && [ ! -L '$C/settings.json' ]"
   if [ "$(uname -s)" = Darwin ]; then
-    expect "oldtag: iTerm2 no longer loads its preferences from the clone" sh -c "! defaults read com.googlecode.iterm2 PrefsCustomFolder >/dev/null 2>&1 && [ \"\$(defaults read com.googlecode.iterm2 LoadPrefsFromCustomFolder)\" = false ]"
+    expect "oldtag: iTerm2 no longer loads its preferences from the clone" sh -c "! defaults read com.googlecode.iterm2 PrefsCustomFolder >/dev/null 2>&1 && [ \"\$(defaults read com.googlecode.iterm2 LoadPrefsFromCustomFolder)\" = 0 ]"
   fi
   closing oldtag "$H" "$K"
 }
@@ -458,7 +458,7 @@ scn_plist() {
   expect "plist: the current install.sh exits 0 (got $rc)" test "$rc" = 0
   expect "plist: install.sh left the plist alone" cmp -s "$K/$PLIST" "$H/plist.orig"
   if [ "$(uname -s)" = Darwin ]; then
-    expect "plist: iTerm2 no longer loads its preferences from the clone" sh -c "! defaults read com.googlecode.iterm2 PrefsCustomFolder >/dev/null 2>&1 && [ \"\$(defaults read com.googlecode.iterm2 LoadPrefsFromCustomFolder)\" = false ]"
+    expect "plist: iTerm2 no longer loads its preferences from the clone" sh -c "! defaults read com.googlecode.iterm2 PrefsCustomFolder >/dev/null 2>&1 && [ \"\$(defaults read com.googlecode.iterm2 LoadPrefsFromCustomFolder)\" = 0 ]"
   fi
   out="$(cd "$K" && ./install.sh --check 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
   expect "plist: --check exits 0 and ends 'all checks passed' (got $rc, '$(last "$out")')" test "$rc$(last "$out")" = "0all checks passed"

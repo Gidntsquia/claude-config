@@ -1,0 +1,14 @@
+# Errors a person found on a real machine that the tests had passed. Each needs a test tagged `escape:<id>`.
+# <id> | <what happened> . Detail of the November 2026 Mac errors: plans/research/mac-gaps-retrace.md.
+1a | install.sh linked hooks/usage-guard to itself on an older install
+1b | a missing guard script blocked every tool
+1c | a moved clone's broken links were counted as the user's own files
+1d | a pull would have taken away iTerm2's preferences
+1e | --check failed on kept untracked files
+1f | the run-agent tests failed on macOS's BSD tools
+2 | the usage API call always failed on macOS
+3 | a job scheduled after a usage window ran late or was skipped
+4 | two jobs scheduled in the same second got one id
+5 | a Keychain Not Found dialog came from a throwaway home
+6 | the Windows CI job broke unseen because CI ran only at a release
+windows-stale-copy | on Windows without symlinks a rerun after an update kept the old copies

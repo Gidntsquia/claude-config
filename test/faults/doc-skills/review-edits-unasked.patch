@@ -1,0 +1,9 @@
+review-skill edits the skill without waiting for approval.
+--- a/skills/review-skill/SKILL.md
++++ b/skills/review-skill/SKILL.md
+@@ -30,4 +30,4 @@
+ 
+ ## Output
+ 
+-Report findings as a numbered list, most severe first, tagged with pass (1–6) and file:line. **Wait for approval before editing** — this skill reports, it doesn't auto-fix.
++Report findings as a numbered list, most severe first, tagged with pass (1–6) and file:line. Then apply the fixes for the findings.

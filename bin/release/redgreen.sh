@@ -1,5 +1,6 @@
 #!/bin/bash
 # usage: /bin/bash bin/release/redgreen.sh [out dir]      (default out dir: plans/eval-checks/release; about 25 minutes)
+# Also writes test/results/escapes.txt (the count in TESTING.md).
 # The red runs for the 11 errors a real Mac showed in November 2026 (plans/research/mac-gaps-retrace.md). For each
 # error: a scratch clone of this repo at HEAD with that error's fix taken out (the non-test files put back as they
 # were before the fix), and the error's own test run from that clone. A test that stays green with its fix removed
@@ -61,7 +62,7 @@ fresh
 SCN_NO_KEYCHAIN=1 scn fresh | row 5 "home_setup's keychain creation (SCN_NO_KEYCHAIN=1)" "SCN_NO_KEYCHAIN=1 bats test/quick/install-fresh.bats"
 # 2: parse.py as before 65d6fc4 (no CA file, no Keychain read)
 fresh; unpatch 65d6fc4 skills/run-agent/scripts/parse.py
-test/run machine 2>&1 | sed 's/^not ok/FAIL/' | row 2 "65d6fc4's changes to parse.py" "test/run machine (test/machine/real-usage.bats)"
+"$BATS" --tap test/machine/real-usage.bats 2>&1 | sed 's/^not ok/FAIL/' | row 2 "65d6fc4's changes to parse.py" "bats test/machine/real-usage.bats"
 # 1f: the macOS port of the scripts (ed031af) undone in runner.sh, launch.py, jobs.py, bin/run-agent
 fresh; unpatch ed031af skills/run-agent/scripts/runner.sh skills/run-agent/scripts/launch.py skills/run-agent/scripts/jobs.py bin/run-agent
 run_agent_tests | row 1f "ed031af's changes to runner.sh, launch.py, jobs.py, bin/run-agent (run-agent.sh no longer reverses cleanly; left as is)" "bats test/quick/run-agent-*.bats"
@@ -71,8 +72,24 @@ run_agent_tests | row 3 "65d6fc4's changes to runner.sh" "bats test/quick/run-ag
 # 4: jobs.py as before 782ccc4 (id taken without a lock)
 fresh; unpatch 782ccc4 skills/run-agent/scripts/jobs.py
 run_agent_tests | row 4 "782ccc4's changes to jobs.py" "bats test/quick/run-agent-*.bats (cases 'handoff: 3 at once', 'jobs: 12 schedulers at once')"
-# 6: no scratch copy: the red is the run that showed it
+# 6: Windows taken out of the workflow's test job
+fresh; sed 's/, windows-latest]/]/' .github/workflows/install.yml > wf && cat wf > .github/workflows/install.yml
+"$BATS" --tap test/quick/install-windows.bats 2>&1 | sed 's/^not ok/FAIL/' | row 6 "windows-latest taken out of the test job" "bats test/quick/install-windows.bats"
+# windows-stale-copy: install.sh as before 499a98d (a rerun left old copies in place)
+fresh; git show 499a98d^:install.sh > install.sh
+"$BATS" --tap test/quick/install-windows.bats 2>&1 | sed 's/^not ok/FAIL/' | row windows-stale-copy "install.sh as before 499a98d" "bats test/quick/install-windows.bats"
+# 6 as it was found, in CI
 say ""; say "## row 6: run 44974710129 (workflow_dispatch on 655041c, Nov 21): the first Windows run after the beta.5 commits"
 ( cd "$R" && gh run view 44974710129 --json conclusion,event,headSha,jobs --jq '"conclusion \(.conclusion), event \(.event), commit \(.headSha[0:7])", (.jobs[] | "  \(.name): \(.conclusion)")' ) >> "$LOG" 2>&1
 ( cd "$R" && gh run view 44974710129 --log-failed 2>/dev/null ) | grep 'FAIL ' | cut -f1,3- | sed 's/[0-9T:.-]*Z //' | cut -c1-300 >> "$LOG"
+# the count test/run --report reads: past errors (test/escapes.txt) with a row that went red
+red=0; all=0
+for id in $(sed -n 's/^\([A-Za-z0-9_-][A-Za-z0-9_-]*\)[[:space:]]*|.*/\1/p' "$R/test/escapes.txt"); do
+  all=$((all + 1))
+  grep -qE "^## row $id( \([^)]*\))?: [1-9][0-9]* FAIL" "$LOG" && red=$((red + 1))
+done
+mkdir -p "$R/test/results"
+{ echo "# bin/release/redgreen.sh, $(TZ=America/New_York date '+%Y-%m-%d %I:%M %p ET') on $(uname -s), commit $(git -C "$R" rev-parse --short HEAD)"
+  grep '^## row ' "$LOG" | sed 's/^## //'; echo "red $red of $all"; } > "$R/test/results/escapes.txt"
+say ""; say "red $red of $all"
 say ""; say "done $(TZ=America/New_York date '+%I:%M %p ET')"

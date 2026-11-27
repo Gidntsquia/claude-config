@@ -11,6 +11,7 @@ in_tmux() { export TMUX="$(TM display -p '#{socket_path}'),0,0" TMUX_PANE="$(TM 
 sched_id() { grep -o '^scheduled #[0-9]*' <<<"$1" | tr -dc 0-9; }
 
 # old: sched: scheduled line | sched: job file written | sched: job fields | sched: --jobs lists it
+# bats test_tags=escape:1f
 @test "scheduling prints one line, writes the job and --jobs lists it" {
   local R; R=$(( $(date +%s) + 6 )); usage_at "$R"
   keys "'$S' worker '.' --at $R --at-text 'after window' --window -- --model fable > '$T/sched.out' 2>&1; '$S' --jobs > '$T/jobs1.out'"
@@ -97,6 +98,7 @@ window_run_fires_at_its_time() {  # <seconds from run_at to "until">
 }
 
 # old: sched: API moved to run_at + 18000 before firing, until +60 s -> fired at run_at, no wait, no skip (4 s after due) | sched: #n scheduled at the live reset | sched: #n ran claude in the pane | sched: #5 run_at unchanged by the later API answer
+# bats test_tags=escape:3
 @test "a window run fires at its stored time although the API moved on, until 60 s later" {
   window_run_fires_at_its_time 60
 }

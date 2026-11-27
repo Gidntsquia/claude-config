@@ -1,0 +1,11 @@
+Copied files are not recorded, so a rerun after an update cannot refresh unedited copies.
+--- a/install.sh
++++ b/install.sh
+@@ -431,7 +431,6 @@
+   elif [ -e "$dst" ]; then echo "  kept yours: $dst (repo's not installed)"; return 0; fi
+   if err="$(ln -s "$src" "$dst" 2>&1)"; then return 0; fi
+   if [ "$OS" = windows ] && cp -R "$src" "$dst" 2>/dev/null; then
+-    copies record "$dst"
+     echo "  (copied $dst: this Windows account cannot make symlinks; rerun install.sh after updates)"; return 0
+   fi
+   echo "install: could not link $dst: ${err:-ln -s failed}" >&2; exit 1

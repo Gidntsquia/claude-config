@@ -1,0 +1,12 @@
+A merge install overwrites the user's own statusLine with the repo's.
+--- a/install.sh
++++ b/install.sh
+@@ -534,7 +534,7 @@
+   merge)
+     args=()
+     # Your values win, statusLine included: with squid/plane the repo's statusLine is added only when you have none.
+-    $statusline_on || args=(--drop-key statusLine)
++    if $statusline_on; then args=(--force-key statusLine); else args=(--drop-key statusLine); fi
+     tmp="$C/.settings.merge.$$"
+     "$PY" "$R/bin/merge-settings.py" "$R/settings.json" "$C/settings.json" "$tmp" ${args[@]+"${args[@]}"} | sed 's/^/  /'
+     settings_rules "$tmp"

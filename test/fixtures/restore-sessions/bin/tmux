@@ -5,6 +5,8 @@
 import os, re, sys
 d = os.environ["FAKE_TMUX_DIR"]
 args = sys.argv[1:]
+if args[:1] == ["-u"]:
+    args = args[1:]
 if args[:1] == ["-L"]:
     args = args[2:]
 with open(os.path.join(d, "calls.log"), "a") as log:
