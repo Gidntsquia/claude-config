@@ -128,7 +128,14 @@ run_faults() {
 
 # ---- repeated runs ------------------------------------------------------------------------------------------
 # shuffle <seed>: stdin lines in an order that depends only on the seed and the lines
-shuffle() { awk -v s="$1" 'BEGIN { srand(s) } { printf "%.12f\t%s\n", rand(), $0 }' | sort | cut -f2-; }
+# (not awk's srand: Ubuntu's mawk gives a different order for the same seed)
+shuffle() {
+  python3 -c '
+import hashlib, sys
+lines = sys.stdin.buffer.read().splitlines()
+lines.sort(key=lambda l: hashlib.sha256(sys.argv[1].encode() + b" " + l).digest())
+sys.stdout.buffer.write(b"".join(l + b"\n" for l in lines))' "$1"
+}
 
 # agree <file of `run <i> seed <s>: <result>` lines> [<planned>]: prints `agreed <n> of <m>`, n being the runs with
 # the commonest result; status 0 only when every planned run passed with one and the same result.
