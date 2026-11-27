@@ -517,7 +517,8 @@ if [ "${guard_count:-0}" -gt 0 ] 2>/dev/null; then
   fi
   guard_exp=$(head -1 "$guard_dir/allow" 2>/dev/null)
   if [ "${guard_exp:-0}" -gt "$(date +%s)" ] 2>/dev/null; then
-    guard_seg+=" unlocked→$(TZ=America/New_York date -d "@$guard_exp" +%H:%M)"
+    # GNU date takes -d @epoch, macOS date takes -r epoch
+    guard_seg+=" unlocked→$(TZ=America/New_York date -d "@$guard_exp" +%H:%M 2>/dev/null || TZ=America/New_York date -r "$guard_exp" +%H:%M)"
   fi
   out+=" $(esc '38;2;168;153;132')$guard_seg$(rst)"
 fi
