@@ -1,0 +1,1 @@
+{"model": "haiku", "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "sh ~/.claude/hooks/my-hook.sh"}]}]}}

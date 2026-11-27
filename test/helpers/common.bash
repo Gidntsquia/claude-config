@@ -1,5 +1,5 @@
 # Loaded by every .bats file:   load ../helpers/common
-# Gives assert_* and refute_* (bats-assert), assert_file_* (bats-file), temp_home, wait_until, run_legacy and $REPO.
+# Gives assert_* and refute_* (bats-assert), assert_file_* (bats-file), temp_home, wait_until, without_bats_fds and $REPO.
 REPO="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 export REPO TZ=UTC LC_ALL=C
 
@@ -14,4 +14,4 @@ else
 fi
 load "$REPO/test/helpers/home"
 load "$REPO/test/helpers/wait"
-load "$REPO/test/helpers/legacy"
+load "$REPO/test/helpers/proc"

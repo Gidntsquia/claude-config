@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# The shell left in a respawned pane is $SHELL; a no-rc one keeps the fake claude first on PATH.
+exec bash --norc --noprofile "$@"

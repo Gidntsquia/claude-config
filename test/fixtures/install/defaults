@@ -1,0 +1,8 @@
+#!/bin/sh
+# Stand-in for macOS `defaults`, which ignores HOME: each key is a file under the throwaway home.
+d="$HOME/.fake-defaults"; k="$(printf %s "${3:-}" | tr ' /' '__')"
+case "${1:-}" in
+  read)   [ -f "$d/$k" ] && cat "$d/$k" || exit 1 ;;
+  write)  shift 3; [ $# -gt 1 ] && shift; printf '%s\n' "${1:-}" > "$d/$k" ;;
+  delete) [ -f "$d/$k" ] && rm "$d/$k" || exit 1 ;;
+esac

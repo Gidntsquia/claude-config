@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Fake claude: records where it started, its arguments and the subagent caps in its environment, then exits.
+{ echo "pwd=$PWD"; printf 'arg=%s\n' "$@"
+  echo "subenv=${CLAUDE_CODE_SUBAGENT_MODEL:-}/${CLAUDE_CODE_SUBAGENT_MODEL_FORCE:-}/${CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS:-}/${CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH:-}"; } > "$RA_OUT"

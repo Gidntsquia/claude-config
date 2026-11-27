@@ -86,5 +86,5 @@ jobs:
         run: test/run docker
 
   # The update rehearsal (an older, lived-in install, then README's update sentence typed into claude -p) does not
-  # run here: it needs a Claude login, and none is stored on GitHub. test/rehearsal.sh runs it in Docker on the
+  # run here: it needs a Claude login, and none is stored on GitHub. bin/release/rehearsal.sh runs it in Docker on the
   # maintainer's Mac before a release.
