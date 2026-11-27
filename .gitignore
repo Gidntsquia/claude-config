@@ -22,3 +22,6 @@ agents/evals/report-writer/out/
 mods/*/.claude-plugin/types/
 mods/*/tsconfig.json
 /rehearsal-out/
+
+# a hook trace left in a folder a session ran in
+.ra-trace.log
