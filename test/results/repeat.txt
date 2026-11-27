@@ -1,5 +1,12 @@
-# test/run quick --repeat 3 --seed 1795799277, 2026-11-27 12:20 PM ET on Darwin, commit 434038e
-run 1 seed 1795799277: PASS 720 tests
-run 2 seed 1795799278: PASS 720 tests
-run 3 seed 1795799279: PASS 720 tests
-agreed 3 of 3
+# test/run quick --repeat 10 --seed 1795803058, 2026-11-27 02:05 PM ET on Darwin, commit 978e0de
+run 1 seed 1795803058: PASS 733 tests
+run 2 seed 1795803059: PASS 733 tests
+run 3 seed 1795803060: PASS 733 tests
+run 4 seed 1795803061: PASS 733 tests
+run 5 seed 1795803062: PASS 733 tests
+run 6 seed 1795803063: PASS 733 tests
+run 7 seed 1795803064: PASS 733 tests
+run 8 seed 1795803065: PASS 733 tests
+run 9 seed 1795803066: PASS 733 tests
+run 10 seed 1795803067: PASS 733 tests
+agreed 10 of 10

@@ -29,7 +29,7 @@ Rewritten by `test/run --report` from `test/features.txt`, `test/escapes.txt`, `
 | Features with automated tests | 25 of 26 | completeness |
 | Planted faults caught | 70 of 75 | sensitivity |
 | Past real-machine errors with a test | 12 of 12 | fidelity |
-| Repeated shuffled runs that agreed | 3 of 3 | consistency |
+| Repeated shuffled runs that agreed | 10 of 10 | consistency |
 | Stand-ins with a test against the real tool | 17 of 22 | fidelity |
 
 Features with no automated test:
@@ -49,7 +49,7 @@ Faults measured 2026-11-27 11:10 AM ET on Darwin, commit d0eb9ee.
 
 Past errors seen red with their fix removed: 12 of 12, measured 2026-11-27 11:38 AM ET on Darwin, commit d0eb9ee.
 
-Repeat measured 2026-11-27 12:20 PM ET on Darwin, commit 434038e.
+Repeat measured 2026-11-27 02:05 PM ET on Darwin, commit 978e0de.
 <!-- trust-report:end -->
 
 How each number is made:
@@ -86,6 +86,10 @@ Still open from the November 2026 Mac update, where 11 errors reached a real Mac
 
 The Ubuntu result in the README line comes from an Ubuntu 24.04 container on the maintainer's Mac (`docker run --init`),
 where the docker tier skips; the docker tier is run from the Mac itself.
+
+Known flake, Linux only: `usage-guard: its own suite passes` fails in about one run in six on its case
+`status line shows FE after the count`. The suite lives in `hooks/usage-guard/`, which only its owner edits, so repeated
+Linux runs cannot all agree until that case is fixed there. The test is neither skipped nor retried.
 
 Some machine tests run only where their tool exists and say why they skipped: GNU `ps`, `pgrep`, `date`,
 `journalctl` (Linux), Maven, RSpec, Docker. A pass with skips did not compare those.
