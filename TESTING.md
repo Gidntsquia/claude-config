@@ -68,13 +68,13 @@ Rewritten by `bin/release/trust-report` from the tags and the last recorded runs
 | Question | Number | Made by |
 |---|---|---|
 | Does every feature have a test? | 26 of 26 features | `test/run` |
-| Does a broken feature turn its tests red? | 70 of 75 planted faults caught | `bin/release/faults` |
+| Does a broken feature turn its tests red? | 73 of 75 planted faults caught | `bin/release/faults` |
 | Would the old bugs be caught today? | 12 of 12 went red with the fix removed (12 have a test) | `bin/release/redgreen.sh` |
 | Does the same code give the same answer? | 10 of 10 shuffled runs agreed | `bin/release/repeat <n>` |
 | Do the stand-ins behave like the real tools? | 17 compared in the machine tier | tests tagged `standin:<id>` |
 
-- `test/results/faults.txt`: measured 2026-11-27 11:10 AM ET on Darwin, commit d0eb9ee.
+- `test/results/faults.txt`: measured 2026-11-27 04:21 PM ET on Darwin, commit 4bbcc43.
 - `test/results/escapes.txt`: measured 2026-11-27 11:38 AM ET on Darwin, commit d0eb9ee.
 - `test/results/repeat.txt`: measured 2026-11-27 02:05 PM ET on Darwin, commit 978e0de.
-- Faults not caught: restore-sessions/resume-without-model statusline/unlock-time-utc update-by-claude/local-edits-discarded update-by-claude/prerelease-picked update-by-claude/relink-step-missing usage-guard.
+- Faults not caught: restore-sessions/resume-without-model statusline/unlock-time-utc usage-guard.
 <!-- trust-report:end -->

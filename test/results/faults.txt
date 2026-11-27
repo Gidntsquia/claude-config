@@ -1,4 +1,4 @@
-# test/run --faults, 2026-11-27 11:10 AM ET on Darwin, commit d0eb9ee
+# bin/release/faults, 2026-11-27 04:21 PM ET on Darwin, commit 4bbcc43
 caught agent-prompts/next-tool-renamed
 caught agent-prompts/planner-cannot-delegate
 caught agent-prompts/show-verb-renamed
@@ -45,12 +45,15 @@ caught statusline/plane-ignored
 caught terminal-setup/iterm-old-default-lost
 caught terminal-setup/three-panes
 caught terminal-setup/wt-default-without-asking
-caught test-runner/count-mismatch-ignored
 caught test-runner/failures-exit-zero
+caught test-runner/feature-without-test-ignored
 caught test-runner/missed-fault-counted-caught
 caught test-speedup/cleanup-drops-others-lock
 caught test-speedup/count-passed-only
 caught test-speedup/time-hides-failure
+caught update-by-claude/local-edits-discarded
+caught update-by-claude/prerelease-picked
+caught update-by-claude/relink-step-missing
 caught updates/conflict-release-wins
 caught updates/old-hooks-folder-link-kept
 caught updates/plain-rerun-forgets-choices
@@ -71,8 +74,5 @@ caught wsl-tools/next-ignores-game-guard
 caught wsl-tools/stray-session-on-failed-open
 missed restore-sessions/resume-without-model
 missed statusline/unlock-time-utc
-missed update-by-claude/local-edits-discarded: the feature has no automated test
-missed update-by-claude/prerelease-picked: the feature has no automated test
-missed update-by-claude/relink-step-missing: the feature has no automated test
 short usage-guard: 0 of 3 faults planted
-caught 70 of 75
+caught 73 of 75
