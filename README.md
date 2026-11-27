@@ -4,7 +4,7 @@
   <img alt="The status line showing the project name, git branch, model, and 5-hour usage" src="https://raw.githubusercontent.com/wiki/Gidntsquia/claude-config/statusline.png">
 </p>
 
-[Last full run: 2026-11-27, macOS 27.0.1: all 794 tests passed (37 skipped); Ubuntu: not run; Windows: not run](TESTING.md)
+[Last full run: 2026-11-27, macOS 27.0.1: all 796 tests passed (37 skipped); Ubuntu: not run; Windows: not run](TESTING.md)
 
 My [Claude Code](https://claude.com/claude-code) setup: eight agents, seven skills, a custom status line, and my global `CLAUDE.md` and `settings.json`. The files live in this repo and `~/.claude` holds symlinks to them, so edits made from either place end up here.
 
