@@ -181,6 +181,7 @@ real_firefox() {
 @test "baseline reads the count and slowest times from a real Maven run" {
   command -v mvn >/dev/null 2>&1 || skip "mvn missing"
   command -v java >/dev/null 2>&1 || skip "java missing"
+  command -v javac >/dev/null 2>&1 || skip "javac missing"
   mkdir -p "$W/proj/src/test/java"
   cd "$W/proj"
   cat >pom.xml <<'XML'
@@ -188,7 +189,7 @@ real_firefox() {
   <modelVersion>4.0.0</modelVersion><groupId>t</groupId><artifactId>t</artifactId><version>1</version>
   <properties><maven.compiler.release>17</maven.compiler.release><project.build.sourceEncoding>UTF-8</project.build.sourceEncoding></properties>
   <dependencies><dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>5.11.4</version><scope>test</scope></dependency></dependencies>
-  <build><plugins><plugin><artifactId>maven-surefire-plugin</artifactId><version>3.5.2</version></plugin></plugins></build>
+  <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId><version>3.13.0</version></plugin><plugin><artifactId>maven-surefire-plugin</artifactId><version>3.5.2</version></plugin></plugins></build>
 </project>
 XML
   cat >src/test/java/ATest.java <<'JAVA'

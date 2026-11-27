@@ -84,6 +84,9 @@ Still open from the November 2026 Mac update, where 11 errors reached a real Mac
 - Two evaluator picture tests (line range, colours) replace the repo's `phone-bidi.py` with a file copy and check the
   page's text; the machine tier checks that the real tool draws only the range it is handed, not the colours' pixels.
 
+The Ubuntu result in the README line comes from an Ubuntu 24.04 container on the maintainer's Mac (`docker run --init`),
+where the docker tier skips; the docker tier is run from the Mac itself.
+
 Some machine tests run only where their tool exists and say why they skipped: GNU `ps`, `pgrep`, `date`,
 `journalctl` (Linux), Maven, RSpec, Docker. A pass with skips did not compare those.
 
