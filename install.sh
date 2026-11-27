@@ -76,6 +76,41 @@ in_clone() {
   if [ -L "$1" ]; then case "$(resolve "$1")" in "$R"|"$R"/*) return 0 ;; esac; fi
   [ "$OS" = windows ] && [ -n "${2:-}" ] && [ -e "$1" ] && diff -rq "$1" "$2" >/dev/null 2>&1
 }
+# Windows copies: $C/claude-config.copies holds a hash for every file this installer copied. A copy whose files all
+# still match was not edited, so a later run may replace it with the repo's newer one.
+copies() {  # copies record|unedited <path>
+  "$PY" - "$1" "$2" "$C/claude-config.copies" <<'PYEOF'
+import hashlib, io, json, os, sys
+mode, top, store = sys.argv[1], os.path.abspath(sys.argv[2]), sys.argv[3]
+def files(p):
+    if os.path.isfile(p):
+        yield p
+    for d, dirs, names in os.walk(p):
+        dirs[:] = [x for x in dirs if x != "__pycache__"]
+        for n in names:
+            if n != ".DS_Store":
+                yield os.path.join(d, n)
+def digest(p):
+    with open(p, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+try:
+    with io.open(store, encoding="utf-8") as f:
+        seen = json.load(f)
+except (OSError, ValueError):
+    seen = {}
+if mode == "record":
+    seen = {k: v for k, v in seen.items() if k != top and not k.startswith(top + os.sep)}
+    seen.update((p, digest(p)) for p in files(top))
+    with open(store, "w") as f:
+        json.dump(seen, f, indent=0, sort_keys=True)
+else:
+    found = list(files(top))
+    sys.exit(0 if found and all(seen.get(p) == digest(p) for p in found) else 1)
+PYEOF
+}
+old_copy() { [ "$OS" = windows ] && [ ! -L "$1" ] && [ -e "$1" ] && copies unedited "$1"; }
+# replaceable <path> <repo path>: this installer put it there and you have not changed it
+replaceable() { in_clone "$1" "$2" || old_copy "$1"; }
 expand() { case "$1" in "~") echo "$HOME" ;; "~/"*) echo "$HOME/${1#\~/}" ;; *) echo "$1" ;; esac; }
 saved() { [ -f "$CFG" ] && "$PY" -c 'import json,sys; v=json.load(open(sys.argv[1])).get(sys.argv[2]); print("" if v is None else (str(v).lower() if isinstance(v,bool) else v))' "$CFG" "$1" 2>/dev/null || true; }
 
@@ -195,7 +230,7 @@ settings_generate() { cp "$R/settings.json" "$1" && settings_rules "$1"; }
 repo_agents() { for f in "$R"/agents/*.md; do head -5 "$f" | grep -q '^name:' && basename "$f" .md; done; }
 repo_skills() { for s in "$R"/skills/*/; do [ -f "$s/SKILL.md" ] && basename "$s"; done; }
 # ~/.claude/agents is either a link to the repo's agents/ (whole folder) or the user's own folder (one link per agent).
-agents_whole() { [ ! -e "$C/agents" ] && [ ! -L "$C/agents" ] || in_clone "$C/agents" "$R/agents"; }
+agents_whole() { [ ! -e "$C/agents" ] && [ ! -L "$C/agents" ] || replaceable "$C/agents" "$R/agents"; }
 # run-agent's MCP server (agents hand off through its tools, so the auto-mode classifier never reads a handoff).
 # Registered for every session at user scope, from the installed skill path when that is a link into this clone.
 mcp_server() { if in_clone "$C/skills/run-agent" "$R/skills/run-agent"; then echo "$C/skills/run-agent/mcp/server.py"; else echo "$R/skills/run-agent/mcp/server.py"; fi; }
@@ -392,10 +427,11 @@ link() {
     echo "install: refusing to link $dst: it resolves to $rdst, inside the clone ($R). Remove the link at $(dirname "$dst") and rerun." >&2; exit 1 ;;
   esac
   if [ -L "$dst" ]; then rm "$dst"
-  elif [ -e "$dst" ] && in_clone "$dst" "$src"; then rm -rf "$dst"  # Windows: our own earlier copy
+  elif [ -e "$dst" ] && replaceable "$dst" "$src"; then rm -rf "$dst"  # Windows: our own earlier copy
   elif [ -e "$dst" ]; then echo "  kept yours: $dst (repo's not installed)"; return 0; fi
   if err="$(ln -s "$src" "$dst" 2>&1)"; then return 0; fi
   if [ "$OS" = windows ] && cp -R "$src" "$dst" 2>/dev/null; then
+    copies record "$dst"
     echo "  (copied $dst: this Windows account cannot make symlinks; rerun install.sh after updates)"; return 0
   fi
   echo "install: could not link $dst: ${err:-ln -s failed}" >&2; exit 1
@@ -445,7 +481,7 @@ else
   echo "  agents: you have your own $C/agents, so each repo agent is added next to yours"
   for a in $(repo_agents); do
     f="$C/agents/$a.md"
-    if in_clone "$f" "$R/agents/$a.md" || [ ! -e "$f" ]; then link "$R/agents/$a.md" "$f"; continue; fi
+    if replaceable "$f" "$R/agents/$a.md" || [ ! -e "$f" ]; then link "$R/agents/$a.md" "$f"; continue; fi
     case "$(clash_mode "$a")" in
       keep)    sed "s/^name: *$a *\$/name: $a-claude-config/" "$R/agents/$a.md" > "$C/agents/$a-claude-config.md"
                echo "  agent $a: kept yours; the repo's is $a-claude-config (claude --agent $a-claude-config)" ;;
@@ -455,14 +491,14 @@ else
     esac
   done
   for d in report-writer evals; do  # folders the report-writer agent reads
-    if in_clone "$C/agents/$d" || [ ! -e "$C/agents/$d" ]; then link "$R/agents/$d" "$C/agents/$d"; else echo "  agents/$d is yours; left alone"; fi
+    if replaceable "$C/agents/$d" "$R/agents/$d" || [ ! -e "$C/agents/$d" ]; then link "$R/agents/$d" "$C/agents/$d"; else echo "  agents/$d is yours; left alone"; fi
   done
 fi
 
 # 3. Skills.
 for s in $(repo_skills); do
   d="$C/skills/$s"
-  if in_clone "$d" "$R/skills/$s" || { [ ! -e "$d" ] && [ ! -L "$d" ]; }; then link "$R/skills/$s" "$d"; continue; fi
+  if replaceable "$d" "$R/skills/$s" || { [ ! -e "$d" ] && [ ! -L "$d" ]; }; then link "$R/skills/$s" "$d"; continue; fi
   case "$(clash_mode "$s")" in
     keep)    k="$C/skills/$s-claude-config"; rm -rf "$k"; mkdir -p "$k"
              for f in "$R/skills/$s"/*; do [ "$(basename "$f")" = SKILL.md ] || link "$f" "$k/$(basename "$f")"; done
@@ -476,7 +512,7 @@ done
 echo "  skills: $(repo_skills | tr '\n' ' ')"
 
 # 4. CLAUDE.md: linked only when you have none.
-if [ ! -e "$C/CLAUDE.md" ] || in_clone "$C/CLAUDE.md" "$R/CLAUDE.md"; then link "$R/CLAUDE.md" "$C/CLAUDE.md"; echo "  CLAUDE.md: linked"
+if [ ! -e "$C/CLAUDE.md" ] || replaceable "$C/CLAUDE.md" "$R/CLAUDE.md"; then link "$R/CLAUDE.md" "$C/CLAUDE.md"; echo "  CLAUDE.md: linked"
 else
   echo "  CLAUDE.md: yours is left as it is. To use the repo's rules too, add this line to $C/CLAUDE.md:"
   echo "      @$R/CLAUDE.md"
