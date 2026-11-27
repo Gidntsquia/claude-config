@@ -1,4 +1,4 @@
-# bin/release/faults, 2026-11-27 05:04 PM ET on Darwin, commit 757bc48
+# bin/release/faults, 2026-11-27 06:40 PM ET on Darwin, commit 3255399
 caught agent-prompts/next-tool-renamed
 caught agent-prompts/planner-cannot-delegate
 caught agent-prompts/show-verb-renamed
@@ -42,6 +42,7 @@ caught run-agent/late-jobs-still-fire
 caught run-agent/missing-folder-no-ask
 caught statusline/any-theme-name
 caught statusline/plane-ignored
+caught statusline/unlock-time-utc
 caught terminal-setup/iterm-old-default-lost
 caught terminal-setup/three-panes
 caught terminal-setup/wt-default-without-asking
@@ -60,6 +61,9 @@ caught updates/plain-rerun-forgets-choices
 caught usage-api/keychain-item-name
 caught usage-api/system-ca-dropped
 caught usage-api/weekly-window-reset
+caught usage-guard/count-not-told
+caught usage-guard/every-agent-guarded
+caught usage-guard/missing-flags-allowed
 caught user-settings/own-statusline-overwritten
 caught user-settings/repo-scalar-wins
 caught user-settings/skill-clash-defaults-replace
@@ -68,11 +72,9 @@ caught weekly-roundup/prompts-published
 caught weekly-roundup/streamed-usage-double-counted
 caught windows-install/check-skill-copies-as-yours
 caught windows-install/copies-not-recorded
-caught windows-install/statusline-not-skipped
+caught windows-install/statusline-skipped
 caught wsl-tools/default-profile-unasked
 caught wsl-tools/next-ignores-game-guard
 caught wsl-tools/stray-session-on-failed-open
 missed restore-sessions/resume-without-model
-missed statusline/unlock-time-utc
-short usage-guard: 0 of 3 faults planted
-caught 73 of 75
+caught 77 of 78

@@ -39,13 +39,13 @@ side has no runner); your own Mac's PATH, shell files and `~/.claude`; a skipped
 | Lint, before any test | a fixed wait, the network, your real home or a fixed port made tests flaky or unsafe | refused by rule: the run fails |
 | Tiers | quick must run anywhere in minutes; real tools and Docker are slower and not on every system | quick, machine, docker |
 | Feature tags | a failure names the feature, and a feature whose last test is deleted fails the run | 26 of 26 features |
-| Planted faults (`bin/release/faults`) | a test that stays green when its feature is broken proves nothing | 73 of 75 planted faults caught |
+| Planted faults (`bin/release/faults`) | a test that stays green when its feature is broken proves nothing | 77 of 78 planted faults caught |
 | Old bugs replayed (`bin/release/redgreen.sh`) | a past error's test must fail again when its fix is taken out | 12 of 12 went red with the fix removed (12 have a test) |
 | Repeated runs (`bin/release/repeat <n>`) | a test that passes only sometimes, or only in one order, is found before you are | 10 of 10 shuffled runs agreed |
 | Stand-in comparisons (`standin:<id>`) | 11 errors reached a real Mac because a stand-in differed from the tool it stood for | 17 compared in the machine tier |
 | Record caps (`FAILED records:`) | this page, `ARCHITECTURE.md` and `.claude/CLAUDE.md` stay short and name only real paths | this page: at most 80 lines |
 
-Written by `bin/release/trust-report` from the tags and `test/results/`. Measured: faults 2026-11-27 05:04 PM ET on Darwin, commit 757bc48; old bugs 2026-11-27 06:09 PM ET on Darwin, commit 8c957cf; repeat 2026-11-27 02:05 PM ET on Darwin, commit 978e0de. Faults not caught: restore-sessions/resume-without-model statusline/unlock-time-utc usage-guard.
+Written by `bin/release/trust-report` from the tags and `test/results/`. Measured: faults 2026-11-27 06:40 PM ET on Darwin, commit 3255399; old bugs 2026-11-27 06:09 PM ET on Darwin, commit 8c957cf; repeat 2026-11-27 02:05 PM ET on Darwin, commit 978e0de. Faults not caught: restore-sessions/resume-without-model.
 
 | Old bug that reached a real machine, its fix taken out again | Test that went red |
 |---|---|
