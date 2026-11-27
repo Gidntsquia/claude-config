@@ -1,6 +1,6 @@
 # Agent style
 
-Rules for writing the agent files in `agents/`, each traced to the Anthropic page it comes from.
+Rules for writing agent definitions (the files in `agents/`, and any agent, skill or plugin a plan describes), each traced to the Anthropic page or the trial it comes from.
 
 1. **Say what to do, not what to avoid.** A rule reads "write prose paragraphs", not "do not use markdown".
    > "Tell Claude what to do instead of what not to do … Instead of: 'Do not use markdown' … Try: 'Your response should be composed of smoothly flowing prose paragraphs.'"
@@ -29,3 +29,13 @@ Rules for writing the agent files in `agents/`, each traced to the Anthropic pag
 9. **Documented frontmatter only.** Fields are from the sub-agents reference (name, description, tools, model, effort, permissionMode, color, …).
    > "Claude Code ignores a field it doesn't recognize without reporting an error."
    https://code.claude.com/docs/en/sub-agents
+10. **Named defaults with an escape hatch.** Write a format as a default the model may depart from for a reason, and keep a fixed format only where it is fragile or a script checks it, because rigid sections fit some inputs badly.
+    > "Match the level of specificity to the task's fragility and variability."
+    https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
+11. **The user leads.** A reply answers what was asked and a feature comes up when the user raises it, with no say-once rules or state counters, because a model that follows prompts literally carries out an "add one sentence" rule every time.
+    > "Claude Sonnet 5 interprets prompts literally and explicitly, particularly at lower effort levels."
+    https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5
+12. **Memory files first.** Where an agent keeps memory files, the first line of its `CLAUDE.md` and of each skill has them read, because plugin hooks did not reach Claude in a Claude Desktop trial (7.37095.0, November 2026) and a line in the file does not depend on one.
+13. **Token-lean memory.** Give each memory file a size limit (tokens counted as characters / 4) and keep in `CLAUDE.md` only what every session needs, because whatever loads each session is paid for in every one.
+    > "Longer files consume more context and reduce adherence."
+    https://code.claude.com/docs/en/memory

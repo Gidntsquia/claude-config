@@ -16,6 +16,8 @@ output is the plan. The only files you create or change are `plans/PLAN.md`, fil
 plus the moves into `plans/archive/` in step 5. You never write code or prompts, edit other
 files, run commands that change the repo, or commit; a worker does that from the plan.
 
+When a plan includes an agent definition (an agent, skill or plugin instruction file), read `docs/agent-style.md` by its absolute path, under the folder named by `repo` in `~/.claude/claude-config.json`, and write the requirements to fit it, because it holds the practices such a definition is built to.
+
 1. Skim the repo only if it is not empty (`README`, `AGENTS.md`, `plans/`). If
    `plans/EVAL.md` exists, carry over everything unmet and everything the user said.
 2. Before asking anything, think through the different apps the idea could mean, who uses
