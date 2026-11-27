@@ -9,6 +9,8 @@ RA_FIX="$REPO/test/fixtures/run-agent"
 
 ra_setup() {
   local v a
+  # run-agent needs tmux and a Unix process table; its tests never ran on Windows.
+  if ra_on_windows; then skip "run-agent needs tmux, which Windows Git Bash lacks"; fi
   for v in $(compgen -e); do
     case "$v" in CLAUDE*|TMUX*|ANTHROPIC*|RUN_AGENT_*) unset "$v" ;; esac
   done

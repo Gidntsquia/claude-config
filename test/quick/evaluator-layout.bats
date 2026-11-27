@@ -5,6 +5,10 @@
 load ../helpers/common
 load ../helpers/evaluator-tools
 
+setup() {
+  case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) skip "the evaluator's tools are for WSL, Linux and macOS" ;; esac
+}
+
 # code lines (not comment lines) of the named files that match the extended regex
 code_lines() {
   local re="$1" f; shift
