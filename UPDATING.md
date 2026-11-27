@@ -71,7 +71,7 @@ The installer prints `relinked <path> (was <old target>, now missing)` for each 
 
 ## What no test covers
 
-Four things can only be checked by hand on the real machine after an update. The wiki's Updating page says why.
+`test/run` is the one test command, and `TESTING.md` lists everything a pass does not cover. Four things can only be checked by hand on the real machine after an update. The wiki's Updating page says why.
 
 - The live login token and real usage numbers. Check: `python3 ~/.claude/skills/run-agent/scripts/parse.py --window-reset` prints an epoch followed by `live`. `assumed (now + 5 h)` means the usage API gave no answer.
 - Sleep, wake or a reboot while a run is scheduled. Check: after waking, `run-agent.sh --jobs` still lists the run as `sleeping (pid N)`, and `--health` exits 0.

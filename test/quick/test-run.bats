@@ -13,6 +13,10 @@ setup() {
   UNDER="${TEST_RUNNER_UNDER_TEST:-$REPO/test}"
   cp "$UNDER/run" "$R/test/run"
   cp -R "$UNDER/lib" "$R/test/lib"
+  # the records every run checks (test/quick/records.bats)
+  mkdir -p "$R/.claude"
+  printf '## Decisions\n\n## Next\n' >"$R/ARCHITECTURE.md"
+  echo "scratch" >"$R/.claude/CLAUDE.md"
 }
 
 # put <file under test/quick> <test body>: one @test in a file of its own.

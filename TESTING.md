@@ -2,6 +2,7 @@
 
 ```
 test/run [quick|machine|docker|all]    # quick is the default
+test/run all --report                  # also records this system's result for the README status line
 ```
 
 The last line is `PASS <n> tests` or `FAIL <failed> of <n>`.
@@ -59,6 +60,7 @@ How each number is made:
 | Past errors seen red | `bin/release/redgreen.sh` (macOS, about 25 minutes; commit first) |
 | Repeated runs that agreed | `test/run quick --repeat <n> [--seed <s>]`; weekly in CI as `repeat`, 300 runs on 10 runners, added up by `test/run --agree` |
 | Report | `test/run --report` |
+| README status line | `test/run all --report` on each system; the result is kept in `test/results/full-<system>.txt` |
 
 ## What a pass does not cover
 
@@ -94,7 +96,8 @@ Some machine tests run only where their tool exists and say why they skipped: GN
 | docker | `test/docker/` | a fresh ubuntu:24.04 container |
 
 Every run first lints the test files and compares the tags with `test/features.txt`, `test/escapes.txt` and
-`test/standins.txt`. `test/run --only <feature>` runs one feature's quick and machine tests.
+`test/standins.txt`, and checks the records: `ARCHITECTURE.md` and `.claude/CLAUDE.md` name only paths that exist and
+stay under their line caps. `test/run --only <feature>` runs one feature's quick and machine tests.
 
 ## Adding a test
 

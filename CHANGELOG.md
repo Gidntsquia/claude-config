@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### One test command and written records 🧪
+
+- `test/run` is the one test command, here and in CI: quick, machine and docker tiers on bats, ending `PASS <n> tests` or `FAIL <failed> of <n>`. The old `test/*.sh` scripts are gone.
+- `test/features.txt` lists every feature with its tests, and a run fails when the two disagree. `TESTING.md` holds the trust report: planted faults, past errors, repeated runs, stand-ins.
+- `ARCHITECTURE.md` and `.claude/CLAUDE.md` are new. `test/run` fails when they name a missing path or outgrow their caps.
+- The README carries the last full run's result, written by `test/run all --report`.
+
 ### Evaluator on a Mac 🍎
 
 - The evaluator now runs on a Mac as it does on a Windows PC. Its tools are split by OS: `local-tools/common/` installs everywhere, `local-tools/wsl/` on WSL and `local-tools/macos/` on a Mac. `wsl/local-tools/` is gone; `./install.sh` relinks.

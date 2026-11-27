@@ -4,14 +4,15 @@
 #   quick    test/quick/*.bats and the pytest files: temp HOME, no network, no installed app. Every OS.
 #   machine  test/machine/*.bats: the real tools (Firefox, keychain, network). macOS and Linux.
 #   docker   test/docker/*.bats: needs Docker. Linux.
-#   all      the three tiers in that order.
+#   all      the three tiers in that order. `all --report` also rewrites TESTING.md's trust report and the README
+#            status line with this system's result.
 #
 # Trust modes (test/lib/trust.bash): --only <feature> | --faults [<feature>...] | --report | --agree <file>... |
 # quick --repeat <n> [--seed <s>]. TESTING.md says what each answers.
 #
 # A skipped test is counted in <n>; `skipped <k>` is printed above the result. In the quick tier a skip whose reason
 # says something is "missing" is a failure.
-# Order: lint over the test files, the feature list (test/features.txt), then the tier's tests (several files at once: TEST_JOBS). The last line is `PASS <n> tests` (exit 0) or
+# Order: lint over the test files, the feature list (test/features.txt), the records (test/lib/records.bash), then the tier's tests (several files at once: TEST_JOBS). The last line is `PASS <n> tests` (exit 0) or
 # `FAIL <failed> of <n>` (exit 1). Exit 2 means the suite could not start (bad argument, no bats).
 # bats comes from the submodule test/vendor/bats-core; when that is absent, from a `bats` on PATH
 # (`brew install bats-core`). bash 3.2; pytest for the python files.
@@ -24,12 +25,13 @@ REPO="$(cd "$HERE/.." && pwd)"
 BATS="$HERE/vendor/bats-core/bin/bats"
 
 USAGE="usage: test/run [quick|machine|docker|all]
+       test/run all --report
        test/run quick --repeat <n> [--seed <s>]
        test/run --only <feature> | --faults [<feature>...] | --report | --agree <file>..."
 usage() { [ -z "${1:-}" ] || echo "test/run: $1" >&2; echo "$USAGE" >&2; exit 2; }
 number() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; }
 
-mode="tiers"; tier="quick"; repeat=""; seed=""; args=()
+mode="tiers"; tier="quick"; repeat=""; seed=""; full_report=""; args=()
 case "${1:-}" in
   --only) mode=only; shift; [ $# -eq 1 ] || usage "--only takes one feature"; args=("$1") ;;
   --faults) mode=faults; shift; args=(${@+"$@"}) ;;
@@ -45,6 +47,7 @@ case "${1:-}" in
       case "$1" in
         --repeat) [ "$tier" = quick ] && number "${2:-}" && [ "$2" -gt 0 ] || usage "--repeat <n> goes with the quick tier"; repeat="$2"; shift 2 ;;
         --seed) number "${2:-}" || usage "--seed takes a number"; seed="$2"; shift 2 ;;
+        --report) [ "$tier" = all ] || usage "after a tier, --report goes with all"; full_report=1; shift ;;
         *) usage "unknown argument: $1" ;;
       esac
     done
@@ -389,6 +392,7 @@ run_pytest() {
 
 # ---- run ----------------------------------------------------------------------------------------------------
 . "$HERE/lib/trust.bash"
+. "$HERE/lib/records.bash"
 
 case "$mode" in
   faults) run_faults ${args[@]+"${args[@]}"}; exit $? ;;
@@ -397,13 +401,14 @@ case "$mode" in
     scratch; cat "${args[@]}" > "$WORK_EXTRA/runs" || exit 2
     agree "$WORK_EXTRA/runs"; exit $? ;;
   repeat)
-    lint; features
+    lint; features; records
     [ "$failed" -eq 0 ] || { echo "FAIL $failed of $total"; exit 1; }
     run_repeat "$repeat" "${seed:-$(date +%s)}"; exit $? ;;
   only) run_only "${args[0]}" ;;
   tiers)
     lint
     features
+    records
     find_bats
     for t in $tiers; do
       tier_now="$t"
@@ -411,6 +416,11 @@ case "$mode" in
       [ "$t" = quick ] && run_pytest
     done ;;
 esac
+
+if [ -n "$full_report" ]; then
+  run_report || exit 2
+  record_full || exit 2
+fi
 
 [ "$skips" -eq 0 ] || echo "skipped $skips (counted in the total below; each says why above)"
 if [ "$failed" -eq 0 ]; then
