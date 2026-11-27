@@ -17,17 +17,18 @@ to this repo. `test/run` checks that every path named here exists.
 | Mods | `mods/defer-artifact/` | `mods/<name>/` |
 | Evaluator tools | `local-tools/common/`, `local-tools/macos/`, `local-tools/wsl/` | by the system that can run it; Mac-only helpers never in `common/` |
 | Assistant | `assistant/` | its server in `assistant/mcp/`, its guard hook in `assistant/hooks/` |
-| Helper | `agents/helper.md`, `helper-mcp/` (reads the wiki, cloned into `wiki/`) | |
+| Helper | `agents/helper.md`, `helper-mcp/` (reads the wiki, cloned into `wiki/`) | the agent in `agents/helper.md`, its tools in `helper-mcp/server.py` |
 | Terminal setup | `bin/tmux-quad`, `iterm2/`, `wsl/` | per terminal or system |
 | Tests | `test/run`, `test/quick/`, `test/machine/`, `test/docker/`, `test/helpers/`, `test/fixtures/` | `TESTING.md`, "Adding a test" |
 | Test trust | `test/features.txt`, `test/faults/`, `test/escapes.txt`, `test/standins.txt`, `test/results/`, `test/lib/` | a row or patch beside the others |
 | Release tools | `bin/release/` | run by hand before a release |
+| Repo checks and project files | `bin/find-personal-paths.sh`, `pyproject.toml`, `uv.lock`, `LICENSE` | a repo-wide check goes in `bin/` with a test that runs it |
 | CI | `.github/workflows/install.yml` | calls only `test/run` |
 | Records | `ARCHITECTURE.md`, `TESTING.md`, `CHANGELOG.md`, `AGENTS.md`, `.claude/CLAUDE.md`, `README.md` | rewrite a stale line in place |
-| Writing guides | `docs/` | |
-| Sample project | `examples/first-project/` | |
-| Retired tools | `bin/archive/` | |
-| Plans and research | `plans/` (gitignored, this machine only) | |
+| Writing guides | `docs/` | a guide the agents read: `docs/<name>.md` |
+| Sample project | `examples/first-project/` | the wiki's walkthrough project; change it with the wiki page |
+| Retired tools | `bin/archive/` | a tool nothing installs or calls moves here |
+| Plans and research | `plans/` (gitignored, this machine only) | research in `plans/research/`, listed in its README |
 
 ## Decisions
 

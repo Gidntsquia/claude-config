@@ -24,7 +24,7 @@
 
 - On Windows without symlinks, rerunning `./install.sh` after an update now replaces the copies it made and you did not edit. Before, it kept the old copies as yours. Copies made by an earlier version are still kept: delete them once to get the new ones.
 - `./install.sh --check` prints a PASS or FAIL line per evaluator tool, a FAIL for a tool of the other OS, and on a Mac a Firefox line (`WARN Firefox not installed: items open in the default browser, no phone pictures` when it is missing).
-- New tests: `test/evaluator-tools.sh` (the tools against a stand-in Firefox, `tmux` and `open`, no window opened; real phone pictures from headless Firefox on a Mac), `test/owner-text.sh`, and the `oswsl` and `osmac` cases of `test/install-scenarios.sh`.
+- New tests cover the evaluator tools against a stand-in Firefox, `tmux` and `open` (no window opened), real phone pictures from headless Firefox on a Mac, the author's own text, and installs on WSL and a Mac.
 
 ### The author's own text is out of what you install 🧹
 

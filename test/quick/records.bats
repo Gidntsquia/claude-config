@@ -136,3 +136,20 @@ status_line_of() {
   run grep -c '^\[Last full run: .*\](TESTING\.md)$' "$REPO/README.md"
   assert_output "1"
 }
+
+@test "ARCHITECTURE.md: every part says its folder and where new work goes" {
+  run awk -F'|' '/^\|/ && !/^\|[-| ]*$/ { n++; for (i = 2; i <= 4; i++) if (!match($i, /[^ \t\r]/)) print "empty cell:" $0 }
+    END { print n " rows" }' "$REPO/ARCHITECTURE.md"
+  assert_a_line_matches '^[1-9][0-9]+ rows$'
+  refute_output --partial "empty cell"
+}
+
+@test "ARCHITECTURE.md: every folder in the repo is on the page" {
+  local d folders missing=""
+  folders="$(git -C "$REPO" ls-files | sed -n 's|/.*||p' | sort -u)"
+  [ -n "$folders" ]
+  for d in $folders; do
+    grep -qF "\`$d/" "$REPO/ARCHITECTURE.md" || missing="$missing $d"
+  done
+  assert_equal "$missing" ""
+}

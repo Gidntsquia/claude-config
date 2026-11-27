@@ -25,4 +25,4 @@ helper | helper agent and its wiki MCP server | feature:helper=13
 assistant | assistant agent, its MCP server and guard hook | feature:assistant=15
 doc-skills | write-readme, write-report and review-skill instructions | feature:doc-skills=11
 context-trims | context trims survive the settings merge | feature:context-trims=6
-test-runner | test/run: tiers, lint, feature list | feature:test-runner=48
+test-runner | test/run: tiers, lint, feature list | feature:test-runner=50
