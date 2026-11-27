@@ -48,7 +48,7 @@ Faults measured 2026-11-27 11:10 AM ET on Darwin, commit d0eb9ee.
 
 Past errors seen red with their fix removed: 12 of 12, measured 2026-11-27 11:38 AM ET on Darwin, commit d0eb9ee.
 
-Repeat measured 2026-11-27 11:51 AM ET on Darwin, commit d0eb9ee.
+Repeat measured 2026-11-27 12:20 PM ET on Darwin, commit 434038e.
 <!-- trust-report:end -->
 
 How each number is made:
