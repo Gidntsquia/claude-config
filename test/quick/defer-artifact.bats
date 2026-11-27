@@ -8,7 +8,10 @@ MOD="$REPO/mods/defer-artifact"
 setup() { temp_home; }
 
 # describe <JSON list of cases> : run them through the mod; leaves the host's JSON answer in $output
-describe() { run node "$REPO/test/fixtures/defer-artifact/host.mjs" "$MOD" "$1"; }
+describe() {
+  command -v node >/dev/null 2>&1 || skip "node missing"
+  run node "$REPO/test/fixtures/defer-artifact/host.mjs" "$MOD" "$1"
+}
 
 # bats test_tags=feature:defer-artifact
 @test "the Artifact tool is described as deferred and keeps the rest of its description" {

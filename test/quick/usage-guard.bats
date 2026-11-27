@@ -29,7 +29,9 @@ print(json.dumps(d))' "$1" "$P" "$2" > "$BATS_TEST_TMPDIR/hook.json"
 # bats test_tags=feature:usage-guard
 @test "usage-guard: its own suite passes" {
   [ "$(uname -s)" = Linux ] || skip "hooks/usage-guard/test.sh needs bash 4 and GNU date: it runs on Linux"
-  run bash "$REPO/hooks/usage-guard/test.sh"
+  # The account's own home, as in a terminal: under any other HOME five of its "refuses inside a Claude session"
+  # cases fail. The suite makes its own scratch folders.
+  run env -i PATH="$PATH" HOME="$REAL_HOME" LANG=C.UTF-8 bash "$REPO/hooks/usage-guard/test.sh"
   assert_success
   assert_output --regexp '^[0-9]+ passed, 0 failed$'
 }
