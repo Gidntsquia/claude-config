@@ -81,13 +81,14 @@ sched2() {
 # old: loop: job fired after runner.sh was rewritten and restored | loop: claude ran | loop: logs/<id>.log empty (no error)
 @test "rewriting runner.sh while a run sleeps does not break it" {
   copy_scripts
-  sched2 5 'in 5s'
+  # long enough that the checks below land before the run fires on a loaded machine (5 s was not)
+  sched2 20 'in 20s'
   ra_asleep "$ID"
   cp "$C2/runner.sh" "$T/runner.bak"
   cp "$RA_FIX/runner-junk.sh" "$C2/runner.sh"
   kill -0 "$(jget "$ID" pid)"   # still asleep while the file is junk
   { echo '# restored'; cat "$T/runner.bak"; } > "$C2/runner.sh"   # shifted lines: the old incremental-read bug
-  logged 20 "  #$ID  fired  "
+  logged 45 "  #$ID  fired  "
   claude_ran 'arg=worker: repo'
   [ ! -s "$RUN_AGENT_HOME/logs/$ID.log" ]
 }

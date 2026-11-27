@@ -26,8 +26,8 @@ sched_id() { grep -o '^scheduled #[0-9]*' <<<"$1" | tr -dc 0-9; }
 @test "a scheduled run fires into its pane, is logged with its due time and leaves the list" {
   local R; R=$(( $(date +%s) + 4 )); usage_at "$R"
   keys "'$S' worker '.' --at $R --at-text 'after window' --window -- --model fable > '$T/sched.out' 2>&1"
+  logged 40 "  #1  fired  $SHOWN"   # scheduling itself took over 15 s on a loaded machine
   claude_ran 'arg=worker: repo (fable)'
-  logged 15 "  #1  fired  $SHOWN"
   has "$(TM capture-pane -p -J -t t -S -)" "^scheduled run #1 fired at .* ET: $SHOWN"
   fhas "$LOG" "  #1  fired  $SHOWN  (due $(python3 "$RA_SRC/parse.py" --fmt-s "$R") live, woke 1\{0,1\}[0-9] s after)\$"
   assert_file_exist "$RUN_AGENT_HOME/done/1.json"
@@ -90,7 +90,7 @@ window_run_fires_at_its_time() {  # <seconds from run_at to "until">
   fired=$(date +%s)
   # 'woke N s after' allows up to 19 s here and 15 s from the clock below: a loaded runner has woken 10 s late; the
   # fault guarded against is a skip or an hour's sleep
-  fhas "$LOG" "  #$ID  fired  $SHOWN  (due $(python3 "$RA_SRC/parse.py" --fmt-s "$R") live, woke [0-9] s after)\$"
+  fhas "$LOG" "  #$ID  fired  $SHOWN  (due $(python3 "$RA_SRC/parse.py" --fmt-s "$R") live, woke 1\{0,1\}[0-9] s after)\$"
   [ $(( fired - R )) -le 15 ]
   no grep -q "  #$ID  \(skipped\|fired late\)" "$LOG"
   claude_ran 'arg=worker: repo (fable)'
