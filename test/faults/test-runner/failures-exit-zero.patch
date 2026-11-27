@@ -1,8 +1,8 @@
 --- a/test/run
 +++ b/test/run
-@@ -418,4 +418,4 @@
-   exit 0
+@@ -404,4 +404,4 @@
  fi
+ printf '%s' "$FAILED_LINES"
  echo "FAIL $failed of $total"
 -exit 1
 +exit 0

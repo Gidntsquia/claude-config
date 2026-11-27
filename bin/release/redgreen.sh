@@ -82,9 +82,9 @@ fresh; git show 499a98d^:install.sh > install.sh
 say ""; say "## row 6: run 44974710129 (workflow_dispatch on 655041c, Nov 21): the first Windows run after the beta.5 commits"
 ( cd "$R" && gh run view 44974710129 --json conclusion,event,headSha,jobs --jq '"conclusion \(.conclusion), event \(.event), commit \(.headSha[0:7])", (.jobs[] | "  \(.name): \(.conclusion)")' ) >> "$LOG" 2>&1
 ( cd "$R" && gh run view 44974710129 --log-failed 2>/dev/null ) | grep 'FAIL ' | cut -f1,3- | sed 's/[0-9T:.-]*Z //' | cut -c1-300 >> "$LOG"
-# the count test/run --report reads: past errors (test/escapes.txt) with a row that went red
+# the count bin/release/trust-report reads: past errors (the tests' escape:<id> tags) with a row that went red
 red=0; all=0
-for id in $(sed -n 's/^\([A-Za-z0-9_-][A-Za-z0-9_-]*\)[[:space:]]*|.*/\1/p' "$R/test/escapes.txt"); do
+for id in $(grep -hE '^[[:space:]]*#[[:space:]]*bats[[:space:]]+(file|test)_tags=' "$R"/test/quick/*.bats "$R"/test/machine/*.bats "$R"/test/docker/*.bats | grep -oE 'escape:[A-Za-z0-9_-]+' | sed 's/^escape://' | sort -u); do
   all=$((all + 1))
   grep -qE "^## row $id( \([^)]*\))?: [1-9][0-9]* FAIL" "$LOG" && red=$((red + 1))
 done

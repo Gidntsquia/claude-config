@@ -1,0 +1,81 @@
+#!/bin/bash
+# usage: bin/release/trust-report          rewrite the trust numbers in TESTING.md (between its two marks)
+#        bin/release/trust-report all      first run `test/run all`, keep this system's result in
+#                                          test/results/full-<system>.txt and rewrite the README status line
+# The trust report: the five numbers that say how far a PASS can be believed, each read from the tags on the tests
+# and from the last recorded runs in test/results/ (bin/release/faults, repeat, redgreen.sh).
+set -u
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+HERE="$REPO/test"
+. "$HERE/lib/common.bash"
+. "$HERE/lib/status.bash"
+usage() { echo "usage: bin/release/trust-report [all]" >&2; exit 2; }
+case "$#:${1:-}" in 0:|1:all) ;; *) usage ;; esac
+WORK_EXTRA=""
+trap '[ -z "$WORK_EXTRA" ] || rm -rf "${WORK_EXTRA:?}"' EXIT
+
+result_head() { sed -n '1s/^# [^,]*, //p' "$1"; }
+result_count() { sed -n "s/^$2 \([0-9]* of [0-9]*\)\$/\1/p" "$1"; }
+
+report_block() {
+  local all=0 n=0 id f files extra missed
+  files="$(test_files)"
+  for id in $(feature_ids); do
+    all=$((all + 1))
+    for f in $files; do if has_tag "$f" "feature:$id"; then n=$((n + 1)); break; fi; done
+  done
+  echo "| Question | Number | Made by |"
+  echo "|---|---|---|"
+  echo "| Does every feature have a test? | $n of $all features | \`test/run\` |"
+  f="$RESULTS/faults.txt"
+  if [ -f "$f" ]; then echo "| Does a broken feature turn its tests red? | $(result_count "$f" caught) planted faults caught | \`bin/release/faults\` |"
+  else echo "| Does a broken feature turn its tests red? | not run | \`bin/release/faults\` |"; fi
+  f="$RESULTS/escapes.txt"
+  n="$(tags_of escape | grep -c .)"
+  if [ -f "$f" ]; then echo "| Would the old bugs be caught today? | $(result_count "$f" red) went red with the fix removed ($n have a test) | \`bin/release/redgreen.sh\` |"
+  else echo "| Would the old bugs be caught today? | not run ($n have a test) | \`bin/release/redgreen.sh\` |"; fi
+  f="$RESULTS/repeat.txt"
+  if [ -f "$f" ]; then
+    extra="$(grep -cE '^run [0-9]+ seed [0-9]+: FAIL ' "$f")"
+    [ "$extra" = 0 ] && extra="" || extra=" ($extra of the runs failed)"
+    echo "| Does the same code give the same answer? | $(result_count "$f" agreed) shuffled runs agreed$extra | \`bin/release/repeat <n>\` |"
+  else echo "| Does the same code give the same answer? | not run | \`bin/release/repeat <n>\` |"; fi
+  echo "| Do the stand-ins behave like the real tools? | $(tags_of standin | grep -c .) compared in the machine tier | tests tagged \`standin:<id>\` |"
+  echo
+  for f in faults escapes repeat; do
+    [ -f "$RESULTS/$f.txt" ] && echo "- \`test/results/$f.txt\`: measured $(result_head "$RESULTS/$f.txt")."
+  done
+  f="$RESULTS/faults.txt"
+  if [ -f "$f" ]; then
+    missed="$(grep -E '^(missed|error|short) ' "$f" | awk '{ sub(/:$/, "", $2); printf "%s ", $2 }')"
+    [ -z "$missed" ] || echo "- Faults not caught: ${missed% }."
+  fi
+}
+
+doc="$REPO/TESTING.md"
+grep -qx '<!-- trust-report:start -->' "$doc" 2>/dev/null && grep -qx '<!-- trust-report:end -->' "$doc" ||
+  { echo "trust-report: TESTING.md lacks the trust-report:start and trust-report:end marks" >&2; exit 2; }
+rc=0
+scratch
+if [ "${1:-}" = all ]; then
+  grep -q '^\[Last full run: ' "$REPO/README.md" 2>/dev/null ||
+    { echo "trust-report: README.md lacks its \`[Last full run: ...](TESTING.md)\` line" >&2; exit 2; }
+  "$HERE/run" all | tee "$WORK_EXTRA/full"; rc="${PIPESTATUS[0]}"
+  last="$(tail -n 1 "$WORK_EXTRA/full")"
+  case "$last" in
+    "PASS "*) total="${last#PASS }"; total="${total% tests}"; failed=0 ;;
+    "FAIL "*) failed="${last#FAIL }"; total="${failed#* of }"; failed="${failed%% of *}" ;;
+    *) echo "trust-report: test/run all gave no result line" >&2; exit 2 ;;
+  esac
+  skips="$(sed -n 's/^skipped \([0-9][0-9]*\) .*/\1/p' "$WORK_EXTRA/full" | tail -n 1)"
+  skips="${skips:-0}"
+  record_full || exit 2
+fi
+report_block > "$WORK_EXTRA/block"
+awk -v block="$WORK_EXTRA/block" '
+  $0 == "<!-- trust-report:start -->" { print; while ((getline l < block) > 0) print l; skip = 1; next }
+  $0 == "<!-- trust-report:end -->" { skip = 0 }
+  !skip' "$doc" > "$WORK_EXTRA/doc" && cat "$WORK_EXTRA/doc" > "$doc"
+cat "$WORK_EXTRA/block"
+echo "report: TESTING.md rewritten"
+exit "$rc"

@@ -1,21 +1,22 @@
 #!/bin/bash
 # The one test command.   test/run [quick|machine|docker|all]      (default: quick)
+#                         test/run --only <feature>                (that feature's quick and machine tests)
 #
 #   quick    test/quick/*.bats and the pytest files: temp HOME, no network, no installed app. Every OS.
 #   machine  test/machine/*.bats: the real tools (Firefox, keychain, network). macOS and Linux.
 #   docker   test/docker/*.bats: needs Docker. Linux.
-#   all      the three tiers in that order. `all --report` also rewrites TESTING.md's trust report and the README
-#            status line with this system's result.
+#   all      the three tiers in that order.
 #
-# Trust modes (test/lib/trust.bash): --only <feature> | --faults [<feature>...] | --report | --agree <file>... |
-# quick --repeat <n> [--seed <s>]. TESTING.md says what each answers.
-#
+# Order: lint over the test files, the feature list (test/features.txt), the records (test/lib/records.bash), then
+# the tier's tests (several files at once: TEST_JOBS). A failing run ends with one `FAILED <feature>: <test name>`
+# line per failure, then `FAIL <failed> of <n>` (exit 1). A passing run ends `PASS <n> tests` (exit 0). Exit 2 means
+# the suite could not start (bad argument, no bats).
 # A skipped test is counted in <n>; `skipped <k>` is printed above the result. In the quick tier a skip whose reason
 # says something is "missing" is a failure.
-# Order: lint over the test files, the feature list (test/features.txt), the records (test/lib/records.bash), then the tier's tests (several files at once: TEST_JOBS). The last line is `PASS <n> tests` (exit 0) or
-# `FAIL <failed> of <n>` (exit 1). Exit 2 means the suite could not start (bad argument, no bats).
+# TEST_SEED=<number> runs the test files in the order that seed gives (bin/release/repeat sets it).
 # bats comes from the submodule test/vendor/bats-core; when that is absent, from a `bats` on PATH
 # (`brew install bats-core`). bash 3.2; pytest for the python files.
+# Faults, repeated runs and the trust report are release tools: bin/release/faults, repeat, trust-report.
 
 set -u
 export TZ=UTC LC_ALL=C
@@ -24,36 +25,17 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
 BATS="$HERE/vendor/bats-core/bin/bats"
 
-USAGE="usage: test/run [quick|machine|docker|all]
-       test/run all --report
-       test/run quick --repeat <n> [--seed <s>]
-       test/run --only <feature> | --faults [<feature>...] | --report | --agree <file>..."
-usage() { [ -z "${1:-}" ] || echo "test/run: $1" >&2; echo "$USAGE" >&2; exit 2; }
-number() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; }
+USAGE="usage: test/run [quick|machine|docker|all] | --only <feature>"
+usage() { echo "$USAGE" >&2; exit 2; }
 
-mode="tiers"; tier="quick"; repeat=""; seed=""; full_report=""; args=()
-case "${1:-}" in
-  --only) mode=only; shift; [ $# -eq 1 ] || usage "--only takes one feature"; args=("$1") ;;
-  --faults) mode=faults; shift; args=(${@+"$@"}) ;;
-  --report) mode=report; shift; [ $# -eq 0 ] || usage "unknown argument: $1" ;;
-  --agree) mode=agree; shift; [ $# -gt 0 ] || usage "--agree takes result files"; args=("$@") ;;
-  *)
-    [ $# -gt 0 ] && { tier="$1"; shift; }
-    case "$tier" in
-      quick|machine|docker|all) ;;
-      *) usage ;;
-    esac
-    while [ $# -gt 0 ]; do
-      case "$1" in
-        --repeat) [ "$tier" = quick ] && number "${2:-}" && [ "$2" -gt 0 ] || usage "--repeat <n> goes with the quick tier"; repeat="$2"; shift 2 ;;
-        --seed) number "${2:-}" || usage "--seed takes a number"; seed="$2"; shift 2 ;;
-        --report) [ "$tier" = all ] || usage "after a tier, --report goes with all"; full_report=1; shift ;;
-        *) usage "unknown argument: $1" ;;
-      esac
-    done
-    [ -z "$seed" ] || [ -n "$repeat" ] || usage "--seed goes with --repeat"
-    [ -z "$repeat" ] || mode=repeat ;;
+mode="tiers"; tier="quick"; only=""
+case "$#:${1:-}" in
+  0:) ;;
+  1:quick|1:machine|1:docker|1:all) tier="$1" ;;
+  2:--only) mode=only; only="$2" ;;
+  *) usage ;;
 esac
+case "${TEST_SEED:-}" in *[!0-9]*) echo "test/run: TEST_SEED takes a number" >&2; usage ;; esac
 
 if [ "$tier" = all ]; then tiers="quick machine docker"; else tiers="$tier"; fi
 
@@ -62,30 +44,12 @@ failed=0
 skips=0
 tier_now=""
 
-# ---- the escape: and standin: lists ---------------------------------------------------------------------------
-# With test/escapes.txt: every past error has a test tagged escape:<id>. With test/standins.txt: every row that
-# says standin:<id> has a machine test so tagged. No test carries an id its list lacks.
-trust_tags() {
-  local kind list id used
-  for kind in escape standin; do
-    list="$HERE/${kind}s.txt"
-    [ -f "$list" ] || continue
-    used="$(grep -hE '^[[:space:]]*#[[:space:]]*bats[[:space:]]+(file|test)_tags=' "$@" /dev/null | grep -oE "$kind:[A-Za-z0-9_-]+" | sort -u)"
-    for id in $used; do
-      grep -qE "^[[:space:]]*${id#*:}[[:space:]]*\|" "$list" || echo "features: $id is tagged on a test but test/${kind}s.txt does not list it"
-    done
-    if [ "$kind" = escape ]; then
-      for id in $(sed -n 's/^[[:space:]]*\([A-Za-z0-9_-][A-Za-z0-9_-]*\)[[:space:]]*|.*/\1/p' "$list"); do
-        printf '%s\n' "$used" | grep -qx "escape:$id" || echo "features: no test is tagged escape:$id (test/escapes.txt)"
-      done
-    else
-      for id in $(grep -oE '\|[[:space:]]*standin:[A-Za-z0-9_-]+' "$list" | grep -oE 'standin:.*'); do
-        grep -qE "^[[:space:]]*#[[:space:]]*bats[[:space:]]+(file|test)_tags=(.*,)?$id([[:space:],]|\$)" "$HERE"/machine/*.bats /dev/null 2>/dev/null ||
-          echo "features: no machine test is tagged $id (test/standins.txt)"
-      done
-    fi
-  done
-}
+# fail_line <text>: one `FAILED ...` line for the end of a failing run
+FAILED_LINES=""
+fail_line() { FAILED_LINES="$FAILED_LINES$1
+"; }
+# fail_lines <kind>: stdin holds `<kind>: <problem>` lines; each becomes `FAILED <kind>: <problem>`
+fail_lines() { local l; while IFS= read -r l; do [ -z "$l" ] || fail_line "FAILED $l"; done; }
 
 # ---- lint ---------------------------------------------------------------------------------------------------
 # One problem per line: `lint: <file>:<line>: <rule>`. Each problem counts as one failed test. The rules and why
@@ -128,6 +92,7 @@ lint() {
     ' "$f")"
     if [ -n "$out" ]; then
       echo "$out"
+      fail_lines <<<"$out"
       problems=$((problems + $(printf '%s\n' "$out" | wc -l)))
     fi
   done
@@ -137,27 +102,22 @@ lint() {
 }
 
 # ---- feature list -------------------------------------------------------------------------------------------
-# test/features.txt: `<id> | <description> | <coverage>`, coverage one of `<tag>=<number of tests>` (one or more),
-# `manual: <command>` or `untested: <reason>`. A test carries `# bats test_tags=feature:<id>` (or its file
+# test/features.txt: `<id> | <description>`. A test carries `# bats test_tags=feature:<id>` (or its file
 # `# bats file_tags=...`); a pytest file carries a `# feature:<id>` line and its `def test_` functions count.
-# The number is exact, so a test cannot be added or deleted without the list saying so. Each problem fails the run.
+# The run fails when a listed feature has no test, or a test's feature tag is missing or not in the list.
+# Nothing is counted by hand: adding or deleting a test needs no edit here.
 features() {
-  local f list="$HERE/features.txt" out problems=0 files=()
-  for f in "$HERE"/quick/*.bats "$HERE"/machine/*.bats "$HERE"/docker/*.bats \
-           "$REPO"/skills/*/tests/test_*.py "$REPO"/hooks/*/tests/test_*.py "$REPO"/helper-mcp/tests/test_*.py "$REPO"/assistant/tests/test_*.py; do
-    [ -f "$f" ] || continue
-    case "$(basename "$f")" in _*) continue ;; esac
-    files[${#files[@]}]="$f"
-  done
+  local f list="$HERE/features.txt" out problems=0 summary files=()
+  while IFS= read -r f; do files[${#files[@]}]="$f"; done < <(test_files)
   if [ ! -f "$list" ]; then
-    out="features: test/features.txt is missing"
+    out="features: test/features.txt is missing"; summary=""
   else
     out="$(awk -v repo="$REPO/" '
       function bad(m) { print "features: " m }
       function trim(s) { gsub(/^[ \t]+|[ \t\r]+$/, "", s); return s }
       # one test with the tags in `t` (comma or space separated), found at `where`
       function one(t, where,   n, a, i, seen, id, has) {
-        n = split(t, a, /[, \t\r]+/); split("", seen)
+        n = split(t, a, /[, \t\r]+/); split("", seen); tests++
         for (i = 1; i <= n; i++) {
           if (a[i] == "" || (a[i] in seen)) continue
           seen[a[i]] = 1; found[a[i]]++
@@ -175,10 +135,10 @@ features() {
       FILENAME == ARGV[1] {
         if ($0 ~ /^[ \t\r]*(#|$)/) next
         n = split($0, col, "|")
-        id = trim(col[1]); cov = trim(col[3])
-        if (n != 3 || id == "" || trim(col[2]) == "" || cov == "") { bad("test/features.txt:" FNR ": wanted `<id> | <description> | <coverage>`"); next }
+        id = trim(col[1])
+        if (n != 2 || id == "" || trim(col[2]) == "") { bad("test/features.txt:" FNR ": wanted `<id> | <description>`"); next }
         if (id in listed) { bad(id ": listed twice"); next }
-        listed[id] = 1; order[++count] = id; coverage[id] = cov
+        listed[id] = 1; order[++count] = id
         next
       }
       FNR == 1 {
@@ -195,37 +155,45 @@ features() {
       /^[ \t]*@test[ \t]/ { one(filetags " " pending, rel ":" FNR); pending = "" }
       END {
         end_python()
-        for (i = 1; i <= count; i++) {
-          id = order[i]; cov = coverage[id]; tag = "feature:" id
-          if (cov ~ /^(manual|untested):/) {
-            if (cov ~ /^(manual|untested):[ \t]*$/) bad(id ": `" cov "` says nothing after the colon")
-            if (found[tag] > 0) bad(id ": listed as " cov " but " found[tag] " tests are tagged " tag)
-            continue
-          }
-          n = split(cov, a, /[ \t]+/); own = 0
-          for (k = 1; k <= n; k++) {
-            if (a[k] !~ /^[A-Za-z0-9_.:-]+=[0-9]+$/) { bad(id ": `" a[k] "` is not <tag>=<number of tests>"); continue }
-            split(a[k], p, "=")
-            if (p[1] == tag) own = 1
-            if (found[p[1]] + 0 == 0) bad(id ": no test is tagged " p[1])
-            else if (found[p[1]] != p[2] + 0) bad(id ": test/features.txt says " p[2] " tests tagged " p[1] ", found " found[p[1]])
-          }
-          if (!own) bad(id ": coverage lacks " tag "=<number of tests>")
-        }
+        for (i = 1; i <= count; i++) if (found["feature:" order[i]] + 0 == 0) bad(order[i] ": no test is tagged feature:" order[i])
+        print "summary " count + 0 " features, " tests + 0 " tests"
       }
     ' "$list" ${files[@]+"${files[@]}"})"
+    summary="$(printf '%s\n' "$out" | sed -n 's/^summary //p')"
+    out="$(printf '%s\n' "$out" | grep -v '^summary ' || true)"
   fi
-  [ ! -f "$list" ] || out="$(printf '%s\n' "$out" "$(trust_tags ${files[@]+"${files[@]}"})" | grep . || true)"
   if [ -n "$out" ]; then
     echo "$out"
+    fail_lines <<<"$out"
     problems=$(printf '%s\n' "$out" | wc -l)
     problems=$((problems))
     total=$((total + problems))
     failed=$((failed + problems))
     echo "features: $problems problem(s)"
   else
-    echo "features: list and tests agree"
+    echo "features: $summary, every feature has one"
   fi
+}
+
+# test_features <bats file>: `<feature id><TAB><test name>` for each @test, read from the tags above it
+test_features() {
+  awk '
+    function first(t,   n, a, i) { n = split(t, a, /[, \t\r]+/); for (i = 1; i <= n; i++) if (a[i] ~ /^feature:/) return substr(a[i], 9); return "untagged" }
+    /^[ \t]*#[ \t]*bats[ \t]+file_tags=/ { t = $0; sub(/^[^=]*=/, "", t); filetags = filetags " " t; next }
+    /^[ \t]*#[ \t]*bats[ \t]+test_tags=/ { t = $0; sub(/^[^=]*=/, "", t); pending = pending " " t; next }
+    /^[ \t]*@test[ \t]/ {
+      name = $0; sub(/^[ \t]*@test[ \t]+/, "", name); sub(/[ \t]*\{[ \t\r]*$/, "", name)
+      q = substr(name, 1, 1)
+      if (q == "\"" || q == "\047") name = substr(name, 2, length(name) - 2)
+      print first(pending " " filetags) "\t" name; pending = ""
+    }' "$1"
+}
+# feature_of <map from test_features> <test name>: the feature of that test, else of the file's first test
+feature_of() {
+  printf '%s\n' "$1" | name="$2" awk -F'\t' '
+    NR == 1 { fallback = $1 }
+    $2 == ENVIRON["name"] { print $1; hit = 1; exit }
+    END { if (!hit) print (fallback == "" ? "untagged" : fallback) }'
 }
 
 # ---- bats ---------------------------------------------------------------------------------------------------
@@ -240,7 +208,7 @@ find_bats() {
   echo "test/vendor/bats-core is missing and no bats is on PATH"
   echo "run: git submodule update --init      (or: brew install bats-core)"
   # A lint problem is a failure whether or not the tests could start.
-  [ "$failed" -gt 0 ] && { echo "FAIL $failed of $total"; exit 1; }
+  [ "$failed" -gt 0 ] && { printf '%s' "$FAILED_LINES"; echo "FAIL $failed of $total"; exit 1; }
   exit 2
 }
 
@@ -251,16 +219,14 @@ find_bats() {
 JOBS="${TEST_JOBS:-4}"
 FILE_TIMEOUT="${TEST_FILE_TIMEOUT:-900}"
 WORK=""
-WORK_EXTRA=""   # the scratch folder of a trust mode (test/lib/trust.bash)
 ONLY_TAG=""     # --only: run just the tests with this tag
-SHUFFLE_SEED="" # --repeat: the order of the test files
+SHUFFLE_SEED="${TEST_SEED:-}" # the order of the test files
 pids=()    # slot -> process group of the running file, "" when free
 
 stop_all() {
   local p
   for p in ${pids[@]+"${pids[@]}"}; do [ -n "$p" ] && kill -9 -- "-$p" 2>/dev/null; done
   [ -n "$WORK" ] && rm -rf "$WORK"
-  [ -n "$WORK_EXTRA" ] && rm -rf "${WORK_EXTRA:?}"
 }
 trap stop_all EXIT
 trap 'exit 130' INT
@@ -268,9 +234,13 @@ trap 'exit 143' TERM
 
 # finish_file <file> <log> <exit status> <seconds> <timed out: 0|1>: print the output and add up its tests.
 finish_file() {
-  local f="$1" out rc="$3" ok notok plan written missing rel="${1#$REPO/}"
+  local f="$1" out rc="$3" ok notok plan written missing rel="${1#$REPO/}" map name why=""
   out="$(cat "$2")"
   printf -- '-- %s (%s s)\n%s\n' "$rel" "$4" "$out"
+  map="$(test_features "$f")"
+  while IFS= read -r name; do
+    fail_line "FAILED $(feature_of "$map" "$name"): $name"
+  done < <(printf '%s\n' "$out" | sed -n 's/^not ok [0-9][0-9]* //p')
   ok="$(printf '%s\n' "$out" | grep -c '^ok ')"
   notok="$(printf '%s\n' "$out" | grep -c '^not ok ')"
   total=$((total + ok + notok))
@@ -283,6 +253,9 @@ finish_file() {
     if [ "$lacking" -gt 0 ]; then
       echo "$rel: $lacking skipped for a missing tool: in the quick tier that is a failure"
       failed=$((failed + lacking))
+      while IFS= read -r name; do
+        fail_line "FAILED $(feature_of "$map" "${name%% # skip *}"): $name"
+      done < <(printf '%s\n' "$out" | sed -n '/ # skip .*missing/s/^ok [0-9][0-9]* //p')
     fi
   fi
   # bats itself stopped (a syntax error, a crash, a killed run): that is never a pass, whatever lines it printed.
@@ -295,15 +268,16 @@ finish_file() {
   missing=$((written - ok - notok))
   [ "$missing" -lt 0 ] && missing=0
   if [ "$5" = 1 ]; then
-    echo "$rel: took longer than $FILE_TIMEOUT s and was killed"
+    why="$rel: took longer than $FILE_TIMEOUT s and was killed"
     [ "$missing" -eq 0 ] && missing=1
   elif [ "$missing" -gt 0 ]; then
-    echo "$rel: $written tests are written and bats reported $((ok + notok))"
+    why="$rel: $written tests are written and bats reported $((ok + notok))"
   elif [ $((ok + notok)) -eq 0 ]; then
-    echo "$rel: bats ran no test"; missing=1
+    why="$rel: bats ran no test"; missing=1
   elif [ "$notok" -eq 0 ] && [ "$rc" != 0 ]; then
-    echo "$rel: bats exited $rc with no failing test"; missing=1
+    why="$rel: bats exited $rc with no failing test"; missing=1
   fi
+  [ -z "$why" ] || { echo "$why"; fail_line "FAILED $(feature_of "$map" ""): $why"; }
   total=$((total + missing))
   failed=$((failed + missing))
 }
@@ -358,7 +332,7 @@ run_bats() {
 
 # ---- pytest (the python helpers; quick tier) ----------------------------------------------------------------
 run_pytest() {
-  local dirs="" d out line p f e rc
+  local dirs="" d out line p f e rc feat
   for d in "$REPO"/skills/*/tests "$REPO"/hooks/*/tests "$REPO"/helper-mcp/tests "$REPO"/assistant/tests; do
     ls "$d"/test_*.py >/dev/null 2>&1 || continue
     if [ -z "$ONLY_TAG" ]; then dirs="$dirs $d"; continue; fi
@@ -374,6 +348,7 @@ run_pytest() {
     out="$(cd "$REPO" && uv run --quiet --group dev python -m pytest -q -p no:cacheprovider $dirs 2>&1)"; rc=$?
   else
     echo "pytest is missing: pip install pytest, or install uv"
+    fail_line "FAILED pytest: pytest is missing"
     total=$((total + 1)); failed=$((failed + 1)); return
   fi
   printf '%s\n' "$out"
@@ -386,25 +361,30 @@ run_pytest() {
   skips=$((skips + ${d:-0}))
   total=$((total + p + f + e))
   failed=$((failed + f + e))
-  if [ $((p + f + e)) -eq 0 ]; then total=$((total + 1)); failed=$((failed + 1)); echo "pytest: no result line"
-  elif [ $((f + e)) -eq 0 ] && [ "$rc" != 0 ]; then total=$((total + 1)); failed=$((failed + 1)); echo "pytest: exited $rc with no failing test"; fi
+  # pytest's own summary names each failure `FAILED <file>::<test>`; the file's `# feature:<id>` line says whose it is
+  while IFS= read -r line; do
+    feat="$(sed -En 's/^#[[:space:]]*feature:([A-Za-z0-9_-]*).*/\1/p' "$REPO/${line%%::*}" 2>/dev/null | head -1)"
+    fail_line "FAILED ${feat:-pytest}: $line"
+  done < <(printf '%s\n' "$out" | sed -En 's/^(FAILED|ERROR) ([^ ]*).*/\2/p')
+  if [ $((p + f + e)) -eq 0 ]; then total=$((total + 1)); failed=$((failed + 1)); echo "pytest: no result line"; fail_line "FAILED pytest: no result line"
+  elif [ $((f + e)) -eq 0 ] && [ "$rc" != 0 ]; then total=$((total + 1)); failed=$((failed + 1)); echo "pytest: exited $rc with no failing test"; fail_line "FAILED pytest: exited $rc with no failing test"; fi
 }
 
 # ---- run ----------------------------------------------------------------------------------------------------
-. "$HERE/lib/trust.bash"
+. "$HERE/lib/common.bash"
 . "$HERE/lib/records.bash"
 
+[ -z "$SHUFFLE_SEED" ] || echo "seed $SHUFFLE_SEED"
 case "$mode" in
-  faults) run_faults ${args[@]+"${args[@]}"}; exit $? ;;
-  report) run_report; exit $? ;;
-  agree)
-    scratch; cat "${args[@]}" > "$WORK_EXTRA/runs" || exit 2
-    agree "$WORK_EXTRA/runs"; exit $? ;;
-  repeat)
-    lint; features; records
-    [ "$failed" -eq 0 ] || { echo "FAIL $failed of $total"; exit 1; }
-    run_repeat "$repeat" "${seed:-$(date +%s)}"; exit $? ;;
-  only) run_only "${args[0]}" ;;
+  only)
+    find_bats
+    ONLY_TAG="feature:$only"
+    for t in quick machine; do
+      tier_now="$t"
+      run_bats "$t"
+    done
+    run_pytest
+    [ "$total" -gt 0 ] || { echo "test/run: no test is tagged $ONLY_TAG" >&2; exit 2; } ;;
   tiers)
     lint
     features
@@ -417,15 +397,11 @@ case "$mode" in
     done ;;
 esac
 
-if [ -n "$full_report" ]; then
-  run_report || exit 2
-  record_full || exit 2
-fi
-
 [ "$skips" -eq 0 ] || echo "skipped $skips (counted in the total below; each says why above)"
 if [ "$failed" -eq 0 ]; then
   echo "PASS $total tests"
   exit 0
 fi
+printf '%s' "$FAILED_LINES"
 echo "FAIL $failed of $total"
 exit 1

@@ -10,7 +10,7 @@ on:
   schedule:
     - cron: "17 7 * * 1"   # Mondays: the repeat jobs only
 
-# Every job runs one command, test/run <tier>. The steps before it only put tools on the runner.
+# Every job runs one command, test/run <tier> (the weekly repeat jobs: bin/release/repeat). The steps before it only put tools on the runner.
 # What each tier holds and what a pass means: TESTING.md.
 jobs:
   test:
@@ -113,10 +113,10 @@ jobs:
         run: |
           curl -fsSL https://claude.ai/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: test/run quick --repeat 30
+      - name: bin/release/repeat 30
         run: |
           rm -f test/results/repeat.txt   # the committed one: a shard that dies early must upload nothing
-          test/run quick --repeat 30 --seed $(( ${{ github.run_number }} * 1000 + ${{ matrix.shard }} * 30 ))
+          TEST_SEED=$(( ${{ github.run_number }} * 1000 + ${{ matrix.shard }} * 30 )) bin/release/repeat 30
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
@@ -134,10 +134,10 @@ jobs:
         with:
           path: shards
       # a shard that left no result file counts against the 300
-      - name: test/run --agree
+      - name: bin/release/repeat 300 (add up the shards)
         run: |
           set -o pipefail   # 300 runs that all failed the same way also "agree": the exit status says so
-          test/run --agree shards/*/repeat.txt | tee agreed.txt
+          bin/release/repeat 300 shards/*/repeat.txt | tee agreed.txt
           grep -qx 'agreed 300 of 300' agreed.txt
 
   # The update rehearsal (an older, lived-in install, then README's update sentence typed into claude -p) does not

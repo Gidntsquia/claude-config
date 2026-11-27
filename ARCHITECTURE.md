@@ -20,10 +20,10 @@ to this repo. `test/run` checks that every path named here exists.
 | Helper | `agents/helper.md`, `helper-mcp/` (reads the wiki, cloned into `wiki/`) | the agent in `agents/helper.md`, its tools in `helper-mcp/server.py` |
 | Terminal setup | `bin/tmux-quad`, `iterm2/`, `wsl/` | per terminal or system |
 | Tests | `test/run`, `test/quick/`, `test/machine/`, `test/docker/`, `test/helpers/`, `test/fixtures/` | `TESTING.md`, "Adding a test" |
-| Test trust | `test/features.txt`, `test/faults/`, `test/escapes.txt`, `test/standins.txt`, `test/results/`, `test/lib/` | a row or patch beside the others |
+| Test trust | `test/features.txt`, `test/faults/`, `test/results/`, `test/lib/`; `bin/release/faults`, `bin/release/repeat`, `bin/release/trust-report` | a feature row or a fault patch beside the others |
 | Release tools | `bin/release/` | run by hand before a release |
 | Repo checks and project files | `bin/find-personal-paths.sh`, `pyproject.toml`, `uv.lock`, `LICENSE` | a repo-wide check goes in `bin/` with a test that runs it |
-| CI | `.github/workflows/install.yml` | calls only `test/run` |
+| CI | `.github/workflows/install.yml` | calls only `test/run` (the weekly repeat jobs: `bin/release/repeat`) |
 | Records | `ARCHITECTURE.md`, `TESTING.md`, `CHANGELOG.md`, `AGENTS.md`, `.claude/CLAUDE.md`, `README.md` | rewrite a stale line in place |
 | Writing guides | `docs/` | a guide the agents read: `docs/<name>.md` |
 | Sample project | `examples/first-project/` | the wiki's walkthrough project; change it with the wiki page |
@@ -35,8 +35,9 @@ to this repo. `test/run` checks that every path named here exists.
 <!-- At most 20 lines (blank ones not counted). Rewrite a replaced decision in place; git holds the history. -->
 - One test command, `test/run`, locally and in CI, so a pass means the same thing everywhere.
 - bats-core runs the tests: the maintained runner that works on bash 3.2 and Windows Git Bash.
-- The feature list holds exact test counts, so a test cannot disappear without a diff that says so.
-- Stand-ins in the quick tier must be compared with the real tool in the machine tier (`test/standins.txt`).
+- `test/run` takes a tier or `--only <feature>` and nothing else; faults, repeat and the report are release tools.
+- Tests are counted from their tags; the feature list holds no numbers, so adding a test edits one file.
+- Stand-ins in the quick tier must be compared with the real tool in the machine tier (a test tagged `standin:<id>`).
 - Every test starts from a throwaway home; 11 errors reached a real Mac because tests began clean and faked what failed, so lived-in homes are tested too.
 - An install never overwrites or backs up a file of the user's own; it says `kept yours`.
 - The root `CLAUDE.md` is every installed user's global file; repo-only instructions live in `.claude/CLAUDE.md`.
@@ -48,7 +49,7 @@ to this repo. `test/run` checks that every path named here exists.
 - Vendor bats-core and its three libraries as submodules in test/vendor (until then bats comes from PATH).
 - See CI pass on all three systems; Windows has not run the new tests.
 - Test the update-by-claude flow without a real login, or keep `bin/release/rehearsal.sh` as a release step.
-- Plant faults for the usage guard; compare the five unchecked stand-ins in `test/standins.txt` with the real tools.
+- Plant faults for the usage guard; compare the five unchecked stand-ins (usage-api, wsl, claude-hooks, claude-mods, claude-permissions) with the real tools.
 - Fix report-writer printing a null figure two ways (`agents/report-writer/build.py`).
 - Fix test-speedup naming the class, not the test, for Maven and Gradle, and `unknown` for Gradle- or pytest-only projects.
 - Fix restore-sessions dropping a correction to a missing pane without saying so.

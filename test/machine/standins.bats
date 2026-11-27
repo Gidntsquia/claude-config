@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# The real tools behind the quick tier's stand-ins, each used the way its stand-in is used (test/standins.txt).
+# The real tools behind the quick tier's stand-ins, each used the way its stand-in is used (each test's `standin:<id>` tag names the stand-in).
 # A difference found here means a quick test can pass while the real machine fails: fix the stand-in, then the code.
 
 load ../helpers/common

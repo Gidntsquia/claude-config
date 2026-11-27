@@ -1,143 +1,80 @@
 # Testing
 
+## Run the tests
+
 ```
-test/run [quick|machine|docker|all]    # quick is the default
-test/run all --report                  # also records this system's result for the README status line
+test/run                     # the quick tier: every OS, no network, nothing of yours touched
+test/run all                 # quick, machine (real tools) and docker: before a release
+test/run --only <feature>    # one feature's tests; the ids are the first column of test/features.txt
 ```
 
-The last line is `PASS <n> tests` or `FAIL <failed> of <n>`.
+The last line is `PASS <n> tests` or `FAIL <failed> of <n>`. Nothing else is an argument.
+
+## Read a failure
+
+A failing run ends with one line per failed test, then the count:
+
+```
+FAILED install: install.sh --check prints PASS for every link after a fresh install
+FAIL 1 of 800
+```
+
+The word after `FAILED` is the feature that broke; the rest is the test's name. Search `test/` for the name to find
+the test; what it printed is higher up, under `not ok`. `FAILED lint:`, `FAILED features:` and `FAILED records:` come
+from the checks made before any test runs; each says the file, the line and what to change.
+
+## Add a test
+
+1. Open the feature's file in `test/quick/` and copy a neighbouring `@test`.
+2. Keep the line above it, `# bats test_tags=feature:<id>`, and rename the test after what a user sees.
+3. Run `test/run`; see it fail before the code exists, pass after.
+
+No other file is edited. A new feature is one more row in `test/features.txt` (`<id> | <description>`) and a file
+copied from `test/quick/_template.bats`. A bug that reached a real machine gets a test also tagged `escape:<id>`;
+a machine test that compares a stand-in with the real tool is also tagged `standin:<id>`. Never loosen or delete a
+test to get a pass without saying why in the commit message.
 
 ## What a pass means
 
-Every listed feature behaved as asserted, in the listed environments and starting states.
+Every feature in `test/features.txt` behaved as its tests assert, on the system that ran them (CI: Linux, macOS and
+Windows for quick; Linux and macOS for machine; Linux for docker), starting from throwaway homes: fresh, with your
+own settings and files, a moved clone, older layouts, missing scripts, Windows without symlinks.
 
-- Features: `test/features.txt` (one line each, with how many tests cover it). A run fails when a test is added or
-  deleted without that number changing.
-- Environments: the machine you ran it on; in CI, Linux, macOS and Windows for `quick`, Linux and macOS for
-  `machine`, Linux for `docker`.
-- Starting states: the ones the tests build in a throwaway home (fresh, existing settings, your own files, a moved
-  clone, older layouts, missing scripts, Windows without symlinks). No test reads or changes your own home.
+A pass does not cover:
 
-## Trust report
+- what only a signed-in session shows: the usage API's success answer, Claude Code's hooks, mods and permissions, and
+  Claude following `UPDATING.md` by itself (`bin/release/rehearsal.sh`, before a release);
+- real windows: Firefox and iTerm2 open only with `EVSHOW_LIVE=1` or in CI; WSL's Windows side has no runner;
+- your own Mac: its PATH, shell files, and a `~/.claude` full of sessions and plugins;
+- a skipped machine test (the line says which tool was absent); wording tests pin prose, not its truth.
 
-Rewritten by `test/run --report` from `test/features.txt`, `test/escapes.txt`, `test/standins.txt` and
-`test/results/`. A number is as old as the line under the table says.
+## Why each piece exists
+
+| Piece | Why it is kept |
+|---|---|
+| Lint, before any test | a fixed wait, the network, your real home or a fixed port made tests flaky or unsafe; refused by rule |
+| Tiers | quick must run anywhere in minutes; real tools and Docker are slower and not on every system |
+| Feature tags | a failure names the feature, and a feature whose last test is deleted fails the run |
+| Planted faults (`bin/release/faults`) | a test that stays green when its feature is broken proves nothing |
+| Repeated runs (`bin/release/repeat <n>`) | a test that passes only sometimes, or only in one order, is found before you are |
+| Stand-in comparisons (`standin:<id>`) | 11 errors reached a real Mac because a stand-in differed from the tool it stood for |
+| Record caps (`FAILED records:`) | this page (80 lines), `ARCHITECTURE.md` and `.claude/CLAUDE.md` stay short and name only real paths |
+
+## How far to trust a pass
+
+Rewritten by `bin/release/trust-report` from the tags and the last recorded runs in `test/results/`.
 
 <!-- trust-report:start -->
-| Number | Value | Answers |
+| Question | Number | Made by |
 |---|---|---|
-| Features with automated tests | 25 of 26 | completeness |
-| Planted faults caught | 70 of 75 | sensitivity |
-| Past real-machine errors with a test | 12 of 12 | fidelity |
-| Repeated shuffled runs that agreed | 10 of 10 | consistency |
-| Stand-ins with a test against the real tool | 17 of 22 | fidelity |
+| Does every feature have a test? | 26 of 26 features | `test/run` |
+| Does a broken feature turn its tests red? | 70 of 75 planted faults caught | `bin/release/faults` |
+| Would the old bugs be caught today? | 12 of 12 went red with the fix removed (12 have a test) | `bin/release/redgreen.sh` |
+| Does the same code give the same answer? | 10 of 10 shuffled runs agreed | `bin/release/repeat <n>` |
+| Do the stand-ins behave like the real tools? | 17 compared in the machine tier | tests tagged `standin:<id>` |
 
-Features with no automated test:
-
-- `update-by-claude`: manual: bash bin/release/rehearsal.sh
-
-Stand-ins never compared with the real tool: usage-api wsl claude-hooks claude-mods claude-permissions (reasons in test/standins.txt).
-
-Faults measured 2026-11-27 11:10 AM ET on Darwin, commit d0eb9ee.
-
-- missed restore-sessions/resume-without-model
-- missed statusline/unlock-time-utc
-- missed update-by-claude/local-edits-discarded: the feature has no automated test
-- missed update-by-claude/prerelease-picked: the feature has no automated test
-- missed update-by-claude/relink-step-missing: the feature has no automated test
-- short usage-guard: 0 of 3 faults planted
-
-Past errors seen red with their fix removed: 12 of 12, measured 2026-11-27 11:38 AM ET on Darwin, commit d0eb9ee.
-
-Repeat measured 2026-11-27 02:05 PM ET on Darwin, commit 978e0de.
+- `test/results/faults.txt`: measured 2026-11-27 11:10 AM ET on Darwin, commit d0eb9ee.
+- `test/results/escapes.txt`: measured 2026-11-27 11:38 AM ET on Darwin, commit d0eb9ee.
+- `test/results/repeat.txt`: measured 2026-11-27 02:05 PM ET on Darwin, commit 978e0de.
+- Faults not caught: restore-sessions/resume-without-model statusline/unlock-time-utc update-by-claude/local-edits-discarded update-by-claude/prerelease-picked update-by-claude/relink-step-missing usage-guard.
 <!-- trust-report:end -->
-
-How each number is made:
-
-| Number | Command |
-|---|---|
-| Planted faults caught | `test/run --faults` (three patches per feature in `test/faults/<id>/`, each in a scratch clone; the feature's tests must fail) |
-| Past errors seen red | `bin/release/redgreen.sh` (macOS, about 25 minutes; commit first) |
-| Repeated runs that agreed | `test/run quick --repeat <n> [--seed <s>]`; weekly in CI as `repeat`, 300 runs on 10 runners, added up by `test/run --agree` |
-| Report | `test/run --report` |
-| README status line | `test/run all --report` on each system; the result is kept in `test/results/full-<system>.txt` |
-
-## What a pass does not cover
-
-Still open from the November 2026 Mac update, where 11 errors reached a real Mac past green tests:
-
-- Stand-ins that differ from the real thing where no test compares them: the success answer of the usage API with a
-  live login token; a Keychain dialog in a desktop session; a laptop sleeping or waking during a scheduled run; WSL's
-  Windows side; Claude Code's hook, mod and permission handling (reasons in `test/standins.txt`).
-- Real Firefox windows and the real iTerm2: opt-in (`EVSHOW_LIVE=1`) or CI-only machine tests.
-- Not a real person's Mac: Homebrew PATH, your shell's rc files, a `~/.claude` with sessions, history and plugins.
-- Claude following `UPDATING.md` from the pasted README sentence: only `bin/release/rehearsal.sh`, never in CI.
-- Stash and merge on a clone with local commits and diverged history; older layouts nobody wrote down; links nested
-  more than two deep; a clone moved some other way than `mv` of the whole folder.
-- Every `settings.json` hook with its file missing is only checked for the hooks the tests name.
-- Wording tests pin prose; they do not show the prose is right.
-- `hooks/usage-guard/` has no planted faults: the guard refused the session that tried to read its code. The status
-  line's unlock time is likewise not checked, so its planted fault is missed.
-- Resuming a session with its model (`restore-sessions` `apply.sh`) needs bash 4: the test skips on macOS, and the
-  planted fault there is caught only on Linux.
-- Report cards are drawn for real only where Playwright is installed (`PLAYWRIGHT_DIR`); elsewhere that test skips.
-- Two evaluator picture tests (line range, colours) replace the repo's `phone-bidi.py` with a file copy and check the
-  page's text; the machine tier checks that the real tool draws only the range it is handed, not the colours' pixels.
-
-The Ubuntu result in the README line comes from an Ubuntu 24.04 container on the maintainer's Mac (`docker run --init`),
-where the docker tier skips; the docker tier is run from the Mac itself.
-
-Known flake, Linux only: `usage-guard: its own suite passes` fails in about one run in six on its case
-`status line shows FE after the count`. The suite lives in `hooks/usage-guard/`, which only its owner edits, so repeated
-Linux runs cannot all agree until that case is fixed there. The test is neither skipped nor retried.
-
-Some machine tests run only where their tool exists and say why they skipped: GNU `ps`, `pgrep`, `date`,
-`journalctl` (Linux), Maven, RSpec, Docker. A pass with skips did not compare those.
-
-## The tiers
-
-| Tier | Folder | What it uses |
-|---|---|---|
-| quick | `test/quick/`, pytest files in `skills/`, `hooks/`, `helper-mcp/`, `assistant/` | throwaway homes and stand-ins; no network, no fixed waits, no windows |
-| machine | `test/machine/` | the real tools: keychain, usage API over TLS, Firefox, tmux, `claude`; a missing tool is a skip that says why |
-| docker | `test/docker/` | a fresh ubuntu:24.04 container |
-
-Every run first lints the test files and compares the tags with `test/features.txt`, `test/escapes.txt` and
-`test/standins.txt`, and checks the records: `ARCHITECTURE.md` and `.claude/CLAUDE.md` name only paths that exist and
-stay under their line caps. `test/run --only <feature>` runs one feature's quick and machine tests.
-
-## Adding a test
-
-1. Copy the case in `test/quick/_template.bats` into the file for the feature (shared functions go in
-   `test/helpers/`, fixtures in `test/fixtures/`).
-2. Tag it `# bats test_tags=feature:<id>` and raise that feature's number in `test/features.txt`.
-3. Run `test/run`.
-
-## The escape rule
-
-An error that got past the tests to a real machine gets an id in `test/escapes.txt`, a test tagged `escape:<id>` that
-fails without the fix, and a row in `bin/release/redgreen.sh` that shows it failing.
-
-## Checklist for whoever writes a test (Claude included)
-
-1. Write the test first and show it failing.
-2. One behavior per test, named after what a user sees.
-3. Assert on outputs and files, never on internal calls.
-4. No new stand-in without a machine test against the real tool (`standin:<id>`, listed in `test/standins.txt`).
-5. No edit or deletion of an existing test in a change to the code it tests unless the commit message says why.
-6. Run the new test 10 times.
-
-## Differences from the old test scripts
-
-The old shell scripts were ported to bats in November 2026; every old check maps to a test.
-
-- Fixed waits became polling with a deadline. Scheduled-run tests are slower (about 520 s for run-agent run one file
-  after another, against 237 s).
-- "SKIP no Firefox" became a skip with a reason on each test; iTerm2 tests are skipped off macOS.
-- Install: a missing `/usr/bin/python3` in the stock scenario now fails instead of passing with a skip line; CI
-  requires the old tags, so a shallow clone fails.
-- Install: labels read `.claude` for `~/.claude`; the keychain comparison runs in each scenario.
-- Evaluator tools: process-exit checks wait up to 5 s; each phone-picture test checks only its own Firefox; the live
-  tests use the repo's tools and need `EVSHOW_LIVE=1`.
-- run-agent: the "default tmux server" checks use a server of the same shape in a test folder, never yours; three
-  concurrent handoffs are held together by a fixture, not by timing; one prompt was reworded for the lint.

@@ -13,8 +13,10 @@ setup() {
   UNDER="${TEST_RUNNER_UNDER_TEST:-$REPO/test}"
   cp "$UNDER/run" "$R/test/run"
   cp -R "$UNDER/lib" "$R/test/lib"
+  mkdir -p "$R/bin/release"
+  cp "$UNDER/../bin/release/trust-report" "$R/bin/release/"
   printf '# bats file_%s=feature:x\n@%s "case" {\n  true\n}\n' tags test >"$R/test/quick/a.bats"
-  echo "x | the scratch feature | feature:x=1" >"$R/test/features.txt"
+  echo "x | the scratch feature" >"$R/test/features.txt"
   arch "One part lives in \`test/\`."
   echo "scratch" >"$R/.claude/CLAUDE.md"
 }
@@ -34,7 +36,7 @@ suite() {
   local bats
   bats="$REPO/test/vendor/bats-core/bin/bats"
   [ -f "$bats" ] || bats="$(PATH="${PATH#"$BATS_LIBEXEC:"}" command -v bats)"
-  run env -i PATH="$(dirname "$bats"):/usr/bin:/bin:/usr/sbin:/sbin" TMPDIR="$BATS_TEST_TMPDIR" HOME="$TEST_HOME" bash "$R/test/run" "$@"
+  run env -i PATH="$(dirname "$bats"):/usr/bin:/bin:/usr/sbin:/sbin" TMPDIR="$BATS_TEST_TMPDIR" HOME="$TEST_HOME" bash "$R/${TOOL:-test/run}" "$@"
 }
 
 last_line() { printf '%s\n' "$output" | tail -n 1; }
@@ -88,7 +90,7 @@ last_line() { printf '%s\n' "$output" | tail -n 1; }
 # status <system> <date|version|failed|total|skipped>: a recorded full run
 status() { echo "$2|by hand" >"$R/test/results/full-$1.txt"; }
 status_line_of() {
-  run bash -c 'RESULTS="$1/test/results"; . "$1/test/lib/records.bash"; status_line' _ "$R"
+  run bash -c 'RESULTS="$1/test/results"; . "$1/test/lib/status.bash"; status_line' _ "$R"
 }
 
 @test "README status line: three systems passing the same tests read as one result" {
@@ -106,12 +108,13 @@ status_line_of() {
   assert_output "Last full run: 2026-01-02, macOS 27.0: all 9 tests passed (3 skipped); Ubuntu 24.04: 2 of 9 tests failed on 2026-01-01; Windows: not run"
 }
 
-@test "test/run all --report: records this system's result and rewrites the README status line" {
+@test "bin/release/trust-report all: runs every tier, records this system's result and rewrites the README status line" {
   case "$(uname -s)" in Darwin|MINGW*|MSYS*) ;; Linux) grep -qx 'ID=ubuntu' /etc/os-release || skip "status line names Ubuntu only" ;; esac
   printf '<!-- trust-report:start -->\n<!-- trust-report:end -->\n' >"$R/TESTING.md"
   printf '# title\n\n[Last full run: never](TESTING.md)\n\nrest\n' >"$R/README.md"
-  suite all --report
+  TOOL=bin/release/trust-report suite all
   assert_success
+  assert_line "PASS 1 tests"
   run cat "$R/README.md"
   assert_a_line_matches '^\[Last full run: 20[0-9-]+, .*all 1 tests passed.*\]\(TESTING\.md\)$'
   assert_line "rest"
@@ -119,9 +122,21 @@ status_line_of() {
   assert_a_line_matches '^# title$'
 }
 
-@test "test/run: --report after the quick tier is refused" {
-  suite quick --report
+@test "bin/release/trust-report: any argument but all is refused" {
+  TOOL=bin/release/trust-report suite quick
   assert_failure 2
+  assert_output "usage: bin/release/trust-report [all]"
+}
+
+@test "test/run: a TESTING.md over 80 lines fails the run; 80 passes" {
+  i=0; : >"$R/TESTING.md"; while [ "$i" -lt 80 ]; do i=$((i + 1)); echo "line $i" >>"$R/TESTING.md"; done
+  suite
+  assert_success
+  echo "one more" >>"$R/TESTING.md"
+  suite
+  assert_failure 1
+  assert_line "records: TESTING.md has 81 lines, at most 80: it is the one page about the tests"
+  assert_line "FAILED records: TESTING.md has 81 lines, at most 80: it is the one page about the tests"
 }
 
 @test "the project CLAUDE.md points a session at the records and the one test command" {

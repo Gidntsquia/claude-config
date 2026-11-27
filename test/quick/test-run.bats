@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
-# The runner itself: what makes `PASS <n> tests` trustworthy. Each case runs a copy of test/run in a scratch
-# repo that holds only the test files the case writes, so nothing here runs the real suite.
+# The runner itself and the release tools beside it (bin/release/faults, repeat, trust-report): what makes
+# `PASS <n> tests` trustworthy. Each case runs a copy of them in a scratch repo that holds only the test files the
+# case writes, so nothing here runs the real suite.
 # The planted bad lines are built from pieces: the lint reads this file too.
 
 load ../helpers/common
@@ -9,10 +10,12 @@ setup() {
   temp_home
   R="$BATS_TEST_TMPDIR/repo"
   mkdir -p "$R/test/quick" "$R/test/helpers"
-  # the runner these cases exercise: this repo's, or the one `test/run --faults test-runner` planted a fault in
+  # the runner these cases exercise: this repo's, or the one `bin/release/faults test-runner` planted a fault in
   UNDER="${TEST_RUNNER_UNDER_TEST:-$REPO/test}"
   cp "$UNDER/run" "$R/test/run"
   cp -R "$UNDER/lib" "$R/test/lib"
+  mkdir -p "$R/bin/release"
+  cp "$UNDER/../bin/release/faults" "$UNDER/../bin/release/repeat" "$UNDER/../bin/release/trust-report" "$R/bin/release/"
   # the records every run checks (test/quick/records.bats)
   mkdir -p "$R/.claude"
   printf '## Decisions\n\n## Next\n' >"$R/ARCHITECTURE.md"
@@ -25,21 +28,21 @@ put() { printf '# bats file_%s=feature:x\n@%s "case" {\n  %s\n}\n' tags test "$2
 # list: a features.txt that matches the scratch files, unless the case wrote its own
 list() {
   [ -f "$R/own-list" ] && return 0
-  local n
-  n="$(cat "$R"/test/quick/*.bats 2>/dev/null | grep -c '^@test ' || true)"
-  echo "x | the scratch feature | feature:x=$n" >"$R/test/features.txt"
+  echo "x | the scratch feature" >"$R/test/features.txt"
 }
 
 # A clean environment, so the inner bats does not read the outer run's BATS_* variables.
 # suite [NAME=value ... --] [test/run arguments]
+# tool <faults|repeat|trust-report> [NAME=value ... --] [arguments]: the same for a release tool
 suite() {
   local bats vars=()
   while [ $# -gt 0 ]; do case "$1" in *=*) vars[${#vars[@]}]="$1"; shift ;; --) shift; break ;; *) break ;; esac; done
   bats="$REPO/test/vendor/bats-core/bin/bats"
   [ -f "$bats" ] || bats="$(PATH="${PATH#"$BATS_LIBEXEC:"}" command -v bats)"
   list
-  run env -i PATH="$(dirname "$bats"):/usr/bin:/bin:/usr/sbin:/sbin" TMPDIR="$BATS_TEST_TMPDIR" HOME="$TEST_HOME" ${vars[@]+"${vars[@]}"} bash "$R/test/run" "$@"
+  run env -i PATH="$(dirname "$bats"):/usr/bin:/bin:/usr/sbin:/sbin" TMPDIR="$BATS_TEST_TMPDIR" HOME="$TEST_HOME" ${vars[@]+"${vars[@]}"} bash "$R/${TOOL:-test/run}" "$@"
 }
+tool() { local TOOL="bin/release/$1"; shift; suite "$@"; }
 
 last_line() { printf '%s\n' "$output" | tail -n 1; }
 
@@ -115,7 +118,57 @@ last_line() { printf '%s\n' "$output" | tail -n 1; }
 @test "test/run: an unknown tier prints the usage and exits 2" {
   suite bogus
   assert_failure 2
-  assert_output --partial "usage: test/run"
+  assert_output "usage: test/run [quick|machine|docker|all] | --only <feature>"
+}
+
+# bats test_tags=feature:test-runner
+@test "test/run: the old modes and any extra argument print the usage and exit 2" {
+  put a.bats true
+  local args
+  for args in "--faults" "--faults x" "--report" "all --report" "quick --repeat 2" "--agree f" "quick --seed 1" "--only" "--only x y" "quick machine"; do
+    # shellcheck disable=SC2086
+    suite $args
+    assert_failure 2
+    assert_output "usage: test/run [quick|machine|docker|all] | --only <feature>"
+  done
+}
+
+# bats test_tags=feature:test-runner
+@test "test/run: a failing run names each failed test with its feature just above the FAIL line" {
+  tagged a.bats alpha 2
+  printf '# bats test_%s=feature:beta\n@%s "beta: the total is right" {\n  false\n}\n' tags test >>"$R/test/quick/a.bats"
+  printf '# bats file_%s=feature:gamma\n@%s "gamma works" {\n  false\n}\n@%s "gamma passes" {\n  true\n}\n' tags test test >"$R/test/quick/b.bats"
+  own "alpha | A" "beta | B" "gamma | C"
+  suite
+  assert_failure 1
+  assert_equal "$(printf '%s\n' "$output" | tail -n 3 | sort)" "$(printf '%s\n' "FAIL 2 of 5" "FAILED beta: beta: the total is right" "FAILED gamma: gamma works")"
+  assert_equal "$(printf '%s\n' "$output" | grep -c '^FAILED ')" 2
+}
+
+# bats test_tags=feature:test-runner
+@test "test/run: a failing pytest test is named with the feature of its file" {
+  tagged a.bats alpha 1
+  mkdir -p "$R/skills/s/tests" "$BATS_TEST_TMPDIR/py/pytest"
+  printf '# feature:%s\ndef test_one():\n    assert 1 == 2\ndef test_two():\n    pass\n' py >"$R/skills/s/tests/test_s.py"
+  own "alpha | A" "py | P"
+  # pytest's own closing lines for that file, printed by a module of the same name: the scratch repo has no
+  # project for uv to install the real one from
+  : >"$BATS_TEST_TMPDIR/py/pytest/__init__.py"
+  printf 'import sys\nprint("FAILED skills/s/tests/test_s.py::test_one - assert 1 == 2")\nprint("1 failed, 1 passed in 0.01s")\nsys.exit(1)\n' >"$BATS_TEST_TMPDIR/py/pytest/__main__.py"
+  suite PYTHONPATH="$BATS_TEST_TMPDIR/py" --
+  assert_failure 1
+  assert_line "FAILED py: skills/s/tests/test_s.py::test_one"
+  assert_equal "$(last_line)" "FAIL 1 of 3"
+}
+
+# bats test_tags=feature:test-runner
+@test "test/run: a lint problem and a feature with no test each get a FAILED line" {
+  put a.bats "sl""eep 1"
+  own "x | X" "beta | B"
+  suite
+  assert_failure 1
+  assert_line "FAILED lint: test/quick/a.bats:3: sleep: use wait_until <seconds> <command>"
+  assert_line "FAILED features: beta: no test is tagged feature:beta"
 }
 
 # bats test_tags=feature:test-runner
@@ -162,30 +215,41 @@ tagged() {
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run: a list that matches the tags passes, with manual and untested features beside them" {
+@test "test/run: a list whose features all have tests passes and says how many it counted" {
   tagged a.bats alpha 2
-  own "# comment" "alpha | A | feature:alpha=2" "beta | B | manual: bin/release/rehearsal.sh" "gamma | C | untested: needs Windows"
+  tagged b.bats beta 1
+  own "# comment" "alpha | A" "beta | B"
   suite
   assert_success
-  assert_output --partial "features: list and tests agree"
+  assert_line "features: 2 features, 3 tests, every feature has one"
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run: deleting one of a feature's tests fails the run and names the feature" {
-  tagged a.bats alpha 1
-  own "alpha | A | feature:alpha=2"
+@test "test/run: a new tagged test passes with no other file edited, and so does deleting one" {
+  tagged a.bats alpha 2
+  own "alpha | A"
   suite
-  assert_failure 1
-  assert_output --partial "features: alpha: test/features.txt says 2 tests tagged feature:alpha, found 1"
+  assert_equal "$(last_line)" "PASS 2 tests"
+  list_before="$(cat "$R/test/features.txt")"
+  printf '# bats test_%s=feature:alpha\n@%s "a new case" {\n  true\n}\n' tags test >>"$R/test/quick/a.bats"
+  suite
+  assert_success
+  assert_equal "$(last_line)" "PASS 3 tests"
+  tagged a.bats alpha 1
+  suite
+  assert_success
+  assert_equal "$(last_line)" "PASS 1 tests"
+  assert_equal "$(cat "$R/test/features.txt")" "$list_before"
 }
 
 # bats test_tags=feature:test-runner
 @test "test/run: deleting a feature's last test fails the run and names the feature" {
   tagged a.bats alpha 1
-  own "alpha | A | feature:alpha=1" "beta | B | feature:beta=1"
+  own "alpha | A" "beta | B"
   suite
   assert_failure 1
-  assert_output --partial "features: beta: no test is tagged feature:beta"
+  assert_line "features: beta: no test is tagged feature:beta"
+  assert_line "FAILED features: beta: no test is tagged feature:beta"
 }
 
 # bats test_tags=feature:test-runner
@@ -193,7 +257,7 @@ tagged() {
   tagged a.bats alpha 1
   printf '@%s "bare" {\n  true\n}\n' test >"$R/test/quick/b.bats"
   tagged c.bats stray 1
-  own "alpha | A | feature:alpha=1"
+  own "alpha | A"
   suite
   assert_failure 1
   assert_output --partial "features: test/quick/b.bats:1: a test with no feature tag"
@@ -201,15 +265,14 @@ tagged() {
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run: untested with tagged tests, a bare reason, a bad line and a double id each fail the run" {
+@test "test/run: a bad line, a row with a third column and a double id each fail the run" {
   tagged a.bats alpha 1
-  own "alpha | A | untested: nobody yet" "beta | B | untested:" "gamma | C" "beta | B again | manual: x"
+  own "alpha | A" "gamma" "alpha | A again" "delta | D | feature:delta=1"
   suite
   assert_failure 1
-  assert_output --partial "features: alpha: listed as untested: nobody yet but 1 tests are tagged feature:alpha"
-  assert_output --partial "says nothing after the colon"
-  assert_output --partial "features: test/features.txt:3: wanted"
-  assert_output --partial "features: beta: listed twice"
+  assert_output --partial "features: test/features.txt:2: wanted"
+  assert_output --partial "features: alpha: listed twice"
+  assert_output --partial "features: test/features.txt:4: wanted"
 }
 
 # bats test_tags=feature:test-runner
@@ -222,14 +285,17 @@ tagged() {
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run: pytest files are counted by their feature comment and test functions" {
+@test "test/run: a pytest file's test functions count for the feature its comment names" {
   tagged a.bats alpha 1
   mkdir -p "$R/skills/s/tests"
   printf '# feature:%s\ndef test_one():\n    pass\ndef test_two():\n    pass\n' py >"$R/skills/s/tests/test_s.py"
-  own "alpha | A | feature:alpha=1" "py | P | feature:py=3"
+  own "alpha | A" "py | P"
+  suite
+  assert_line "features: 2 features, 3 tests, every feature has one"
+  own "alpha | A"
   suite
   assert_failure 1
-  assert_output --partial "features: py: test/features.txt says 3 tests tagged feature:py, found 2"
+  assert_output --partial "features: skills/s/tests/test_s.py: feature:py names an id that is not in test/features.txt"
 }
 
 # bats test_tags=feature:test-runner
@@ -288,7 +354,7 @@ tagged() {
   assert_output --partial "lint: test/quick/a.bats:3: "
 }
 
-# ---- the trust modes ----------------------------------------------------------------------------------------
+# ---- one feature, and the release tools ----------------------------------------------------------------------------------------
 
 # mfile <file> <tags> <test body>
 mfile() { printf '# bats file_%s=%s\n@%s "case %s" {\n  %s\n}\n' tags "$2" test "$1" "$3" >"$R/test/quick/$1"; }
@@ -316,7 +382,7 @@ fault() {
 @test "test/run --only: runs the tests of that feature and no others" {
   mfile a.bats feature:x true
   mfile b.bats feature:y false
-  features_are "x | one | feature:x=1" "y | two | feature:y=1"
+  features_are "x | one" "y | two"
   suite --only x
   assert_success
   assert_equal "$(last_line)" "PASS 1 tests"
@@ -327,13 +393,13 @@ fault() {
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run --faults: counts the faults the tests catch, names the missed one and leaves the repo as it was" {
+@test "bin/release/faults: counts the faults the tests catch, names the missed one and leaves the repo as it was" {
   fault_repo
   fault wrong-total "total 3" "total 4"
   fault no-total 'echo "total 3"' ':'
   fault extra-gone '"extra"' '"gone"'
   before="$(g status --porcelain)$(g rev-parse HEAD)"
-  suite --faults x
+  tool faults x
   assert_failure 1
   assert_line "caught x/no-total"
   assert_line "caught x/wrong-total"
@@ -344,23 +410,23 @@ fault() {
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run --faults: all caught exits 0 and a full run records the result" {
+@test "bin/release/faults: all caught exits 0 and a full run records the result" {
   fault_repo
   fault one "total 3" "total 4"
   fault two "total 3" "total 5"
   fault three "total 3" "sum 3"
-  suite --faults
+  tool faults
   assert_success
   assert_equal "$(last_line)" "caught 3 of 3"
   assert_equal "$(tail -n 1 "$R/test/results/faults.txt")" "caught 3 of 3"
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run --faults: fewer than three faults, a patch that edits tests and one that does not apply all fail" {
+@test "bin/release/faults: fewer than three faults, a patch that edits tests and one that does not apply all fail" {
   fault_repo
   fault edits-test "case a.bats" "case b" test/quick/a.bats
   printf -- '--- a/app.sh\n+++ b/app.sh\n@@ -1 +1 @@\n-nothing like this\n+x\n' >"$R/test/faults/x/stale.patch"
-  suite --faults x
+  tool faults x
   assert_failure 1
   assert_line "error x/edits-test: a fault may not edit test/"
   assert_output --partial "error x/stale: the patch does not apply"
@@ -369,86 +435,112 @@ fault() {
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run --repeat: passing runs agree, each under its own seed, and the result is recorded" {
+@test "bin/release/repeat: passing runs agree, each under its own seed, and the result is recorded" {
   put a.bats true
   list
-  suite quick --repeat 3 --seed 40
+  tool repeat TEST_SEED=40 -- 3
   assert_success
+  assert_line "seed 40 (3 runs; rerun the same orders with TEST_SEED=40)"
   assert_line "run 3 seed 42: PASS 1 tests"
   assert_equal "$(last_line)" "agreed 3 of 3"
   assert_equal "$(tail -n 1 "$R/test/results/repeat.txt")" "agreed 3 of 3"
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run --repeat: one run that differs lowers the count and fails" {
+@test "bin/release/repeat: with no TEST_SEED it picks a seed and prints it" {
+  put a.bats true
+  list
+  tool repeat 1
+  assert_success
+  assert_a_line_matches '^seed [0-9]+ \(1 runs; rerun the same orders with TEST_SEED=[0-9]+\)$'
+}
+
+# bats test_tags=feature:test-runner
+@test "bin/release/repeat: one run that differs lowers the count, fails and names the test" {
   put a.bats 'echo >>"$MARKS"; [ "$(wc -l <"$MARKS")" -ne 2 ]'
   list
-  suite MARKS="$BATS_TEST_TMPDIR/marks" -- quick --repeat 3 --seed 1
+  tool repeat MARKS="$BATS_TEST_TMPDIR/marks" TEST_SEED=1 -- 3
   assert_failure 1
+  assert_line "run 2 seed 2: FAIL 1 of 1 [x: case;]"
   assert_equal "$(last_line)" "agreed 2 of 3"
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run --repeat: the seed decides the order of the files, and the same seed repeats it" {
+@test "bin/release/repeat: no number, or a word for one, prints its usage and exits 2" {
+  tool repeat
+  assert_failure 2
+  tool repeat many
+  assert_failure 2
+  assert_output "usage: bin/release/repeat <n> [<result file>...]"
+}
+
+# bats test_tags=feature:test-runner
+@test "test/run: TEST_SEED decides the order of the files, is printed, and the same seed repeats it" {
   local f
   for f in a b c d e; do put "$f.bats" "echo $f >>\"\$ORDER\""; done
   list
-  order() { rm -f "$BATS_TEST_TMPDIR/order"; suite ORDER="$BATS_TEST_TMPDIR/order" TEST_JOBS=1 -- quick --repeat "$2" --seed "$1"; tr -d '\n' <"$BATS_TEST_TMPDIR/order"; }
-  first="$(order 7 1)"
-  assert_equal "$(order 7 1)" "$first"
-  all="$(order 7 6)"
-  assert_equal "${#all}" 30
-  [ "$(printf '%s' "$all" | fold -w 5 | sort -u | wc -l)" -gt 1 ]
+  order() { rm -f "$BATS_TEST_TMPDIR/order"; suite ORDER="$BATS_TEST_TMPDIR/order" TEST_JOBS=1 TEST_SEED="$1" --; tr -d '\n' <"$BATS_TEST_TMPDIR/order"; }
+  first="$(order 7)"
+  assert_equal "$(order 7)" "$first"
+  suite TEST_SEED=7 --
+  assert_line "seed 7"
+  all=""; for f in 1 2 3 4 5 6; do all="$all$(order "$f") "; done
+  [ "$(printf '%s' "$all" | tr ' ' '\n' | grep . | sort -u | wc -l)" -gt 1 ]
+  suite TEST_SEED=seven --
+  assert_failure 2
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run --agree: adds up the runs of several result files" {
+@test "bin/release/repeat <n> <files>: adds up the runs of several result files against the planned number" {
   printf '# shard\nrun 1 seed 1: PASS 4 tests\nrun 2 seed 2: PASS 4 tests\nagreed 2 of 2\n' >"$BATS_TEST_TMPDIR/one"
   printf 'run 1 seed 3: PASS 4 tests\n' >"$BATS_TEST_TMPDIR/two"
-  suite --agree "$BATS_TEST_TMPDIR/one" "$BATS_TEST_TMPDIR/two"
+  tool repeat 3 "$BATS_TEST_TMPDIR/one" "$BATS_TEST_TMPDIR/two"
   assert_success
   assert_equal "$(last_line)" "agreed 3 of 3"
+  tool repeat 4 "$BATS_TEST_TMPDIR/one" "$BATS_TEST_TMPDIR/two"
+  assert_failure 1
+  assert_equal "$(last_line)" "agreed 3 of 4"
   printf 'run 1 seed 4: FAIL 1 of 4 [x]\n' >"$BATS_TEST_TMPDIR/two"
-  suite --agree "$BATS_TEST_TMPDIR/one" "$BATS_TEST_TMPDIR/two"
+  tool repeat 3 "$BATS_TEST_TMPDIR/one" "$BATS_TEST_TMPDIR/two"
   assert_failure 1
   assert_equal "$(last_line)" "agreed 2 of 3"
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run --report: writes the five numbers between the marks and keeps the rest of TESTING.md" {
+@test "bin/release/trust-report: writes the five numbers between the marks and keeps the rest of TESTING.md" {
   mkdir -p "$R/test/results" "$R/test/machine"
   put a.bats true
-  features_are "x | one | feature:x=1" "y | two | manual: by hand"
+  features_are "x | one" "y | two"
   printf '# %s file_tags=feature:x,escape:e1,standin:s1\n' bats >"$R/test/machine/m.bats"
-  printf 'e1 | one\ne2 | two\n' >"$R/test/escapes.txt"
-  printf 's1 | a | standin:s1\ns2 | b | none: no way\n' >"$R/test/standins.txt"
-  printf '# by hand, 11-27 on Test, commit abc\ncaught 5 of 6\n' >"$R/test/results/faults.txt"
+  printf '# by hand, 11-27 on Test, commit abc\ncaught x/a\nmissed x/b\nshort y: 0 of 3 faults planted\ncaught 5 of 6\n' >"$R/test/results/faults.txt"
   printf '# by hand, 11-27 on Test, commit abc\nagreed 9 of 9\n' >"$R/test/results/repeat.txt"
+  printf '# by hand, 11-27 on Test, commit abc\nred 1 of 1\n' >"$R/test/results/escapes.txt"
   printf 'above\n<!-- trust-report:start -->\nold\n<!-- trust-report:end -->\nbelow\n' >"$R/TESTING.md"
-  suite --report
+  tool trust-report
   assert_success
   run cat "$R/TESTING.md"
   assert_line "above"
   assert_line "below"
   [ "$(grep -c "^old$" "$R/TESTING.md")" = 0 ]
-  assert_line "| Features with automated tests | 1 of 2 | completeness |"
-  assert_line '- `y`: manual: by hand'
-  assert_line "| Planted faults caught | 5 of 6 | sensitivity |"
-  assert_line "| Past real-machine errors with a test | 1 of 2 | fidelity |"
-  assert_line "| Repeated shuffled runs that agreed | 9 of 9 | consistency |"
-  assert_line "| Stand-ins with a test against the real tool | 1 of 2 | fidelity |"
+  assert_output --partial "| 1 of 2 features |"
+  assert_output --partial "| 5 of 6 planted faults caught |"
+  assert_output --partial "| 1 of 1 went red with the fix removed (1 have a test) |"
+  assert_output --partial "| 9 of 9 shuffled runs agreed |"
+  assert_output --partial "| 1 compared in the machine tier |"
+  assert_line "- Faults not caught: x/b y."
+  assert_line '- `test/results/faults.txt`: measured 11-27 on Test, commit abc.'
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run --report: repeated runs that all failed the same way are shown as failed" {
+@test "bin/release/trust-report: repeated runs that all failed the same way are shown as failed" {
   put a.bats true
   list
   mkdir -p "$R/test/results"
   printf '# by hand, 11-27 on Test, commit abc\nrun 1 seed 1: FAIL 1 of 4 [x]\nrun 2 seed 2: FAIL 1 of 4 [x]\nagreed 2 of 2\n' >"$R/test/results/repeat.txt"
   printf '<!-- trust-report:start -->\n<!-- trust-report:end -->\n' >"$R/TESTING.md"
-  suite --report
+  tool trust-report
   assert_success
-  assert_line "| Repeated shuffled runs that agreed | 2 of 2 (2 of the runs failed) | consistency |"
+  assert_output --partial "| 2 of 2 shuffled runs agreed (2 of the runs failed) |"
 }
 
 # workflow_step <step name>: the script of that step of the CI workflow, with its ${{ }} values replaced by 1
@@ -478,7 +570,7 @@ run_step() {
     i=0
     : >"$R/shards/repeat-0/repeat.txt"
     while [ "$i" -lt 300 ]; do i=$((i + 1)); echo "run $i seed $i: $result" >>"$R/shards/repeat-0/repeat.txt"; done
-    run_step "test/run --agree"
+    run_step "bin/release/repeat 300 (add up the shards)"
     assert_line "agreed 300 of 300"
     case "$result" in PASS*) assert_success ;; *) assert_failure ;; esac
   done
@@ -488,30 +580,18 @@ run_step() {
 @test "weekly repeat job: a shard that dies before finishing leaves no old result to upload" {
   mkdir -p "$R/test/results"
   echo "run 1 seed 1: PASS 4 tests" >"$R/test/results/repeat.txt"
-  printf '#!/bin/bash\nexit 137\n' >"$R/test/run"
-  chmod +x "$R/test/run"
-  run_step "test/run quick --repeat 30"
+  printf '#!/bin/bash\nexit 137\n' >"$R/bin/release/repeat"
+  chmod +x "$R/bin/release/repeat"
+  run_step "bin/release/repeat 30"
   assert_failure
   assert_file_not_exist "$R/test/results/repeat.txt"
 }
 
 # bats test_tags=feature:test-runner
-@test "test/run --report: a TESTING.md without the marks is left alone and exits 2" {
+@test "bin/release/trust-report: a TESTING.md without the marks is left alone and exits 2" {
   list
   echo "mine" >"$R/TESTING.md"
-  suite --report
+  tool trust-report
   assert_failure 2
   assert_equal "$(cat "$R/TESTING.md")" "mine"
-}
-
-# bats test_tags=feature:test-runner
-@test "test/run: a past error with no test, or a stand-in with no machine test, fails the run" {
-  put a.bats true
-  list
-  printf 'gone | was\n' >"$R/test/escapes.txt"
-  printf 's1 | a | standin:s1\n' >"$R/test/standins.txt"
-  suite
-  assert_failure 1
-  assert_line "features: no test is tagged escape:gone (test/escapes.txt)"
-  assert_line "features: no machine test is tagged standin:s1 (test/standins.txt)"
 }
