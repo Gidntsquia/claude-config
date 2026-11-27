@@ -26,16 +26,29 @@ Rewritten by `test/run --report` from `test/features.txt`, `test/escapes.txt`, `
 | Number | Value | Answers |
 |---|---|---|
 | Features with automated tests | 25 of 26 | completeness |
-| Planted faults caught | not run | sensitivity |
+| Planted faults caught | 70 of 75 | sensitivity |
 | Past real-machine errors with a test | 12 of 12 | fidelity |
-| Repeated shuffled runs that agreed | not run | consistency |
-| Stand-ins with a test against the real tool | 15 of 20 | fidelity |
+| Repeated shuffled runs that agreed | 3 of 3 | consistency |
+| Stand-ins with a test against the real tool | 16 of 21 | fidelity |
 
 Features with no automated test:
 
 - `update-by-claude`: manual: bash bin/release/rehearsal.sh
 
 Stand-ins never compared with the real tool: usage-api wsl claude-hooks claude-mods claude-permissions (reasons in test/standins.txt).
+
+Faults measured 2026-11-27 10:16 AM ET on Darwin, commit 1a2bddb with uncommitted changes.
+
+- missed restore-sessions/resume-without-model
+- missed statusline/unlock-time-utc
+- missed update-by-claude/local-edits-discarded: the feature has no automated test
+- missed update-by-claude/prerelease-picked: the feature has no automated test
+- missed update-by-claude/relink-step-missing: the feature has no automated test
+- short usage-guard: 0 of 3 faults planted
+
+Past errors seen red with their fix removed: 12 of 12, measured 2026-11-27 08:57 AM ET on Darwin, commit 3c00fa4.
+
+Repeat measured 2026-11-27 09:16 AM ET on Darwin, commit 3c00fa4 with uncommitted changes.
 <!-- trust-report:end -->
 
 How each number is made:
@@ -61,6 +74,13 @@ Still open from the November 2026 Mac update, where 11 errors reached a real Mac
   more than two deep; a clone moved some other way than `mv` of the whole folder.
 - Every `settings.json` hook with its file missing is only checked for the hooks the tests name.
 - Wording tests pin prose; they do not show the prose is right.
+- `hooks/usage-guard/` has no planted faults: the guard refused the session that tried to read its code. The status
+  line's unlock time is likewise not checked, so its planted fault is missed.
+- Resuming a session with its model (`restore-sessions` `apply.sh`) needs bash 4: the test skips on macOS, and the
+  planted fault there is caught only on Linux.
+- Report cards are drawn for real only where Playwright is installed (`PLAYWRIGHT_DIR`); elsewhere that test skips.
+- Two evaluator picture tests (line range, colours) replace the repo's `phone-bidi.py` with a file copy; the real
+  pictures are checked only by the `phone-pictures` tests.
 
 Some machine tests run only where their tool exists and say why they skipped: GNU `ps`, `pgrep`, `date`,
 `journalctl` (Linux), Maven, RSpec, Docker. A pass with skips did not compare those.

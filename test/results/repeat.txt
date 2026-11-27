@@ -1,0 +1,5 @@
+# test/run quick --repeat 3 --seed 1795787859, 2026-11-27 09:16 AM ET on Darwin, commit 3c00fa4 with uncommitted changes
+run 1 seed 1795787859: PASS 716 tests
+run 2 seed 1795787860: PASS 716 tests
+run 3 seed 1795787861: PASS 716 tests
+agreed 3 of 3

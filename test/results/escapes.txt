@@ -1,0 +1,18 @@
+# bin/release/redgreen.sh, 2026-11-27 08:57 AM ET on Darwin, commit 3c00fa4
+row 1a: 5 FAIL line(s)
+row 1c: 7 FAIL line(s)
+row 1e: 5 FAIL line(s)
+row 1c (no claude-config.json): 3 FAIL line(s)
+row 1b: 3 FAIL line(s)
+row 1b (every hook command): 2 FAIL line(s)
+row 1d: 2 FAIL line(s)
+row 1d (plist): 4 FAIL line(s)
+row 5: 8 FAIL line(s)
+row 2: 4 FAIL line(s)
+row 1f: 18 FAIL line(s)
+row 3: 4 FAIL line(s)
+row 4: 1 FAIL line(s)
+row 6: 1 FAIL line(s)
+row windows-stale-copy: 2 FAIL line(s)
+row 6: run 44974710129 (workflow_dispatch on 655041c, Nov 21): the first Windows run after the beta.5 commits
+red 12 of 12
