@@ -1,4 +1,4 @@
-# bin/release/faults, 2026-11-27 04:21 PM ET on Darwin, commit 4bbcc43
+# bin/release/faults, 2026-11-27 05:04 PM ET on Darwin, commit 757bc48
 caught agent-prompts/next-tool-renamed
 caught agent-prompts/planner-cannot-delegate
 caught agent-prompts/show-verb-renamed
