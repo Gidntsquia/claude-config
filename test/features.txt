@@ -15,7 +15,7 @@ restore-sessions | restore-sessions skill scripts | feature:restore-sessions=32
 test-speedup | test-speedup skill measure script | feature:test-speedup=18
 weekly-roundup | weekly-roundup gather, archive and charts | feature:weekly-roundup=21
 defer-artifact | the defer-artifact mod | feature:defer-artifact=5
-update-by-claude | Claude Code updates an install by following UPDATING.md | manual: bash bin/release/rehearsal.sh
+update-by-claude | Claude Code updates an install by following UPDATING.md | feature:update-by-claude=3
 statusline | status line output | feature:statusline=9
 agent-prompts | agent definitions name tools, options and agents that exist | feature:agent-prompts=13
 terminal-setup | iTerm2 and tmux terminal setup | feature:terminal-setup=21
