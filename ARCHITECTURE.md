@@ -20,7 +20,7 @@ to this repo. `test/run` checks that every path named here exists.
 | Helper | `agents/helper.md`, `helper-mcp/` (reads the wiki, cloned into `wiki/`) | the agent in `agents/helper.md`, its tools in `helper-mcp/server.py` |
 | Terminal setup | `bin/tmux-quad`, `iterm2/`, `wsl/` | per terminal or system |
 | Tests | `test/run`, `test/quick/`, `test/machine/`, `test/docker/`, `test/helpers/`, `test/fixtures/` | `TESTING.md`, "Adding a test" |
-| Test trust | `test/features.txt`, `test/faults/`, `test/results/`, `test/lib/`; `bin/release/faults`, `bin/release/repeat`, `bin/release/trust-report` | a feature row or a fault patch beside the others |
+| Test trust | `test/features.txt`, `test/review.md` (which tests were kept and why, 2026-11-27), `test/faults/`, `test/results/`, `test/lib/`; `bin/release/faults`, `bin/release/repeat`, `bin/release/trust-report` | a feature row or a fault patch beside the others |
 | Release tools | `bin/release/` | run by hand before a release |
 | Repo checks and project files | `bin/find-personal-paths.sh`, `pyproject.toml`, `uv.lock`, `LICENSE` | a repo-wide check goes in `bin/` with a test that runs it |
 | CI | `.github/workflows/install.yml` | calls only `test/run` (the weekly repeat jobs: `bin/release/repeat`) |

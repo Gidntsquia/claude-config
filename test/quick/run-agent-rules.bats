@@ -110,18 +110,14 @@ store_refused() {
   assert_equal "$(ls -A "$H")" ""
 }
 
-# old: guard: job store, RUN_AGENT_HOME unset: '--jobs' refused, exit 2, no file
-@test "in test mode --jobs refuses the real job store" { store_refused --jobs; }
-# old: guard: job store, RUN_AGENT_HOME unset: '--health' refused, exit 2, no file
-@test "in test mode --health refuses the real job store" { store_refused --health; }
-# old: guard: job store, RUN_AGENT_HOME unset: '--cancel' refused, exit 2, no file
-@test "in test mode --cancel refuses the real job store" { store_refused --cancel; }
-# old: guard: job store, RUN_AGENT_HOME unset: '--revive' refused, exit 2, no file
-@test "in test mode --revive refuses the real job store" { store_refused --revive; }
-# old: guard: job store, RUN_AGENT_HOME unset: '--clean' refused, exit 2, no file
-@test "in test mode --clean refuses the real job store" { store_refused --clean; }
-# old: guard: job store, RUN_AGENT_HOME unset: 'worker .' refused, exit 2, no file
-@test "in test mode scheduling refuses the real job store" { store_refused worker . --at $(( RUN_AGENT_NOW + 600 )); }
+@test "in test mode --jobs, --health, --cancel, --revive, --clean and scheduling each refuse the real job store" {
+  store_refused --jobs
+  store_refused --health
+  store_refused --cancel
+  store_refused --revive
+  store_refused --clean
+  store_refused worker . --at $(( RUN_AGENT_NOW + 600 ))
+}
 
 # old: guard: job store, RUN_AGENT_HOME under ~/.claude is refused too
 @test "in test mode a job store under the home .claude folder is refused" {

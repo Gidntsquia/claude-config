@@ -16,12 +16,6 @@ teardown_file() { install_teardown_file; }
 }
 
 # bats test_tags=feature:install
-@test "existing settings: the repo holds no personal path" {
-  passed "b: personal-path grep prints nothing"
-  passed "b: bin/find-personal-paths.sh prints nothing"
-}
-
-# bats test_tags=feature:install
 @test "existing settings: claude doctor exits 0" {
   passed "b: claude doctor exits 0"
 }

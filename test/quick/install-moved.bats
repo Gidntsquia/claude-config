@@ -9,13 +9,9 @@ load ../helpers/bare-install
 setup_file() { install_setup_file moved; }
 teardown_file() { install_teardown_file; }
 
-# bats test_tags=feature:install,feature:updates
-@test "moved clone: the first install works" {
-  passed "moved: first install exits 0"
-}
-
 # bats test_tags=feature:install,feature:updates,escape:1c
 @test "moved clone: plain ./install.sh from the new path relinks everything and calls nothing yours" {
+  passed "moved: first install exits 0"
   passed "moved: plain ./install.sh from the new path exits 0"
   passed "moved: it says what it relinked"
   passed "moved: no clash and no 'kept yours'"

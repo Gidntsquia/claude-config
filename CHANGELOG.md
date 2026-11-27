@@ -6,6 +6,7 @@
 
 - `test/run` is the one test command, here and in CI: quick, machine and docker tiers on bats, ending `PASS <n> tests` or `FAIL <failed> of <n>`. The old `test/*.sh` scripts are gone.
 - `test/features.txt` lists every feature; a test belongs to one by its tag, and a run fails when a feature has no test. A failing run names each failed test: `FAILED <feature>: <test name>`.
+- `test/review.md` gives every test a verdict and a reason, one table per feature; 10 duplicate tests were deleted and 59 merged into 18 (805 tests to 754).
 - `TESTING.md` is the one page: run, read a failure, add a test, what a pass means. Planted faults, repeated runs and the trust report are `bin/release/faults`, `bin/release/repeat <n>` and `bin/release/trust-report`.
 - `ARCHITECTURE.md` and `.claude/CLAUDE.md` are new. `test/run` fails when they name a missing path or outgrow their caps.
 - The README carries the last full run's result, written by `bin/release/trust-report all`.

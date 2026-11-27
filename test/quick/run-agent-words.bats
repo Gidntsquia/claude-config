@@ -72,34 +72,9 @@ EVP='"agent":"evaluator","prompt":"I’m on my phone","command":"claude --agent 
 line two" --model opus' '{"agent":"planner","prompt":"line one\nline two","flags":"--model opus","command":"claude --agent planner \"line one\nline two\" --model opus --name \"planner: repo (opus)\"","run":"S planner '"'"'line one\nline two'"'"' -- --model opus"}'
 }
 
-# old: parse: sessions: haiku usage error on 'model=fable effort =medium'
-@test "/run-agent sessions: haiku usage error on 'model=fable effort =medium'" {
-  pcheck 'worker model=fable effort =medium' "{$FL}"
-}
-
-# old: parse: sessions: haiku usage error on em-dash flags
-@test "/run-agent sessions: haiku usage error on em-dash flags" {
-  pcheck 'worker —model fable —effort low' "{$FLOW}"
-}
-
-# old: parse: sessions: haiku 'not run' on single-dash flags
-@test "/run-agent sessions: haiku 'not run' on single-dash flags" {
-  pcheck 'worker -model fable -effort low' "{$FLOW}"
-}
-
-# old: parse: sessions: haiku dropped 'low effort'
-@test "/run-agent sessions: haiku dropped 'low effort'" {
-  pcheck 'worker fable low effort' "{$FLOW}"
-}
-
 # old: parse: sessions: haiku 'could not parse' bare model + em-dash effort
 @test "/run-agent sessions: haiku 'could not parse' bare model + em-dash effort" {
   pcheck 'worker fable —effort low' "{$FLOW}"
-}
-
-# old: parse: sessions: haiku dry run
-@test "/run-agent sessions: haiku dry run" {
-  pcheck 'worker fable low effort at 9pm dry' "{\"flags\":\"--model fable --effort low\",\"command\":\"claude --agent worker \\\".\\\" --model fable --effort low --name \\\"worker: repo (fable)\\\"\",\"dry\":1,$AT9_FLOW,$RESET}"
 }
 
 # old: parse: sessions: full claude command with em-dash flags
@@ -213,9 +188,13 @@ Phone”' '{"agent":"evaluator","prompt":"I’m on my\nPhone","command":"claude 
   pcheck 'worker with opus yolo resume' '{"flags":"--model opus --dangerously-skip-permissions --continue","command":"claude --agent worker \".\" --model opus --dangerously-skip-permissions --continue --name \"worker: repo (opus)\"","run":"S worker . -- --model opus --dangerously-skip-permissions --continue"}'
 }
 
-# old: parse: words: just do it is three unplaceable words
-@test "/run-agent words: just do it is three unplaceable words" {
+@test "/run-agent words: just do it, force, go, yolo-run, no confirm and a trailing ! cannot be placed and are asked about" {
   pcheck 'worker just do it' '{"unsure":["just","do","it"]}'
+  pcheck 'worker "." !' '{"unsure":["!"]}'
+  pcheck 'worker force' '{"unsure":["force"]}'
+  pcheck 'worker go' '{"unsure":["go"]}'
+  pcheck 'worker yolo-run' '{"unsure":["yolo-run"]}'
+  pcheck 'worker no confirm' '{"unsure":["no","confirm"]}'
 }
 
 # old: parse: words: confirm inside the prompt is prompt
@@ -233,57 +212,19 @@ Phone”' '{"agent":"evaluator","prompt":"I’m on my\nPhone","command":"claude 
   pcheck 'worker! fable' '{"flags":"--model fable","unsure":["!"],"command":"claude --agent worker \".\" --model fable --name \"worker: repo (fable)\"","run":"S worker . -- --model fable"}'
 }
 
-# old: parse: words: trailing ! is unplaceable
-@test "/run-agent words: trailing ! is unplaceable" {
-  pcheck 'worker "." !' '{"unsure":["!"]}'
-}
-
-# old: parse: words: force alone is unplaceable
-@test "/run-agent words: force alone is unplaceable" {
-  pcheck 'worker force' '{"unsure":["force"]}'
-}
-
-# old: parse: words: go alone is unplaceable
-@test "/run-agent words: go alone is unplaceable" {
-  pcheck 'worker go' '{"unsure":["go"]}'
-}
-
-# old: parse: words: yolo-run is unplaceable
-@test "/run-agent words: yolo-run is unplaceable" {
-  pcheck 'worker yolo-run' '{"unsure":["yolo-run"]}'
-}
-
-# old: parse: words: no confirm = two unplaceable words
-@test "/run-agent words: no confirm = two unplaceable words" {
-  pcheck 'worker no confirm' '{"unsure":["no","confirm"]}'
-}
-
 # old: parse: words: now = at once, no schedule
 @test "/run-agent words: now = at once, no schedule" {
   pcheck 'worker now' '{}'
 }
 
-# old: parse: words: confirm = confirm:1
-@test "/run-agent words: confirm = confirm:1" {
+@test "/run-agent words: confirm and --confirm both ask before the run" {
   pcheck 'worker "." confirm' '{"confirm":1}'
-}
-
-# old: parse: words: --confirm = confirm:1
-@test "/run-agent words: --confirm = confirm:1" {
   pcheck 'worker --confirm' '{"confirm":1}'
 }
 
 # old: parse: words: --force / -f fall where unknown flags fall
 @test "/run-agent words: --force / -f fall where unknown flags fall" {
   pcheck 'worker --force -f' '{"flags":"--force -f","command":"claude --agent worker \".\" --force -f --name \"worker: repo (sonnet)\"","run":"S worker . -- --force -f"}'
-}
-
-# old: words: --parse has no force key
-@test "/run-agent words: --parse has no force key" {
-  run ra --parse 'worker "." confirm'
-  assert_success
-  assert_output --partial '"confirm"'
-  refute_output --partial '"force"'
 }
 
 # old: parse: words: ~ path token

@@ -132,105 +132,45 @@ teardown_file() {
 }
 
 # bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: brew leaves iTerm2 in /Applications" {
+@test "macOS: the update starts as it did on the real Mac: iTerm2 running on the clone's plist, its own write a local change, the pull deleting it" {
   flow
   saw installed
-}
-
-# bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: the September clone tracks the iTerm2 plist" {
-  flow
   saw clone
   saw tracks
-}
-
-# bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: the real iTerm2 is running" {
-  flow
   saw running
-}
-
-# bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: the real iTerm2 is set to load its preferences from the clone" {
-  flow
   saw reads_clone
-}
-
-# bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: git sees the plist iTerm2 rewrote as a local change" {
-  flow
   saw dirty
-}
-
-# bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: the pull deletes the tracked plist, so copying it back is what keeps it" {
-  flow
   saw pulled
 }
 
 # bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: install.sh under bash 3.2 and the stock PATH succeeds during the update" {
+@test "macOS: install.sh under bash 3.2 and the stock PATH succeeds during the update and iTerm2 stays running" {
   flow
   saw install
-}
-
-# bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: iTerm2 is still running after the update" {
-  flow
   saw still_running
 }
 
 # bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: an update run while the real iTerm2 reads its preferences from the clone keeps its plist" {
+@test "macOS: an update run while the real iTerm2 reads its preferences from the clone keeps its plist, byte for byte" {
   flow
   saw plist_there
-}
-
-# bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: the kept plist is what iTerm2 last saved, byte for byte" {
-  flow
   saw plist_same
 }
 
 # bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: install.sh says it added the Claude tmux profile" {
+@test "macOS: the Claude tmux profile is added as a file iTerm2 can read, linked into the clone, and iTerm2 no longer loads its preferences from the clone" {
   flow
   saw said_added
-}
-
-# bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: the profile file iTerm2 loads exists and resolves into the clone" {
-  flow
   saw linked
-}
-
-# bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: that profile file holds the Claude tmux profile" {
-  flow
   saw named
-}
-
-# bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: plutil can read the profile file" {
-  flow
   saw converts
-}
-
-# bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: iTerm2 no longer loads its preferences from the clone" {
-  flow
   saw unloaded
 }
 
 # bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: install.sh --check after the update ends all checks passed" {
+@test "macOS: install.sh --check after the update ends all checks passed and passes the iTerm2 profile" {
   flow
   saw check
   assert_equal "$(tail -n 1 "$F/check.out")" "all checks passed"
-}
-
-# bats test_tags=feature:terminal-setup,escape:1d
-@test "macOS: install.sh --check passes the iTerm2 profile" {
-  flow
   saw check_line
 }

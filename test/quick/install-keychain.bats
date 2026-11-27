@@ -10,20 +10,10 @@ teardown_file() { install_teardown_file; }
 mac_only() { [ "$(uname -s)" = Darwin ] || skip "keychains are a macOS case"; }
 
 # bats test_tags=feature:install
-@test "a throwaway home without a keychain: the run fails" {
+@test "a throwaway home without a keychain: the run fails, names the home, and neither install.sh nor claude runs in it" {
   mac_only
   passed "nokeychain: the run fails"
-}
-
-# bats test_tags=feature:install
-@test "a throwaway home without a keychain: the FAIL line names the home" {
-  mac_only
   passed "nokeychain: the FAIL line names the home"
-}
-
-# bats test_tags=feature:install
-@test "a throwaway home without a keychain: neither install.sh nor claude runs in it" {
-  mac_only
   passed "nokeychain: neither install.sh nor claude ran in it"
 }
 

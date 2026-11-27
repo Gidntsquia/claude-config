@@ -115,25 +115,13 @@ EOF
 }
 
 # bats test_tags=feature:usage-guard
-@test "hooks: PostToolUse with the guard missing exits 0 and says it is off" {
-  with_nothing_installed PostToolUse
-  grep -q 'guard is off' "$BATS_TEST_TMPDIR/said"
-}
-
-# bats test_tags=feature:usage-guard
-@test "hooks: SessionStart with the guard missing exits 0 and says it is off" {
-  with_nothing_installed SessionStart
-  grep -q 'guard is off' "$BATS_TEST_TMPDIR/said"
-}
-
-# bats test_tags=feature:usage-guard
-@test "hooks: SubagentStart with the guard missing exits 0 and says it is off" {
-  with_nothing_installed SubagentStart
-  grep -q 'guard is off' "$BATS_TEST_TMPDIR/said"
-}
-
-# bats test_tags=feature:usage-guard
-@test "hooks: SubagentStop with the guard missing exits 0 and says it is off" {
-  with_nothing_installed SubagentStop
-  grep -q 'guard is off' "$BATS_TEST_TMPDIR/said"
+@test "hooks: PostToolUse, SessionStart, SubagentStart and SubagentStop with the guard missing each exit 0 and say it is off" {
+  # the notice is given once per session and temp folder, so each event gets a temp folder of its own
+  local event top="$BATS_TEST_TMPDIR"
+  for event in PostToolUse SessionStart SubagentStart SubagentStop; do
+    BATS_TEST_TMPDIR="$top/$event"; mkdir "$BATS_TEST_TMPDIR"
+    with_nothing_installed "$event" || { echo "$event: a hook command failed"; return 1; }
+    grep -q 'guard is off' "$BATS_TEST_TMPDIR/said" || { echo "$event: did not say the guard is off"; return 1; }
+  done
+  BATS_TEST_TMPDIR="$top"
 }

@@ -61,12 +61,6 @@ code_lines() {
 }
 
 # bats test_tags=feature:evaluator-tools
-@test "the old top-level wsl/local-tools folder is gone" {
-  [ -d "$LT/wsl" ]
-  [ ! -e "$REPO/wsl/local-tools" ]
-}
-
-# bats test_tags=feature:evaluator-tools
 @test "every evaluator shell script parses" {
   n=0; bad=""
   for f in "$LT"/common/*.sh "$LT"/macos/*.sh "$LT"/wsl/*.sh; do
@@ -95,22 +89,11 @@ code_lines() {
 }
 
 # bats test_tags=feature:evaluator-tools
-@test "the macOS tools open no iTerm tab, drive no other browser and need no screen permission" {
+@test "the macOS tools and evshow.sh open no iTerm tab, drive no other browser, need no screen permission and rotate no modes" {
   x=$(code_lines 'set bounds|osascript|iTerm|split-window|split vertically|create tab|EVSHOW_MAC_MODE|Safari|Chrome|chromium|screencapture' "$LT"/macos/*.sh "$LT"/macos/*.py)
   [ -z "$x" ] || { echo "$x"; return 1; }
-}
-
-# bats test_tags=feature:evaluator-tools
-@test "evshow.sh has no rotation between ways of showing" {
   x=$(code_lines 'modeidx|EVSHOW_MAC_MODE|iTerm' "$LT/common/evshow.sh")
   [ -z "$x" ] || { echo "$x"; return 1; }
-}
-
-# bats test_tags=feature:evaluator-tools
-@test "the evaluator asks no question about which way of showing to use" {
-  assert_file_exist "$REPO/agents/evaluator.md"
-  run grep -niE 'Which way of showing|EVSHOW_MAC_MODE|mode=tmux|mode=iterm|mode=tab' "$REPO/agents/evaluator.md"
-  assert_failure 1
 }
 
 # bats test_tags=feature:evaluator-tools

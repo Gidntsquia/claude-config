@@ -15,12 +15,6 @@ teardown_file() { install_teardown_file; }
 }
 
 # bats test_tags=feature:install
-@test "fresh install: the repo holds no personal path" {
-  passed "a: personal-path grep prints nothing"
-  passed "a: bin/find-personal-paths.sh prints nothing"
-}
-
-# bats test_tags=feature:install
 @test "fresh install: claude doctor exits 0" {
   passed "a: claude doctor exits 0"
 }

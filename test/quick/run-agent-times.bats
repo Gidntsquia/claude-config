@@ -12,13 +12,8 @@ AT9='"at":1792717200,"at_text":"at 9pm","at_shown":"9:00 PM ET (at 9pm, in 3h 0m
 RESETW='"reset":1792714801,"reset_shown":"8:20 PM ET"'
 WIN='"at":1792714801,"at_shown":"8:20 PM ET (%s, in 2h 20m)","at_text":"%s","run":"S worker . --at 1792714801 --at-text %s --window"'
 
-# old: parse: time: at 9pm
-@test "/run-agent time: at 9pm" {
+@test "/run-agent time: at 9pm and --at 9pm" {
   pcheck 'worker at 9pm' "{$AT9,$RESET}"
-}
-
-# old: parse: time: --at 9pm
-@test "/run-agent time: --at 9pm" {
   pcheck 'worker --at 9pm' "{$AT9,$RESET}"
 }
 
@@ -52,13 +47,8 @@ WIN='"at":1792714801,"at_shown":"8:20 PM ET (%s, in 2h 20m)","at_text":"%s","run
   pcheck 'worker at 5 pm' "{\"at\":1792789200,\"at_text\":\"at 5 pm\",\"at_shown\":\"5:00 PM ET (at 5 pm, in 23h 0m)\",\"run\":\"S worker . --at 1792789200 --at-text 'at 5 pm'\",$RESET}"
 }
 
-# old: parse: time: in 2h
-@test "/run-agent time: in 2h" {
+@test "/run-agent time: in 2h and --in 2h" {
   pcheck 'worker in 2h' "{\"at\":1792713600,\"at_text\":\"in 2h\",\"at_shown\":\"8:00 PM ET (in 2h, in 2h 0m)\",\"run\":\"S worker . --at 1792713600 --at-text 'in 2h'\",$RESET}"
-}
-
-# old: parse: time: --in 2h
-@test "/run-agent time: --in 2h" {
   pcheck 'worker --in 2h' "{\"at\":1792713600,\"at_text\":\"in 2h\",\"at_shown\":\"8:00 PM ET (in 2h, in 2h 0m)\",\"run\":\"S worker . --at 1792713600 --at-text 'in 2h'\",$RESET}"
 }
 
@@ -82,33 +72,11 @@ WIN='"at":1792714801,"at_shown":"8:20 PM ET (%s, in 2h 20m)","at_text":"%s","run
   pcheck 'worker in 45 min' "{\"at\":1792709100,\"at_text\":\"in 45 min\",\"at_shown\":\"6:45 PM ET (in 45 min, in 45m)\",\"run\":\"S worker . --at 1792709100 --at-text 'in 45 min'\",$RESET}"
 }
 
-# old: parse: time: after window
-@test "/run-agent time: after window" {
-  pcheck "worker after window" "{$(printf "$WIN" 'after window' 'after window' "'after window'"),$RESETW}"
-}
-
-# old: parse: time: after the window
-@test "/run-agent time: after the window" {
-  pcheck "worker after the window" "{$(printf "$WIN" 'after the window' 'after the window' "'after the window'"),$RESETW}"
-}
-
-# old: parse: time: next window
-@test "/run-agent time: next window" {
-  pcheck "worker next window" "{$(printf "$WIN" 'next window' 'next window' "'next window'"),$RESETW}"
-}
-
-# old: parse: time: when the window resets
-@test "/run-agent time: when the window resets" {
-  pcheck "worker when the window resets" "{$(printf "$WIN" 'when the window resets' 'when the window resets' "'when the window resets'"),$RESETW}"
-}
-
-# old: parse: time: after reset
-@test "/run-agent time: after reset" {
-  pcheck "worker after reset" "{$(printf "$WIN" 'after reset' 'after reset' "'after reset'"),$RESETW}"
-}
-
-# old: parse: time: --after window
-@test "/run-agent time: --after window" {
+@test "/run-agent time: after window, after the window, next window, when the window resets, after reset and --after window all mean the reset" {
+  local p
+  for p in 'after window' 'after the window' 'next window' 'when the window resets' 'after reset'; do
+    pcheck "worker $p" "{$(printf "$WIN" "$p" "$p" "'$p'"),$RESETW}"
+  done
   pcheck 'worker --after window' "{$(printf "$WIN" 'after window' 'after window' "'after window'"),$RESETW}"
 }
 
@@ -142,13 +110,8 @@ WIN='"at":1792714801,"at_shown":"8:20 PM ET (%s, in 2h 20m)","at_text":"%s","run
   pcheck 'worker fable low effort at 9pm dry' "{$FLOW,\"dry\":1,\"at\":1792717200,\"at_text\":\"at 9pm\",\"at_shown\":\"9:00 PM ET (at 9pm, in 3h 0m)\",$RESET,\"run\":\"S worker . --at 1792717200 --at-text 'at 9pm' -- --model fable --effort low\"}"
 }
 
-# old: parse: time: dry run alone fetches the reset
-@test "/run-agent time: dry run alone fetches the reset" {
+@test "/run-agent time: dry run and --dry-run alone fetch the reset" {
   pcheck 'worker dry run' "{\"dry\":1,$RESET}"
-}
-
-# old: parse: time: --dry-run
-@test "/run-agent time: --dry-run" {
   pcheck 'worker --dry-run' "{\"dry\":1,$RESET}"
 }
 

@@ -109,16 +109,12 @@ calls() { cat "$S/calls"; }
 }
 
 # bats test_tags=feature:evaluator-tools
-@test "ending the run says nothing on the desktop changed" {
+@test "ending the run closes the last item's window, says nothing on the desktop changed, and disarming succeeds" {
   ran end
   has "$out" "now unchanged"
-}
-
-# bats test_tags=feature:evaluator-tools
-@test "ending the run closes the last item's window" {
-  ran end
   run grep -E '^close 1002' "$S/calls"
   assert_success
+  ran disarm
 }
 
 # bats test_tags=feature:evaluator-tools
@@ -130,13 +126,9 @@ calls() { cat "$S/calls"; }
 }
 
 # bats test_tags=feature:evaluator-tools
-@test "on a Mac the flash measurement says it is not measured" {
+@test "on a Mac the flash measurement says it is not measured and the picture path says there is no picture" {
   ran noflash
   has "$out" "no-flash: not measured (macOS)"
-}
-
-# bats test_tags=feature:evaluator-tools
-@test "on a Mac asking for the picture path says there is no picture" {
   ran path
   assert_equal "$out" "no picture (macOS)"
 }
@@ -147,11 +139,6 @@ calls() { cat "$S/calls"; }
   has "$out" "shown -> question"
   has "$out" "shown: 1001 item-a x1 mode=firefox"
   has "$out" "shown: 1002 item-b x2 mode=firefox"
-}
-
-# bats test_tags=feature:evaluator-tools
-@test "disarming after the run succeeds" {
-  ran disarm
 }
 
 # bats test_tags=feature:evaluator-tools
