@@ -1,4 +1,4 @@
-# test/run --faults, 2026-11-27 10:16 AM ET on Darwin, commit 1a2bddb with uncommitted changes
+# test/run --faults, 2026-11-27 11:10 AM ET on Darwin, commit d0eb9ee
 caught agent-prompts/next-tool-renamed
 caught agent-prompts/planner-cannot-delegate
 caught agent-prompts/show-verb-renamed

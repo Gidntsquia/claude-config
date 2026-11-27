@@ -29,7 +29,7 @@ Rewritten by `test/run --report` from `test/features.txt`, `test/escapes.txt`, `
 | Planted faults caught | 70 of 75 | sensitivity |
 | Past real-machine errors with a test | 12 of 12 | fidelity |
 | Repeated shuffled runs that agreed | 3 of 3 | consistency |
-| Stand-ins with a test against the real tool | 16 of 21 | fidelity |
+| Stand-ins with a test against the real tool | 17 of 22 | fidelity |
 
 Features with no automated test:
 
@@ -37,7 +37,7 @@ Features with no automated test:
 
 Stand-ins never compared with the real tool: usage-api wsl claude-hooks claude-mods claude-permissions (reasons in test/standins.txt).
 
-Faults measured 2026-11-27 10:16 AM ET on Darwin, commit 1a2bddb with uncommitted changes.
+Faults measured 2026-11-27 11:10 AM ET on Darwin, commit d0eb9ee.
 
 - missed restore-sessions/resume-without-model
 - missed statusline/unlock-time-utc
@@ -46,9 +46,9 @@ Faults measured 2026-11-27 10:16 AM ET on Darwin, commit 1a2bddb with uncommitte
 - missed update-by-claude/relink-step-missing: the feature has no automated test
 - short usage-guard: 0 of 3 faults planted
 
-Past errors seen red with their fix removed: 12 of 12, measured 2026-11-27 08:57 AM ET on Darwin, commit 3c00fa4.
+Past errors seen red with their fix removed: 12 of 12, measured 2026-11-27 11:38 AM ET on Darwin, commit d0eb9ee.
 
-Repeat measured 2026-11-27 09:16 AM ET on Darwin, commit 3c00fa4 with uncommitted changes.
+Repeat measured 2026-11-27 11:51 AM ET on Darwin, commit d0eb9ee.
 <!-- trust-report:end -->
 
 How each number is made:
