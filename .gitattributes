@@ -1,0 +1,3 @@
+# One spelling of every text file on every system: Windows git would otherwise check out CRLF,
+# which breaks the bash scripts and the tests that read the pages.
+* text=auto eol=lf

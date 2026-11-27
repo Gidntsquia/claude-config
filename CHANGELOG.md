@@ -9,6 +9,7 @@
 - `test/review.md` gives every test a verdict and a reason, one table per feature; 10 duplicate tests were deleted and 59 merged into 18 (805 tests to 754).
 - `TESTING.md` is the one page: run, read a failure, add a test, what a pass means. Planted faults, repeated runs and the trust report are `bin/release/faults`, `bin/release/repeat <n>` and `bin/release/trust-report`.
 - `ARCHITECTURE.md` and `.claude/CLAUDE.md` are new. `test/run` fails when they name a missing path or outgrow their caps.
+- Windows without WSL: `install.sh` now installs the status line from Git Bash (it needs `jq`); only tmux and the terminal setup are skipped. The report tools, the helper server and the weekly roundup read and write UTF-8 and print forward-slash paths there, and `.gitattributes` keeps every text file LF.
 - The README carries the last full run's result, written by `bin/release/trust-report all`.
 
 ### Evaluator on a Mac 🍎

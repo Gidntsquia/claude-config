@@ -577,7 +577,7 @@ install on Windows without WSL: copies where links fail, WSL-only parts skipped.
 | Test | Catches | Verdict | Reason |
 |---|---|---|---|
 | windows: install.sh succeeds and copies what it cannot link | the install failing where links are refused, or not copying | keep | the only tests of the copy route used when links are refused |
-| windows: status line, tmux setup and run-agent are skipped and named | the status line, tmux setup or run-agent installed on Windows, or skipped silently | keep | the only tests of the copy route used when links are refused |
+| windows: the status line is installed; tmux setup and run-agent are skipped and named | the status line missing on Windows, or tmux setup or run-agent installed there, or skipped silently | keep | the only tests of the copy route used when links are refused |
 | windows: --check accepts the copies | --check failing copies | keep | the only tests of the copy route used when links are refused |
 | windows: a rerun succeeds and the clone is unchanged | a rerun treating its own copies as yours, or writing into the clone | keep | the only tests of the copy route used when links are refused |
 | windows: a rerun after an update refreshes unedited copies and keeps edited ones | stale copies kept after an update, or your edited copy replaced | keep | replays past error windows-stale-copy; the only tests of the copy route used when links are refused |

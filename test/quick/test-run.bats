@@ -40,7 +40,10 @@ suite() {
   bats="$REPO/test/vendor/bats-core/bin/bats"
   [ -f "$bats" ] || bats="$(PATH="${PATH#"$BATS_LIBEXEC:"}" command -v bats)"
   list
-  run env -i PATH="$(dirname "$bats"):/usr/bin:/bin:/usr/sbin:/sbin" TMPDIR="$BATS_TEST_TMPDIR" HOME="$TEST_HOME" ${vars[@]+"${vars[@]}"} bash "$R/${TOOL:-test/run}" "$@"
+  # git and python3 are outside /usr/bin on Windows Git Bash (and python3 on some Macs)
+  local t d tools=""
+  for t in git python3; do d="$(command -v "$t")" && tools="$tools:$(dirname "$d")"; done
+  run env -i PATH="$(dirname "$bats"):/usr/bin:/bin:/usr/sbin:/sbin$tools" ${SYSTEMROOT:+SYSTEMROOT="$SYSTEMROOT"} TMPDIR="$BATS_TEST_TMPDIR" HOME="$TEST_HOME" ${vars[@]+"${vars[@]}"} bash "$R/${TOOL:-test/run}" "$@"
 }
 tool() { local TOOL="bin/release/$1"; shift; suite "$@"; }
 

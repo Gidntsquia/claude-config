@@ -55,6 +55,23 @@ decimal). "field": a.b[0].c, [name=x].y, list[-1], [?k=v]...|agg; for a text fil
 """
 import html as H, json, os, re, subprocess, sys
 
+
+def _utf8_streams():
+    """Windows: Python's stdout is cp1252 and turns each newline into CRLF. Print UTF-8 with plain newlines everywhere."""
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(encoding="utf-8", newline="\n")
+        except (AttributeError, ValueError):
+            pass
+
+
+_utf8_streams()
+
+
+def _slash(path):
+    """A path as it is printed: forward slashes on every system."""
+    return str(path).replace("\\", "/")
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUTDIR = ""   # set by build(); a numbers.json "file" under it is a writer-made data file and is refused
 CARDS_MJS = os.path.join(HERE, "cards.mjs")
@@ -707,10 +724,10 @@ def slug(items, n):
 
 
 def measure(outdir, mode, html="report.html"):
-    r = subprocess.run(["node", CARDS_MJS, outdir, mode, html], capture_output=True, text=True)
+    r = subprocess.run(["node", CARDS_MJS, outdir, mode, html], capture_output=True, text=True, encoding="utf-8")
     if r.returncode:
         sys.exit(f"cards.mjs failed: {r.stderr.strip()}")
-    return json.load(open(os.path.join(outdir, "cards", "measure.json"))), r.stdout.strip()
+    return json.load(open(os.path.join(outdir, "cards", "measure.json"), encoding="utf-8")), r.stdout.strip()
 
 
 LEDGER = os.environ.get("REPORT_LEDGER") or os.path.join(os.path.dirname(HERE), "evals", "report-writer", "ledger.jsonl")
@@ -819,9 +836,9 @@ def write_words(outdir, src):
     mp = os.path.join(outdir, "cards", "measure.json")
     if not os.path.exists(mp):
         return None
-    m = json.load(open(mp))
+    m = json.load(open(mp, encoding="utf-8"))
     m["words"] = section_words(src)
-    json.dump(m, open(mp, "w"), indent=1, ensure_ascii=False)
+    json.dump(m, open(mp, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
     return m["words"]
 
 
@@ -855,9 +872,9 @@ def build(outdir, data, cards=True, md="report.md", numbers="numbers.json"):
     src_path, np_ = os.path.join(outdir, md), os.path.join(outdir, numbers)
     html = "report.html" if md == "report.md" else os.path.splitext(md)[0] + ".html"   # NEEDS-DATA.md → NEEDS-DATA.html
     if not os.path.exists(src_path):
-        sys.exit(f"build.py: no {src_path}")
+        sys.exit(f"build.py: no {_slash(src_path)}")
     if not os.path.exists(np_):
-        sys.exit(f"build.py: no {np_}")
+        sys.exit(f"build.py: no {_slash(np_)}")
     src = open(src_path, encoding="utf-8").read()
     N = json.load(open(np_, encoding="utf-8"))
     notes = fill_values(N, data)
@@ -907,7 +924,7 @@ def build(outdir, data, cards=True, md="report.md", numbers="numbers.json"):
         os.makedirs(ck, exist_ok=True)   # the checker's folder is one of the run's outputs even when the checker was skipped
         spec = next((b for k, b in blocks if k == "checker"), "")
         if spec.strip().startswith("off") and not os.listdir(ck):
-            open(os.path.join(ck, "OFF.txt"), "w").write("checker: off (built with --no-checker)\n")
+            open(os.path.join(ck, "OFF.txt"), "w", encoding="utf-8").write("checker: off (built with --no-checker)\n")
     if not cards:
         if md == "report.md":
             write_words(outdir, src)

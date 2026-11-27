@@ -306,7 +306,7 @@ if [ -n "$CHECK" ]; then
   if command -v claude >/dev/null 2>&1; then
     if claude doctor </dev/null >/dev/null 2>&1; then pass "claude doctor"; else fail "claude doctor exited non-zero"; fi
   else fail "claude not on PATH (install: curl -fsSL https://claude.ai/install.sh | bash)"; fi
-  if [ "$STATUSLINE" = keep ] || [ "$OS" = windows ]; then skip "status line ($([ "$OS" = windows ] && echo 'needs WSL' || echo 'kept yours'))"
+  if [ "$STATUSLINE" = keep ]; then skip "status line (kept yours)"
   else
     linked "$C/statusline.sh" "statusline.sh" "$R/statusline.sh"
     n="$(bash "$C/statusline.sh" --preview "$STATUSLINE" 2>/dev/null | wc -l | tr -d ' ')" || n=0
@@ -520,7 +520,7 @@ fi
 
 # 5. settings.json.
 statusline_on=false
-[ "$STATUSLINE" != keep ] && [ "$OS" != windows ] && statusline_on=true
+[ "$STATUSLINE" != keep ] && statusline_on=true   # Windows Git Bash too: statusline.sh needs only bash and jq
 case "$SETTINGS" in
   replace)
     # a generated copy, not a link: the installed file names this clone's absolute path in the run-agent allow
@@ -554,7 +554,7 @@ if $statusline_on; then
     grep -qx 'export CLAUDE_STATUSLINE_THEME=plane' "$P" 2>/dev/null || echo 'export CLAUDE_STATUSLINE_THEME=plane' >> "$P"
     echo "  status line: plane (open a new terminal, or run: export CLAUDE_STATUSLINE_THEME=plane)"
   else echo "  status line: squid"; fi
-elif [ "$OS" = windows ]; then echo "  status line: skipped (needs WSL, see https://github.com/Gidntsquia/claude-config/wiki/Setting-Up-WSL)"
+  [ "$OS" = windows ] && ! command -v jq >/dev/null 2>&1 && echo "  the status line needs jq, which is not on PATH (install: winget install jqlang.jq)"
 else echo "  status line: kept yours"; fi
 
 # 7. Mac: undo what older versions of this script set (iTerm2 reading its whole preferences from this repo,
@@ -712,5 +712,5 @@ json.dump(d, open(sys.argv[1], "w"), indent=2)
 open(sys.argv[1], "a").write("\n")
 EOF
 echo "  choices saved in $CFG"
-[ "$OS" = windows ] && echo "Skipped on Windows without WSL: status line, tmux and terminal setup (https://github.com/Gidntsquia/claude-config/wiki/Setting-Up-WSL)"
+[ "$OS" = windows ] && echo "Skipped on Windows without WSL: tmux and terminal setup (https://github.com/Gidntsquia/claude-config/wiki/Setting-Up-WSL)"
 echo "done. Check it with: ./install.sh --check"

@@ -7,6 +7,8 @@
 # FAULT_JOBS (3) features at a time; FAULT_LOGS=<dir> keeps each run's output.
 set -u
 export TZ=UTC LC_ALL=C
+# Windows git turns LF into CRLF on checkout by default; the scratch clones keep every file byte for byte.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.autocrlf GIT_CONFIG_VALUE_0=false
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 HERE="$REPO/test"
 . "$HERE/lib/common.bash"

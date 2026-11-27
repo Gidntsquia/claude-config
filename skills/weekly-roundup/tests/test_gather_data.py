@@ -43,7 +43,7 @@ def run(root, device, person, pool_in=None, pool_out=None, features=None, cap="5
         cmd += ["--pool-out", str(pool_out)]
     if features:
         cmd += ["--features-file", str(features)]
-    r = subprocess.run(cmd, capture_output=True, text=True, env={**os.environ, "TZ": "America/New_York"})
+    r = subprocess.run(cmd, capture_output=True, text=True, env={**os.environ, "TZ": "EST5EDT"})
     assert (r.returncode == 0) == expect_ok, r.stderr
     return r
 

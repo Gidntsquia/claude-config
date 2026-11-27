@@ -43,7 +43,7 @@ describe() {
 
 # bats test_tags=feature:defer-artifact
 @test "the mod has the manifest the installer looks for" {
-  run python3 -c 'import json,sys; m=json.load(open(sys.argv[1], encoding="utf-8")); sys.stdout.write(m["name"] + "\n" + m["version"])' "$MOD/.claude-plugin/plugin.json"
+  run python3 -c 'import json,sys; sys.stdout.reconfigure(newline="\n"); m=json.load(open(sys.argv[1], encoding="utf-8")); sys.stdout.write(m["name"] + "\n" + m["version"])' "$MOD/.claude-plugin/plugin.json"
   assert_success
   assert_output --regexp '^defer-artifact
 [0-9]+\.[0-9]+\.[0-9]+$'

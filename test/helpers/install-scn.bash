@@ -44,10 +44,7 @@ scenario() {  # $1 = a|b
     expect "$name: claude-config.json names this clone" sh -c "grep -q '\"repo\"' '$H/.claude/claude-config.json'"
     s="$H/.claude/settings.json"
     if [ "$name" = a ]; then
-      case "$(uname -s)" in
-        MINGW*|MSYS*|CYGWIN*) expect "a: no statusLine on Windows without WSL" sh -c "! grep -q statusline.sh '$s'" ;;
-        *) expect "a: settings.json has the repo's statusLine" sh -c "grep -q statusline.sh '$s'" ;;
-      esac
+      expect "a: settings.json has the repo's statusLine" sh -c "grep -q statusline.sh '$s'"
       expect "a: CLAUDE.md is linked" test -L "$H/.claude/CLAUDE.md"
       expect "a: env.CLAUDE_CODE_PLUGIN_DIRS is the defer-artifact mod" test "$(jget "$s" env | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("CLAUDE_CODE_PLUGIN_DIRS",""))')" = "$MOD"
       expect "a: planner agent installed" test -e "$H/.claude/agents/planner.md"
@@ -133,12 +130,10 @@ scn_moved() {
   expect "moved, no claude-config.json: no clash and no 'kept yours' for our own broken links" sh -c "! printf '%s\n' \"\$1\" | grep -q -e 'clash' -e 'kept yours' -e 'you have your own'" _ "$out"
   expect "moved, no claude-config.json: no link under .claude is broken" test -z "$(find "$C" -maxdepth 2 -type l ! -exec test -e {} \; -print 2>/dev/null | grep -v '/debug/')"
   # with no saved choices, the broken links are the only record of what was chosen: the status line and the terminal setup stay
-  case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) ;; *)
-    expect "moved, no claude-config.json: the status line is still the repo's" sh -c "[ -e '$C/statusline.sh' ] && printf '%s\n' \"\$1\" | grep -q '^  status line: squid\$'" _ "$out"
-    if [ "$TERMFLAG" = --terminal ]; then
-      expect "moved, no claude-config.json: the terminal setup is still installed (tmux-quad, tmux.conf, starship.toml resolve)" test -e "$H/.local/bin/tmux-quad" -a -e "$H/.tmux.conf" -a -e "$H/.config/starship.toml"
-    fi ;;
-  esac
+  expect "moved, no claude-config.json: the status line is still the repo's" sh -c "[ -e '$C/statusline.sh' ] && printf '%s\n' \"\$1\" | grep -q '^  status line: squid\$'" _ "$out"
+  if [ "$TERMFLAG" = --terminal ]; then
+    expect "moved, no claude-config.json: the terminal setup is still installed (tmux-quad, tmux.conf, starship.toml resolve)" test -e "$H/.local/bin/tmux-quad" -a -e "$H/.tmux.conf" -a -e "$H/.config/starship.toml"
+  fi
   closing "moved, no claude-config.json" "$H" "$N2"
 }
 
@@ -495,8 +490,8 @@ scn_windows() {
   expect "windows: it says it copied what it could not link" has "$out" 'this Windows account cannot make symlinks'
   expect "windows: the planner agent is a real file identical to the repo's" sh -c '[ ! -L "$1" ] && cmp -s "$1" "$2"' _ "$C/agents/planner.md" "$K/agents/planner.md"
   expect "windows: every installed agent and skill is identical to the repo's" windows_copies_whole "$C" "$K"
-  expect "windows: it names what is skipped without WSL" has "$out" '^Skipped on Windows without WSL: status line, tmux and terminal setup'
-  expect "windows: no status line is installed or set" sh -c '[ ! -e "$1/statusline.sh" ] && ! grep -q statusline.sh "$1/settings.json"' _ "$C"
+  expect "windows: it names what is skipped without WSL" has "$out" '^Skipped on Windows without WSL: tmux and terminal setup'
+  expect "windows: the status line is installed and set" sh -c 'cmp -s "$1/statusline.sh" "$2/statusline.sh" && grep -q statusline.sh "$1/settings.json"' _ "$C" "$K"
   expect "windows: no tmux setup and no run-agent command" sh -c '[ ! -e "$1/.tmux.conf" ] && [ ! -e "$1/.local/bin/run-agent" ] && [ ! -e "$1/.local/bin/guard" ]' _ "$H"
   out="$(cd "$K" && CLAUDE_CONFIG_INSTALL_OS=windows ./install.sh --check 2>&1)"; rc=$?; echo "$out" | sed 's/^/     /'
   expect "windows: --check exits 0 and ends 'all checks passed' (got $rc, '$(last "$out")')" test "$rc$(last "$out")" = "0all checks passed"

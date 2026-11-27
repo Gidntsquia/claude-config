@@ -19,6 +19,7 @@ setup() {
 call() {
   run env PYTHONPATH="$REPO/test/fixtures/mcp-stub" PYTHONDONTWRITEBYTECODE=1 python3 -c '
 import importlib.util, sys
+sys.stdout.reconfigure(encoding="utf-8", newline="\n")  # Windows Python prints CRLF otherwise
 spec = importlib.util.spec_from_file_location("helper_server", sys.argv[1])
 s = importlib.util.module_from_spec(spec); spec.loader.exec_module(s)
 print(eval(sys.argv[2]))' "$C/helper-mcp/server.py" "$1"

@@ -16,6 +16,7 @@ import argparse
 import html
 import json
 import math
+import sys
 
 CSS = """.barchart-wrap{margin:16px 0 6px}
 .barchart-wrap h2.sub{margin:0 0 10px}
@@ -151,11 +152,13 @@ def main():
     ap.add_argument("--part", choices=["css", "html"], required=True)
     ap.add_argument("--names", help='JSON file {"<project name>": "<display name>"}')
     a = ap.parse_args()
-    out = json.load(open(a.data))
+    for s in (sys.stdout, sys.stderr):   # Windows: cp1252 and CRLF otherwise
+        s.reconfigure(encoding="utf-8", newline="\n")
+    out = json.load(open(a.data, encoding="utf-8"))
     if a.part == "css":
         print(CSS, end="")
     else:
-        names = json.load(open(a.names)) if a.names else {}
+        names = json.load(open(a.names, encoding="utf-8")) if a.names else {}
         print(week_html(display_days(out["days"], names), solo=len(out.get("people", [])) <= 1))
 
 

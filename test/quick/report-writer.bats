@@ -22,6 +22,7 @@ build() { python3 -I "$RW/build.py" "$OUT" --data "$WORK/data" "$@"; }
 
 # py <code> [args]: run a short Python snippet
 py() { python3 -I -c "import json,sys,os,io
+sys.stdout.reconfigure(encoding='utf-8', newline='\n')  # Windows Python prints CRLF otherwise
 $1" "${@:2}"; }
 
 values() {

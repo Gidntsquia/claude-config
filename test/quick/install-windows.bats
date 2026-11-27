@@ -17,9 +17,9 @@ teardown_file() { install_teardown_file; }
 }
 
 # bats test_tags=feature:windows-install
-@test "windows: status line, tmux setup and run-agent are skipped and named" {
+@test "windows: the status line is installed; tmux setup and run-agent are skipped and named" {
   passed "windows: it names what is skipped"
-  passed "windows: no status line"
+  passed "windows: the status line is installed and set"
   passed "windows: no tmux setup"
 }
 
