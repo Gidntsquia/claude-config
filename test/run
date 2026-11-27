@@ -7,8 +7,9 @@
 #   all      the three tiers in that order.
 #
 # Order: lint over the test files, then the tier's tests. The last line is `PASS <n> tests` (exit 0) or
-# `FAIL <failed> of <n>` (exit 1). Exit 2 means the suite could not start (bad argument, missing submodules).
-# bash 3.2, no dependency beyond the submodules in test/vendor/ and pytest for the python files.
+# `FAIL <failed> of <n>` (exit 1). Exit 2 means the suite could not start (bad argument, no bats).
+# bats comes from the submodule test/vendor/bats-core; when that is absent, from a `bats` on PATH
+# (`brew install bats-core`). bash 3.2; pytest for the python files.
 
 set -u
 export TZ=UTC LC_ALL=C
@@ -77,22 +78,24 @@ lint() {
 }
 
 # ---- bats ---------------------------------------------------------------------------------------------------
-need_submodules() {
-  local m
-  for m in bats-core/bin/bats bats-support/load.bash bats-assert/load.bash bats-file/load.bash; do
-    if [ ! -f "$HERE/vendor/$m" ]; then
-      echo "test/vendor/${m%%/*} is missing"
-      echo "run: git submodule update --init"
-      # A lint problem is a failure whether or not the tests could start.
-      [ "$failed" -gt 0 ] && { echo "FAIL $failed of $total"; exit 1; }
-      exit 2
-    fi
-  done
+# The submodule's bats; without it a bats on PATH. Neither: exit 2 (or 1 when the lint already failed).
+find_bats() {
+  [ -f "$BATS" ] && return 0
+  if command -v bats >/dev/null 2>&1; then
+    BATS="$(command -v bats)"
+    echo "test/vendor/bats-core is absent: using $BATS ($("$BATS" --version 2>/dev/null))"
+    return 0
+  fi
+  echo "test/vendor/bats-core is missing and no bats is on PATH"
+  echo "run: git submodule update --init      (or: brew install bats-core)"
+  # A lint problem is a failure whether or not the tests could start.
+  [ "$failed" -gt 0 ] && { echo "FAIL $failed of $total"; exit 1; }
+  exit 2
 }
 
 # Files whose name starts with `_` (the template) are not run.
 run_bats() {
-  local t="$1" f files="" out ok notok
+  local t="$1" f files="" out ok notok log
   for f in "$HERE/$t"/*.bats; do
     [ -f "$f" ] || continue
     case "$(basename "$f")" in _*) continue ;; esac
@@ -101,9 +104,11 @@ run_bats() {
   done
   if [ -z "$files" ]; then echo "$t: no test files"; return; fi
   echo "== $t"
-  out="$(printf '%s' "$files" | (IFS='
-'; set -f; set -- $(cat); cd "$REPO" && "$BATS" --tap "$@") 2>&1)"
-  printf '%s\n' "$out"
+  # Shown as it runs (a tier can take minutes), and kept in a file for the count.
+  log="$(mktemp "${TMPDIR:-/tmp}/test-run.XXXXXX")"
+  printf '%s' "$files" | (IFS='
+'; set -f; set -- $(cat); cd "$REPO" && "$BATS" --tap "$@" </dev/null) 2>&1 | tee "$log"
+  out="$(cat "$log")"; rm -f "$log"
   ok="$(printf '%s\n' "$out" | grep -c '^ok ')"
   notok="$(printf '%s\n' "$out" | grep -c '^not ok ')"
   total=$((total + ok + notok))
@@ -143,7 +148,7 @@ run_pytest() {
 
 # ---- run ----------------------------------------------------------------------------------------------------
 lint
-need_submodules
+find_bats
 for t in $tiers; do
   run_bats "$t"
   [ "$t" = quick ] && run_pytest

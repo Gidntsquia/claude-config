@@ -8,21 +8,24 @@ on:
     branches: [main]
   pull_request:
 
+# Every job runs one command, test/run <tier>. The steps before it only put tools on the runner.
+# What each tier holds and what a pass means: TESTING.md.
 jobs:
-  install:
+  test:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # the oldtag, plist and dirty scenarios install from older tags and commits
+          fetch-depth: 0        # the oldtag, plist and dirty scenarios install from older tags and commits
+          submodules: recursive # bats and its three libraries, in test/vendor/
 
       - name: Install tmux (Linux)
         if: runner.os == 'Linux'
@@ -31,6 +34,18 @@ jobs:
       - name: Install tmux (macOS)
         if: runner.os == 'macOS'
         run: brew install tmux
+
+      # Only while test/vendor/bats-core is not in the repo: test/run then takes a bats from PATH.
+      - name: bats from a package when the submodule is absent
+        run: |
+          [ -f test/vendor/bats-core/bin/bats ] && exit 0
+          case "$RUNNER_OS" in
+            macOS)   brew install bats-core ;;
+            Linux)   sudo apt-get install -y bats ;;
+            Windows) npm install -g bats ;;
+          esac
+
+      - uses: astral-sh/setup-uv@v5   # test/run runs the pytest files through uv when pytest is not installed
 
       - name: Install Claude Code (Linux, macOS)
         if: runner.os != 'Windows'
@@ -45,107 +60,30 @@ jobs:
           irm https://claude.ai/install.ps1 | iex
           "$env:USERPROFILE\.local\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: claude doctor
-        run: claude --version && claude doctor < /dev/null
-
-      - name: run-agent tests (Linux)
-        if: runner.os == 'Linux'
-        run: bash skills/run-agent/scripts/test.sh
-
-      # A stock Mac: on macOS every test script, install.sh and --check run through test/stock-mac.sh, which is
-      # /bin/bash 3.2 with an empty environment and PATH=/usr/bin:/bin:/usr/sbin:/sbin plus links to tmux and
-      # claude. Homebrew's bash and GNU tools on the runner's own PATH hid 140 failures a real Mac then showed.
-      - name: run-agent tests under /bin/bash 3.2 with the stock PATH (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          /bin/bash --version | head -1
-          /bin/bash test/stock-mac.sh skills/run-agent/scripts/test.sh
-
-      - name: Keychain item read by parse.py through the real security, /bin/bash 3.2 and the stock PATH (macOS)
-        if: ${{ !cancelled() && runner.os == 'macOS' }}
-        run: /bin/bash test/stock-mac.sh test/real-usage.sh keychain
-
-      - name: Unstubbed usage call with a fake token ends in HTTP 401 (Linux)
-        if: ${{ !cancelled() && runner.os == 'Linux' }}
-        run: bash test/real-usage.sh usage
-
-      - name: Unstubbed usage call with a fake token ends in HTTP 401, /bin/bash 3.2 and the stock PATH (macOS)
-        if: ${{ !cancelled() && runner.os == 'macOS' }}
-        run: /bin/bash test/stock-mac.sh test/real-usage.sh usage
-
-      - name: Install scenarios with --terminal (Linux)
-        if: ${{ !cancelled() && runner.os == 'Linux' }}
+      - name: test/run quick
         env:
-          SCN_NEED_OLDTAG: 1
-        run: bash test/install-scenarios.sh --terminal
+          MSYS: winsymlinks:nativestrict   # Git Bash: real symlinks, as install.sh makes them
+        run: test/run quick
 
-      - name: Install scenarios with --terminal, /bin/bash 3.2 and the stock PATH (macOS)
-        if: ${{ !cancelled() && runner.os == 'macOS' }}
-        env:
-          SCN_NEED_OLDTAG: 1
-        run: /bin/bash test/stock-mac.sh test/install-scenarios.sh --terminal
+      # The real tools: the keychain, the usage API over TLS, iTerm2. Last on macOS, because the iTerm2 test
+      # changes the runner account's real iTerm2 preferences and ~/.claude.
+      - name: test/run machine
+        if: ${{ !cancelled() && runner.os != 'Windows' }}
+        timeout-minutes: 20
+        run: test/run machine
 
-      - name: Install scenarios without --terminal (Windows, Git Bash)
-        if: ${{ !cancelled() && runner.os == 'Windows' }}
-        env:
-          MSYS: winsymlinks:nativestrict
-        run: bash test/install-scenarios.sh --no-terminal
-
-      - name: macOS --terminal with iTerm2 absent skips the profile, /bin/bash 3.2 and the stock PATH
-        if: ${{ !cancelled() && runner.os == 'macOS' }}
-        run: |
-          test ! -d /Applications/iTerm.app
-          H="$(mktemp -d)"
-          out="$(HOME="$H" /bin/bash test/stock-mac.sh ./install.sh --projects '~/files' --terminal --default-profile --statusline squid --settings merge 2>&1)"
-          echo "$out"
-          echo "$out" | grep -q 'iTerm2 is not installed'
-          HOME="$H" /bin/bash test/stock-mac.sh ./install.sh --check
-
-      # The evaluator's tools per OS (local-tools/common, wsl, macos): layout, syntax, evshow.sh end to end and the macOS
-      # tools against a stand-in tmux, osascript and open. Opens no window, pane or tab.
-      - name: Evaluator tools (Linux)
-        if: ${{ !cancelled() && runner.os == 'Linux' }}
-        run: bash test/evaluator-tools.sh
-
-      - name: Evaluator tools, /bin/bash 3.2 and the stock PATH (macOS)
-        if: ${{ !cancelled() && runner.os == 'macOS' }}
-        run: /bin/bash test/stock-mac.sh test/evaluator-tools.sh
-
-      - name: No installed file names the author's project or says to push the config repo (Linux, Windows)
-        if: ${{ !cancelled() && runner.os != 'macOS' }}
-        run: bash test/owner-text.sh
-
-      - name: No installed file names the author's project or says to push the config repo, /bin/bash 3.2 and the stock PATH (macOS)
-        if: ${{ !cancelled() && runner.os == 'macOS' }}
-        run: /bin/bash test/stock-mac.sh test/owner-text.sh
-
-      - name: Personal-path grep (Linux, Windows)
-        if: ${{ !cancelled() && runner.os != 'macOS' }}
-        run: bash bin/find-personal-paths.sh
-
-      - name: Personal-path grep, /bin/bash 3.2 and the stock PATH (macOS)
-        if: ${{ !cancelled() && runner.os == 'macOS' }}
-        run: /bin/bash test/stock-mac.sh bin/find-personal-paths.sh
-
-      # Last, because it changes the runner account's real iTerm2 preferences and ~/.claude: iTerm2 installed with
-      # Homebrew, opened while it reads its preferences from a September clone, and the update run under it.
-      - name: iTerm2 open and reading its preferences from the clone during the update (macOS)
-        if: ${{ !cancelled() && runner.os == 'macOS' }}
-        timeout-minutes: 10
-        run: /bin/bash test/iterm2-live.sh
-
-  # The same scenarios in a fresh ubuntu:24.04 container: no runner image, only git, curl, python3, tmux and
-  # Claude Code. docker-install.sh exits non-zero when any scenario fails.
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install scenarios in a Docker container
-        env:
-          SCN_NEED_OLDTAG: 1
-        run: bash test/docker-install.sh
+          submodules: recursive
+      - name: bats from a package when the submodule is absent
+        run: '[ -f test/vendor/bats-core/bin/bats ] || { sudo apt-get update && sudo apt-get install -y bats; }'
+      - name: test/run docker
+        run: test/run docker
 
   # The update rehearsal (an older, lived-in install, then README's update sentence typed into claude -p) does not
   # run here: it needs a Claude login, and none is stored on GitHub. test/rehearsal.sh runs it in Docker on the

@@ -60,7 +60,7 @@ fresh
 SCN_ONLY=a SCN_NO_KEYCHAIN=1 /bin/bash test/install-scenarios.sh --terminal 2>&1 | row 5 "home_setup's keychain creation (SCN_NO_KEYCHAIN=1)" "SCN_ONLY=a test/install-scenarios.sh --terminal"
 # 2: parse.py as before 65d6fc4 (no CA file, no Keychain read)
 fresh; unpatch 65d6fc4 skills/run-agent/scripts/parse.py
-/bin/bash test/real-usage.sh 2>&1 | row 2 "65d6fc4's changes to parse.py" "test/real-usage.sh"
+test/run machine 2>&1 | sed 's/^not ok/FAIL/' | row 2 "65d6fc4's changes to parse.py" "test/run machine (test/machine/real-usage.bats)"
 # 1f: the macOS port of the scripts (ed031af) undone in runner.sh, launch.py, jobs.py, bin/run-agent
 fresh; unpatch ed031af skills/run-agent/scripts/runner.sh skills/run-agent/scripts/launch.py skills/run-agent/scripts/jobs.py bin/run-agent
 stock_testsh | row 1f "ed031af's changes to runner.sh, launch.py, jobs.py, bin/run-agent (run-agent.sh no longer reverses cleanly; left as is)" "/bin/bash skills/run-agent/scripts/test.sh, PATH=/usr/bin:/bin:/usr/sbin:/sbin:<tmux>"

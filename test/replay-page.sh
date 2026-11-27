@@ -92,7 +92,7 @@ cat > "$T/rows" <<'ROWS'
 1d|A pull would have taken away the preferences file iTerm2 was using|1d=scenario oldtag;1d (plist)=scenario plist|macos ubuntu docker
 1e|--check flagged files the user kept|1e=scenario theirs|macos ubuntu windows docker
 1f|The run-agent tests failed 140 of 309 on a stock Mac|1f=test.sh under /bin/bash 3.2, stock PATH|macos
-2|The usage API call always failed on macOS|2=test/real-usage.sh|macos ubuntu
+2|The usage API call always failed on macOS|2=test/machine/real-usage.bats|macos ubuntu
 3|An after-window job ran late or was skipped when the window rolled over|3=test.sh, 'sched: window run fires at its stored run_at'|macos ubuntu
 4|Two jobs scheduled in the same second got the same job id|4=test.sh, 'handoff: 3 at once', 'jobs: 12 schedulers at once'|macos ubuntu
 5|A Keychain Not Found dialog came from the tests' throwaway home|5=keychain_ready, scenario nokeychain|macos
