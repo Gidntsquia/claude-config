@@ -566,17 +566,26 @@ run_step() {
 }
 
 # bats test_tags=feature:test-runner
-@test "weekly repeat job: passes at 300 passing runs, fails when all 300 failed the same way" {
-  local i result
-  mkdir -p "$R/shards/repeat-0"
+@test "weekly repeat job: passes at 300 passing runs on each system, fails when 300 failed the same way or a system is missing" {
+  local i result os
   for result in "PASS 4 tests" "FAIL 1 of 4 [x]"; do
-    i=0
-    : >"$R/shards/repeat-0/repeat.txt"
-    while [ "$i" -lt 300 ]; do i=$((i + 1)); echo "run $i seed $i: $result" >>"$R/shards/repeat-0/repeat.txt"; done
-    run_step "bin/release/repeat 300 (add up the shards)"
-    assert_line "agreed 300 of 300"
+    for os in ubuntu-latest macos-latest; do
+      mkdir -p "$R/shards/repeat-$os-0"
+      i=0
+      : >"$R/shards/repeat-$os-0/repeat.txt"
+      while [ "$i" -lt 300 ]; do i=$((i + 1)); echo "run $i seed $i: $result" >>"$R/shards/repeat-$os-0/repeat.txt"; done
+    done
+    run_step "bin/release/repeat 300 (add up each system's shards)"
+    assert_line "ubuntu-latest: agreed 300 of 300"
+    assert_line "macos-latest: agreed 300 of 300"
     case "$result" in PASS*) assert_success ;; *) assert_failure ;; esac
   done
+  i=0
+  while [ "$i" -lt 300 ]; do i=$((i + 1)); echo "run $i seed $i: PASS 4 tests"; done >"$R/shards/repeat-ubuntu-latest-0/repeat.txt"
+  rm -r "$R/shards/repeat-macos-latest-0"
+  run_step "bin/release/repeat 300 (add up each system's shards)"
+  assert_failure
+  assert_line "ubuntu-latest: agreed 300 of 300"
 }
 
 # bats test_tags=feature:test-runner

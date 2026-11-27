@@ -1,0 +1,7 @@
+An allowed launch no longer tells the worker how many of the day's launches are used.
+--- a/hooks/usage-guard/usage_guard.py
++++ b/hooks/usage-guard/usage_guard.py
+@@ -383,3 +383,2 @@
+                 json.dump({"t": now(), "n": r.total, "cmd": part or cmd[:200]}, f)
+-    say(count_note(before, count))
+     return 0

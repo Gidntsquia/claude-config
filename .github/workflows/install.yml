@@ -89,25 +89,36 @@ jobs:
       - name: test/run docker
         run: test/run docker
 
-  # Weekly (and on demand): the quick tier 300 times with the file order shuffled, 30 runs on each of 10 runners
-  # (one runner would pass GitHub's 6 h limit). `repeat` then adds them up: `agreed 300 of 300`.
+  # Weekly (and on demand): the quick tier 300 times on Ubuntu and 300 times on macOS with the file order shuffled,
+  # 30 runs on each of 10 runners per system (one runner would pass GitHub's 6 h limit). `repeat` then adds each
+  # system up: `agreed 300 of 300`.
   repeat-shard:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
         shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
-      - name: Install tmux
+      - name: Install tmux (Linux)
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y tmux
+      - name: Install tmux (macOS)
+        if: runner.os == 'macOS'
+        run: brew install tmux
       - name: bats from a package when the submodule is absent
-        run: '[ -f test/vendor/bats-core/bin/bats ] || sudo apt-get install -y bats'
+        run: |
+          [ -f test/vendor/bats-core/bin/bats ] && exit 0
+          case "$RUNNER_OS" in
+            macOS) brew install bats-core ;;
+            Linux) sudo apt-get install -y bats ;;
+          esac
       - uses: astral-sh/setup-uv@v5
       - name: Install Claude Code
         run: |
@@ -120,7 +131,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
-          name: repeat-${{ matrix.shard }}
+          name: repeat-${{ matrix.os }}-${{ matrix.shard }}
           path: test/results/repeat.txt
 
   repeat:
@@ -134,11 +145,15 @@ jobs:
         with:
           path: shards
       # a shard that left no result file counts against the 300
-      - name: bin/release/repeat 300 (add up the shards)
+      - name: bin/release/repeat 300 (add up each system's shards)
         run: |
-          set -o pipefail   # 300 runs that all failed the same way also "agree": the exit status says so
-          bin/release/repeat 300 shards/*/repeat.txt | tee agreed.txt
-          grep -qx 'agreed 300 of 300' agreed.txt
+          rc=0
+          for os in ubuntu-latest macos-latest; do
+            # 300 runs that all failed the same way also "agree": repeat's exit status says so
+            if out="$(bin/release/repeat 300 shards/repeat-$os-*/repeat.txt)" && [ "$out" = 'agreed 300 of 300' ]; then :; else rc=1; fi
+            echo "$os: $out"
+          done
+          exit "$rc"
 
   # The update rehearsal (an older, lived-in install, then README's update sentence typed into claude -p) does not
   # run here: it needs a Claude login, and none is stored on GitHub. bin/release/rehearsal.sh runs it in Docker on the

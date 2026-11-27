@@ -111,3 +111,14 @@ limits() { printf '"rate_limits":{"five_hour":{"used_percentage":%s},"seven_day"
   CLAUDE_STATUSLINE_THEME=plane line '"session_id":"s19"'
   assert_output --partial "🛩️ my-project"
 }
+
+# bats test_tags=feature:statusline
+@test "statusline: while guard allow is in force it shows the unlock time in US Eastern" {
+  guard="$TEST_HOME/.cache/claude-guard/my-project"
+  mkdir -p "$guard"
+  echo 1 > "$guard/$(TZ=America/New_York date +%F).count"
+  # 4102444800 is 2100-01-01 00:00 UTC, which is 19:00 the evening before in New York
+  echo 4102444800 > "$guard/allow"
+  line
+  assert_output --partial "guard 1/30 unlocked→19:00"
+}

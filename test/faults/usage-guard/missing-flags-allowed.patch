@@ -1,0 +1,8 @@
+A worker's headless launch with no --max-budget-usd and no --max-turns is let through.
+--- a/hooks/usage-guard/usage_guard.py
++++ b/hooks/usage-guard/usage_guard.py
+@@ -351,3 +351,3 @@
+                              f"{r.total}. {left} left today: {tip}", count, part)
+-        if r.missing:
++        if False and r.missing:
+             miss = " and ".join(r.missing)
