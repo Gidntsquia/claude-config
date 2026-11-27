@@ -530,8 +530,43 @@ fault() {
   assert_output --partial "| 1 of 1 went red with the fix removed (1 have a test) |"
   assert_output --partial "| 9 of 9 shuffled runs agreed |"
   assert_output --partial "| 1 compared in the machine tier |"
-  assert_line "- Faults not caught: x/b y."
-  assert_line '- `test/results/faults.txt`: measured 11-27 on Test, commit abc.'
+  assert_output --partial "commit abc. Faults not caught: x/b y."
+  assert_output --partial ". Measured: faults 11-27 on Test, commit abc; old bugs 11-27 on Test, commit abc; repeat 11-27 on Test, commit abc."
+}
+
+# bats test_tags=feature:test-runner
+@test "bin/release/trust-report: names each replayed bug with its test, and gives each feature its counts before and now" {
+  mkdir -p "$R/test/results"
+  put a.bats true
+  put b.bats true
+  features_are "x | one" "y | two" "z | three"
+  printf '# by hand, 11-27 on Test, commit abc\nrow e1: 2 FAIL line(s)\nbug e1 | the clock ran backwards | clock: it counts forwards\nred 1 of 1\n' >"$R/test/results/escapes.txt"
+  printf '# a comment\nx | 7 | 3\ny | in x | 0\n' >"$R/test/results/before.txt"
+  printf '<!-- trust-report:start -->\n<!-- trust-report:end -->\n' >"$R/TESTING.md"
+  tool trust-report
+  assert_success
+  assert_line "| the clock ran backwards | clock: it counts forwards |"
+  assert_line "| x | 7 | 3 | 2 | z | 0 | 0 | 0 |"
+  assert_line "| y | in x | 0 | 0 | | | | |"
+}
+
+# bats test_tags=feature:test-runner
+@test "bin/release/repeat <n> <files> with REPEAT_RECORD keeps each system's sum, and the trust report shows them side by side" {
+  put a.bats true
+  list
+  printf 'run 1 seed 1: PASS 4 tests\nrun 2 seed 2: PASS 4 tests\n' >"$BATS_TEST_TMPDIR/one"
+  tool repeat REPEAT_RECORD=macOS REPEAT_NOTE="CI run 7, 11-27, commit abc" -- 2 "$BATS_TEST_TMPDIR/one"
+  assert_success
+  assert_equal "$(last_line)" "agreed 2 of 2"
+  assert_equal "$(head -n 1 "$R/test/results/repeat-macOS.txt")" "# bin/release/repeat 2, CI run 7, 11-27, commit abc"
+  printf 'run 1 seed 1: PASS 4 tests\n' >"$BATS_TEST_TMPDIR/short"
+  tool repeat REPEAT_RECORD=Ubuntu REPEAT_NOTE="CI run 7, 11-27, commit abc" -- 2 "$BATS_TEST_TMPDIR/short"
+  assert_failure
+  printf '<!-- trust-report:start -->\n<!-- trust-report:end -->\n' >"$R/TESTING.md"
+  tool trust-report
+  assert_success
+  assert_output --partial "| Ubuntu 1 of 2, macOS 2 of 2 shuffled runs agreed |"
+  assert_output --partial "repeat on macOS CI run 7, 11-27, commit abc"
 }
 
 # bats test_tags=feature:test-runner

@@ -125,6 +125,9 @@ real_firefox() {
   own_tmux
   new_session work "exec cat"
   export LC_ALL=C
+  # just after new-session the pane's command is still tmux itself (seen on the Ubuntu runner): wait for cat
+  pane_runs() { [ "$(tm display -p -t "=$1:" '#{pane_current_command}')" = "$2" ]; }
+  wait_until 10 pane_runs work cat
   run tm -u list-panes -a -F '#{session_name}	#{window_index}	#{pane_index}	#{pane_id}	#{pane_current_command}	#{pane_pid}'
   assert_success
   assert_a_line_matches '^work	[0-9]+	[0-9]+	%[0-9]+	cat	[0-9]+$'

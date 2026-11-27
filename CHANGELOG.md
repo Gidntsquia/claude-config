@@ -6,10 +6,12 @@
 
 - `test/run` is the one test command, here and in CI: quick, machine and docker tiers on bats, ending `PASS <n> tests` or `FAIL <failed> of <n>`. The old `test/*.sh` scripts are gone.
 - `test/features.txt` lists every feature; a test belongs to one by its tag, and a run fails when a feature has no test. A failing run names each failed test: `FAILED <feature>: <test name>`.
-- `test/review.md` gives every test a verdict and a reason, one table per feature; 10 duplicate tests were deleted and 59 merged into 18 (805 tests to 754).
+- `test/review.md` gives every test a verdict and a reason, one table per feature; 10 duplicate tests were deleted and 59 merged into 18 (805 tests to 757).
 - `TESTING.md` is the one page: run, read a failure, add a test, what a pass means. Planted faults, repeated runs and the trust report are `bin/release/faults`, `bin/release/repeat <n>` and `bin/release/trust-report`.
 - `ARCHITECTURE.md` and `.claude/CLAUDE.md` are new. `test/run` fails when they name a missing path or outgrow their caps.
 - Windows without WSL: `install.sh` now installs the status line from Git Bash (it needs `jq`); only tmux and the terminal setup are skipped. The report tools, the helper server and the weekly roundup read and write UTF-8 and print forward-slash paths there, and `.gitattributes` keeps every text file LF.
+- `TESTING.md` now says why each piece of the test setup is kept, names the 12 old bugs with the test that fails when each fix is taken out (`bin/release/redgreen.sh`), and gives each feature its counts on main, after the port and now.
+- The usage-guard suite no longer fails now and then at "status line shows FE after the count": a background refresh could overwrite the value the test had just written. `bin/release/repeat 300` runs weekly on Ubuntu and macOS.
 - The README carries the last full run's result, written by `bin/release/trust-report all`.
 
 ### Evaluator on a Mac 🍎

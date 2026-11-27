@@ -1,6 +1,8 @@
 #!/bin/bash
 # usage: bin/release/repeat <n>                       the quick tier <n> times, test files in a new order each time
-#        bin/release/repeat <n> <result file>...      add up result files (CI runs 300 as 10 shards of 30)
+#        bin/release/repeat <n> <result file>...      add up result files (CI runs 300 as 10 shards of 30 per system)
+#        REPEAT_RECORD=<system> bin/release/repeat <n> <result file>...   also keep the sum as
+#                                                     test/results/repeat-<system>.txt (REPEAT_NOTE: where it ran)
 # Repeated runs: does the same code give the same answer every time? Prints one `run <i> seed <s>: <result>` line
 # per run, then `agreed <k> of <n>`; exit 0 only when all <n> passed with the same count. Nothing is retried.
 # The first seed is printed; TEST_SEED=<s> starts from that one again (run <i> uses seed + <i> - 1).
@@ -34,7 +36,14 @@ agree() {
 scratch; w="$WORK_EXTRA"
 if [ $# -gt 0 ]; then
   cat "$@" > "$w/runs" || exit 2
-  agree "$w/runs" "$n"; exit $?
+  result="$(agree "$w/runs" "$n")"; rc=$?
+  case "${REPEAT_RECORD:-}" in
+    '') ;;
+    *[!A-Za-z0-9]*) echo "repeat: REPEAT_RECORD takes a system name of letters and digits" >&2; usage ;;
+    *) mkdir -p "$RESULTS"
+       { echo "# bin/release/repeat $n, ${REPEAT_NOTE:-added up $(stamp)}"; grep '^run ' "$w/runs"; echo "$result"; } > "$RESULTS/repeat-$REPEAT_RECORD.txt" ;;
+  esac
+  echo "$result"; exit "$rc"
 fi
 
 seed="${TEST_SEED:-$(date +%s)}"

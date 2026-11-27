@@ -1,17 +1,31 @@
 #!/bin/bash
 # usage: /bin/bash bin/release/redgreen.sh [out dir]      (default out dir: plans/eval-checks/release; about 25 minutes)
-# Also writes test/results/escapes.txt (the count in TESTING.md).
-# The red runs for the 11 errors a real Mac showed in November 2026 (plans/research/mac-gaps-retrace.md). For each
+#        /bin/bash bin/release/redgreen.sh --summary [out dir]   no runs: test/results/escapes.txt again from red.log
+# Also writes test/results/escapes.txt (the count and the list of old bugs in TESTING.md).
+# The red runs for the 12 errors that reached a real machine by November 2026, named in the #bug lines below. For each
 # error: a scratch clone of this repo at HEAD with that error's fix taken out (the non-test files put back as they
 # were before the fix), and the error's own test run from that clone. A test that stays green with its fix removed
 # does not test the fix. Writes red.log to the out dir: one "## row <error>: <n> FAIL line(s)" block per run.
 # Nothing here touches the real clone or ~/.claude: every test runs in its own throwaway home. Commit first: the
 # scratch clones hold HEAD, not uncommitted files. macOS (rows 1d and 5 need its keychain and defaults).
+#bug 1a | install.sh linked hooks/usage-guard to itself on an older install
+#bug 1b | a missing guard script blocked every tool
+#bug 1c | a moved clone's broken links were counted as the user's own files
+#bug 1d | a pull would have taken away iTerm2's preferences
+#bug 1e | --check failed on kept untracked files
+#bug 1f | the run-agent tests failed on macOS's BSD tools
+#bug 2 | the usage API call always failed on macOS
+#bug 3 | a job scheduled after a usage window ran late or was skipped
+#bug 4 | two jobs scheduled in the same second got one id
+#bug 5 | a Keychain Not Found dialog came from a throwaway home
+#bug 6 | the Windows CI job broke unseen because CI ran only at a release
+#bug windows-stale-copy | on Windows without symlinks a rerun after an update kept the old copies
 set -u
+ONLY=0; [ "${1:-}" = --summary ] && { ONLY=1; shift; }
 R="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT="${1:-$R/plans/eval-checks/release}"; mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"
 X="$(mktemp -d "${TMPDIR:-/tmp}/cc-red.XXXX")"; trap 'rm -rf "$X"' EXIT
-LOG="$OUT/red.log"; : > "$LOG"
+LOG="$OUT/red.log"; [ "$ONLY" = 1 ] || : > "$LOG"
 say() { printf '%s\n' "$*" >> "$LOG"; }
 fresh() { cd "$X" || exit 1; rm -rf "$X/c"; git clone -q "$R" "$X/c" || exit 1; cd "$X/c" || exit 1; }
 # row <id> <what was undone> <test command, shown> ; then stdin = the test's output
@@ -27,6 +41,7 @@ scn() { SCN_NEED_OLDTAG=1 "$BATS" --tap "test/quick/install-$1.bats" 2>&1 | sed 
 run_agent_tests() { "$BATS" --tap test/quick/run-agent-*.bats 2>&1 | sed 's/^not ok/FAIL/'; }
 unpatch() { local c="$1"; shift; git diff "$c^" "$c" -- "$@" | git apply -R --3way >/dev/null 2>&1 || { say "!! could not reverse $c on $*"; return 1; }; }
 
+if [ "$ONLY" = 0 ]; then
 say "red runs, $(TZ=America/New_York date '+%Y-%m-%d %I:%M %p ET'), repo at $(git -C "$R" rev-parse --short HEAD)"
 say "each row: a scratch clone with the fix's non-test files put back as they were before the fix; tests are HEAD's"
 
@@ -82,6 +97,45 @@ fresh; git show 499a98d^:install.sh > install.sh
 say ""; say "## row 6: run 44974710129 (workflow_dispatch on 655041c, Nov 21): the first Windows run after the beta.5 commits"
 ( cd "$R" && gh run view 44974710129 --json conclusion,event,headSha,jobs --jq '"conclusion \(.conclusion), event \(.event), commit \(.headSha[0:7])", (.jobs[] | "  \(.name): \(.conclusion)")' ) >> "$LOG" 2>&1
 ( cd "$R" && gh run view 44974710129 --log-failed 2>/dev/null ) | grep 'FAIL ' | cut -f1,3- | sed 's/[0-9T:.-]*Z //' | cut -c1-300 >> "$LOG"
+fi
+# bug_lines: `bug <id> | <what happened> | <its own test that went red>` per escape:<id> tag, for TESTING.md's list
+bug_lines() {
+  python3 - "$R" "$LOG" <<'PY'
+import glob, re, sys
+repo, log = sys.argv[1:3]
+names = {}
+for line in open(repo + "/bin/release/redgreen.sh", encoding="utf-8"):
+    m = re.match(r"#bug ([A-Za-z0-9_-]+) \| (.*)", line.rstrip("\n"))
+    if m:
+        names[m.group(1)] = m.group(2)
+tagged = {}
+for path in sorted(glob.glob(repo + "/test/quick/*.bats") + glob.glob(repo + "/test/machine/*.bats") + glob.glob(repo + "/test/docker/*.bats")):
+    pending = []
+    for line in open(path, encoding="utf-8"):
+        if re.match(r"\s*#\s*bats\s+test_tags=", line):
+            pending = re.findall(r"escape:([A-Za-z0-9_-]+)", line)
+        elif line.startswith("@test"):
+            name = re.match(r'@test "(.*)" \{', line.rstrip()).group(1)
+            for i in pending:
+                tagged.setdefault(i, []).append(name)
+            pending = []
+red, row = {}, None
+for line in open(log, encoding="utf-8", errors="replace"):
+    m = re.match(r"## row ([A-Za-z0-9_-]+)( \([^)]*\))?: (\d+) FAIL", line)
+    if m:
+        row = m.group(1)
+        continue
+    m = re.match(r"FAIL \d+ (.*)", line.rstrip("\n"))
+    if m and row:
+        red.setdefault(row, []).append(m.group(1))
+sys.stdout.reconfigure(newline="\n")
+for i in sorted(tagged):
+    fails = red.get(i, [])
+    own = [t for t in tagged[i] if t in fails]
+    test = own[0] if own else (fails[0] if fails else "none went red")
+    print("bug %s | %s | %s" % (i, names.get(i, i), test))
+PY
+}
 # the count bin/release/trust-report reads: past errors (the tests' escape:<id> tags) with a row that went red
 red=0; all=0
 for id in $(grep -hE '^[[:space:]]*#[[:space:]]*bats[[:space:]]+(file|test)_tags=' "$R"/test/quick/*.bats "$R"/test/machine/*.bats "$R"/test/docker/*.bats | grep -oE 'escape:[A-Za-z0-9_-]+' | sed 's/^escape://' | sort -u); do
@@ -90,6 +144,7 @@ for id in $(grep -hE '^[[:space:]]*#[[:space:]]*bats[[:space:]]+(file|test)_tags
 done
 mkdir -p "$R/test/results"
 { echo "# bin/release/redgreen.sh, $(TZ=America/New_York date '+%Y-%m-%d %I:%M %p ET') on $(uname -s), commit $(git -C "$R" rev-parse --short HEAD)"
-  grep '^## row ' "$LOG" | sed 's/^## //'; echo "red $red of $all"; } > "$R/test/results/escapes.txt"
+  grep '^## row ' "$LOG" | sed 's/^## //'; bug_lines; echo "red $red of $all"; } > "$R/test/results/escapes.txt"
+[ "$ONLY" = 1 ] && exit 0
 say ""; say "red $red of $all"
 say ""; say "done $(TZ=America/New_York date '+%I:%M %p ET')"

@@ -1,4 +1,4 @@
-# bin/release/redgreen.sh, 2026-11-27 11:38 AM ET on Darwin, commit d0eb9ee
+# bin/release/redgreen.sh, 2026-11-27 06:09 PM ET on Darwin, commit 8c957cf
 row 1a: 5 FAIL line(s)
 row 1c: 7 FAIL line(s)
 row 1e: 5 FAIL line(s)
@@ -7,12 +7,24 @@ row 1b: 3 FAIL line(s)
 row 1b (every hook command): 2 FAIL line(s)
 row 1d: 2 FAIL line(s)
 row 1d (plist): 4 FAIL line(s)
-row 5: 8 FAIL line(s)
+row 5: 7 FAIL line(s)
 row 2: 4 FAIL line(s)
 row 1f: 18 FAIL line(s)
 row 3: 4 FAIL line(s)
-row 4: 1 FAIL line(s)
+row 4: 2 FAIL line(s)
 row 6: 1 FAIL line(s)
-row windows-stale-copy: 2 FAIL line(s)
+row windows-stale-copy: 3 FAIL line(s)
 row 6: run 44974710129 (workflow_dispatch on 655041c, Nov 21): the first Windows run after the beta.5 commits
+bug 1a | install.sh linked hooks/usage-guard to itself on an older install | updating a pre-v1.3 layout: hooks becomes a real folder of links and the clone keeps its own
+bug 1b | a missing guard script blocked every tool | usage-guard script missing: each of the 7 hook commands exits 0
+bug 1c | a moved clone's broken links were counted as the user's own files | moved clone: plain ./install.sh from the new path relinks everything and calls nothing yours
+bug 1d | a pull would have taken away iTerm2's preferences | update from v1.2.1: iTerm2 points at the clone until install.sh runs, and not after
+bug 1e | --check failed on kept untracked files | your own files: an untracked file with a personal path is a warning naming it, not a failure
+bug 1f | the run-agent tests failed on macOS's BSD tools | an agent's run with no pane left waits, opening no window, session or claude
+bug 2 | the usage API call always failed on macOS | the real usage API answers a made-up token with HTTP 401 over verified TLS
+bug 3 | a job scheduled after a usage window ran late or was skipped | a window run fires at its stored time although the API moved on, until 60 s later
+bug 4 | two jobs scheduled in the same second got one id | three handoffs at the same instant get three job ids, each for its own folder
+bug 5 | a Keychain Not Found dialog came from a throwaway home | fresh install: install.sh exits 0 and install.sh --check passes
+bug 6 | the Windows CI job broke unseen because CI ran only at a release | windows: the test workflow runs the quick tier on Windows for every push to main and pull request
+bug windows-stale-copy | on Windows without symlinks a rerun after an update kept the old copies | windows: a rerun after an update refreshes unedited copies and keeps edited ones
 red 12 of 12

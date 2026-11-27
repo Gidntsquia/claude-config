@@ -2,8 +2,9 @@
 # usage: bin/release/trust-report          rewrite the trust numbers in TESTING.md (between its two marks)
 #        bin/release/trust-report all      first run `test/run all`, keep this system's result in
 #                                          test/results/full-<system>.txt and rewrite the README status line
-# The trust report: the five numbers that say how far a PASS can be believed, each read from the tags on the tests
-# and from the last recorded runs in test/results/ (bin/release/faults, repeat, redgreen.sh).
+# The trust report: why each piece of the test system is kept and its number today, the old bugs replayed by name and
+# the tests per feature before and after, each read from the tags on the tests and from the last recorded runs in
+# test/results/ (bin/release/faults, repeat, redgreen.sh; before.txt for main and the port).
 set -u
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 HERE="$REPO/test"
@@ -17,38 +18,115 @@ trap '[ -z "$WORK_EXTRA" ] || rm -rf "${WORK_EXTRA:?}"' EXIT
 result_head() { sed -n '1s/^# [^,]*, //p' "$1"; }
 result_count() { sed -n "s/^$2 \([0-9]* of [0-9]*\)\$/\1/p" "$1"; }
 
+# now_counts: `<feature id> <tests carrying its tag>` per line, counted as test/run counts them
+now_counts() {
+  test_files | python3 -c '
+import re, sys
+n = {}
+for path in sys.stdin.read().split("\n"):
+    if not path:
+        continue
+    lines = open(path, encoding="utf-8").read().split("\n")
+    def ids(line):
+        return set(re.findall(r"feature:([a-z0-9-]+)", line))
+    if path.endswith(".py"):
+        tags = set()
+        for l in lines:
+            if re.match(r"\s*#\s*feature:", l):
+                tags |= ids(l)
+        tests = sum(1 for l in lines if re.match(r"\s*(async\s+)?def test_", l))
+        for t in tags:
+            n[t] = n.get(t, 0) + tests
+        continue
+    file_tags, pending = set(), set()
+    for l in lines:
+        if re.match(r"\s*#\s*bats\s+file_tags=", l):
+            file_tags |= ids(l)
+        elif re.match(r"\s*#\s*bats\s+test_tags=", l):
+            pending |= ids(l)
+        elif l.startswith("@test"):
+            for t in file_tags | pending:
+                n[t] = n.get(t, 0) + 1
+            pending = set()
+sys.stdout.reconfigure(newline="\n")
+for t in sorted(n):
+    print(t, n[t])'
+}
+
 report_block() {
-  local all=0 n=0 id f files extra missed
+  local all=0 n=0 id f files extra missed="" cell sys measured="" rows i half left right
   files="$(test_files)"
   for id in $(feature_ids); do
     all=$((all + 1))
     for f in $files; do if has_tag "$f" "feature:$id"; then n=$((n + 1)); break; fi; done
   done
-  echo "| Question | Number | Made by |"
+  echo "| Piece | Why it is kept | Today |"
   echo "|---|---|---|"
-  echo "| Does every feature have a test? | $n of $all features | \`test/run\` |"
+  echo "| Lint, before any test | a fixed wait, the network, your real home or a fixed port made tests flaky or unsafe | refused by rule: the run fails |"
+  echo "| Tiers | quick must run anywhere in minutes; real tools and Docker are slower and not on every system | quick, machine, docker |"
+  echo "| Feature tags | a failure names the feature, and a feature whose last test is deleted fails the run | $n of $all features |"
   f="$RESULTS/faults.txt"
-  if [ -f "$f" ]; then echo "| Does a broken feature turn its tests red? | $(result_count "$f" caught) planted faults caught | \`bin/release/faults\` |"
-  else echo "| Does a broken feature turn its tests red? | not run | \`bin/release/faults\` |"; fi
+  if [ -f "$f" ]; then cell="$(result_count "$f" caught) planted faults caught"; measured="faults $(result_head "$f")"; else cell="not run"; fi
+  echo "| Planted faults (\`bin/release/faults\`) | a test that stays green when its feature is broken proves nothing | $cell |"
   f="$RESULTS/escapes.txt"
   n="$(tags_of escape | grep -c .)"
-  if [ -f "$f" ]; then echo "| Would the old bugs be caught today? | $(result_count "$f" red) went red with the fix removed ($n have a test) | \`bin/release/redgreen.sh\` |"
-  else echo "| Would the old bugs be caught today? | not run ($n have a test) | \`bin/release/redgreen.sh\` |"; fi
+  if [ -f "$f" ]; then cell="$(result_count "$f" red) went red with the fix removed ($n have a test)"; measured="${measured:+$measured; }old bugs $(result_head "$f")"; else cell="not run ($n have a test)"; fi
+  echo "| Old bugs replayed (\`bin/release/redgreen.sh\`) | a past error's test must fail again when its fix is taken out | $cell |"
+  # repeat-<system>.txt (CI's 300 runs per system, recorded with REPEAT_RECORD=<system>) come before this machine's repeat.txt
+  cell=""
+  for f in "$RESULTS"/repeat-*.txt; do
+    [ -f "$f" ] || continue
+    sys="$(basename "$f" .txt)"; sys="${sys#repeat-}"
+    extra="$(grep -cE '^run [0-9]+ seed [0-9]+: FAIL ' "$f")"
+    [ "$extra" = 0 ] && extra="" || extra=" ($extra failed)"
+    cell="${cell:+$cell, }$sys $(result_count "$f" agreed)$extra"
+    measured="${measured:+$measured; }repeat on $sys $(result_head "$f")"
+  done
   f="$RESULTS/repeat.txt"
-  if [ -f "$f" ]; then
+  if [ -n "$cell" ]; then cell="$cell shuffled runs agreed"
+  elif [ -f "$f" ]; then
     extra="$(grep -cE '^run [0-9]+ seed [0-9]+: FAIL ' "$f")"
     [ "$extra" = 0 ] && extra="" || extra=" ($extra of the runs failed)"
-    echo "| Does the same code give the same answer? | $(result_count "$f" agreed) shuffled runs agreed$extra | \`bin/release/repeat <n>\` |"
-  else echo "| Does the same code give the same answer? | not run | \`bin/release/repeat <n>\` |"; fi
-  echo "| Do the stand-ins behave like the real tools? | $(tags_of standin | grep -c .) compared in the machine tier | tests tagged \`standin:<id>\` |"
+    cell="$(result_count "$f" agreed) shuffled runs agreed$extra"; measured="${measured:+$measured; }repeat $(result_head "$f")"
+  else cell="not run"; fi
+  echo "| Repeated runs (\`bin/release/repeat <n>\`) | a test that passes only sometimes, or only in one order, is found before you are | $cell |"
+  echo "| Stand-in comparisons (\`standin:<id>\`) | 11 errors reached a real Mac because a stand-in differed from the tool it stood for | $(tags_of standin | grep -c .) compared in the machine tier |"
+  echo "| Record caps (\`FAILED records:\`) | this page, \`ARCHITECTURE.md\` and \`.claude/CLAUDE.md\` stay short and name only real paths | this page: at most 80 lines |"
   echo
-  for f in faults escapes repeat; do
-    [ -f "$RESULTS/$f.txt" ] && echo "- \`test/results/$f.txt\`: measured $(result_head "$RESULTS/$f.txt")."
-  done
   f="$RESULTS/faults.txt"
   if [ -f "$f" ]; then
     missed="$(grep -E '^(missed|error|short) ' "$f" | awk '{ sub(/:$/, "", $2); printf "%s ", $2 }')"
-    [ -z "$missed" ] || echo "- Faults not caught: ${missed% }."
+    [ -z "$missed" ] || missed=" Faults not caught: ${missed% }."
+  fi
+  echo "Written by \`bin/release/trust-report\` from the tags and \`test/results/\`${measured:+. Measured: $measured}.${missed:-}"
+  # the old bugs by name: `bug <id> | <what happened> | <test that went red>` lines of escapes.txt
+  f="$RESULTS/escapes.txt"
+  if [ -f "$f" ] && grep -q '^bug ' "$f"; then
+    echo
+    echo "| Old bug that reached a real machine, its fix taken out again | Test that went red |"
+    echo "|---|---|"
+    sed -n 's/^bug [^|]*| *\([^|]*[^| ]\) *| *\(.*\)$/| \1 | \2 |/p' "$f"
+  fi
+  # before and after, two features to a row: before.txt holds the first two numbers, the tags give the third
+  f="$RESULTS/before.txt"
+  if [ -f "$f" ]; then
+    now_counts > "$WORK_EXTRA/now"
+    rows="$WORK_EXTRA/rows"; : > "$rows"
+    for id in $(feature_ids); do
+      n="$(awk -v id="$id" '$1 == id { print $2 }' "$WORK_EXTRA/now")"
+      cell="$(sed -n "s/^$id *| *\(.*[^ ]\) *| *\(.*[^ ]\) *\$/\1 | \2/p" "$f" | head -n 1)"
+      echo "| $id | ${cell:-0 | 0} | ${n:-0} |" >> "$rows"
+    done
+    all="$(grep -c . "$rows")"; half=$(((all + 1) / 2))
+    echo
+    echo "| Feature | checks on main | tests after the port (ab957fb) | now | Feature | main | port | now |"
+    echo "|---|---|---|---|---|---|---|---|"
+    i=1
+    while [ "$i" -le "$half" ]; do
+      left="$(sed -n "${i}p" "$rows")"; right="$(sed -n "$((i + half))p" "$rows")"
+      echo "${left% |} ${right:-| | | | |}"
+      i=$((i + 1))
+    done
   fi
 }
 

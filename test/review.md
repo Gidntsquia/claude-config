@@ -3,7 +3,7 @@
 Every test as it stood on commit 4bbcc43 (2026-11-27), what break it catches, and a verdict: keep, merge, rewrite
 or delete. The tree matches this page as of the commit that added it; a test added later is listed with the verdict new.
 
-Total: before 805, after 755 (10 deleted; 59 merged into 18; 1 added after the review, marked new).
+Total: before 805, after 757 (10 deleted; 59 merged into 18; 3 added after the review, marked new).
 
 - A test is listed once, under the first feature it is tagged with; each table says how many tests of other tables
   also carry its tag.
@@ -1055,5 +1055,7 @@ test/run: tiers, lint, feature list.
 | weekly repeat job: passes at 300 passing runs on each system, fails when 300 failed the same way or a system is missing | the weekly job passing on 300 identical failures | keep | the runner's own promise; if this breaks, a pass means nothing |
 | weekly repeat job: a shard that dies before finishing leaves no old result to upload | a dead shard uploading an old result | keep | the runner's own promise; if this breaks, a pass means nothing |
 | bin/release/trust-report: a TESTING.md without the marks is left alone and exits 2 | a TESTING.md without marks rewritten | keep | the runner's own promise; if this breaks, a pass means nothing |
+| bin/release/trust-report: names each replayed bug with its test, and gives each feature its counts before and now | the page losing the list of old bugs or the per-feature counts | new | the runner's own promise; if this breaks, a pass means nothing |
+| bin/release/repeat <n> <files> with REPEAT_RECORD keeps each system's sum, and the trust report shows them side by side | one system's repeat result overwriting the other's | new | the runner's own promise; if this breaks, a pass means nothing |
 
-before 56, after 56
+before 56, after 58
