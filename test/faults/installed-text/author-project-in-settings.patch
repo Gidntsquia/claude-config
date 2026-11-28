@@ -1,0 +1,11 @@
+The installed settings.json describes the author's own project again.
+--- a/settings.json
++++ b/settings.json
+@@ -228,6 +228,7 @@
+     "environment": [
+       "### Org-wide",
+       "**Organization**: None configured",
++      "**Primary use of Claude Code**: building the Wordbound game",
+       "**Cloud provider(s)**: None configured",
+       "**Internal sharing / snippet hosting**: None configured \u2014 treat public paste/gist services as outside the trust boundary",
+       "**Secrets management**: None configured",

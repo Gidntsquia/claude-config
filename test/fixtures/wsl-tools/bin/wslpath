@@ -1,0 +1,6 @@
+#!/bin/bash
+# Stand-in wslpath: `wslpath P` / `-u P` turns C:\a\b into $STUB_MNT/a/b (default /mnt/c); `-w P` turns /a/b into W:\a\b.
+mode=-u
+case "$1" in -u|-w) mode=$1; shift ;; esac
+if [ "$mode" = -w ]; then printf 'W:%s\n' "$(printf '%s' "$1" | tr '/' '\134')"
+else p=$(printf '%s' "$1" | tr '\134' '/'); case "$p" in C:*) p="${STUB_MNT:-/mnt/c}${p#C:}" ;; esac; printf '%s\n' "$p"; fi

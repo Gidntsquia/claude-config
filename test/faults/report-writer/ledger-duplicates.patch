@@ -1,0 +1,13 @@
+Rebuilding a report adds a second ledger line for it instead of replacing the first.
+--- a/agents/report-writer/build.py
++++ b/agents/report-writer/build.py
+@@ -779,8 +779,7 @@
+                     r = json.loads(l)
+                 except ValueError:
+                     continue
+-                if r.get("out") != row["out"]:
+-                    rows.append(r)
++                rows.append(r)
+     rows.append(row)
+     os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
+     with open(LEDGER, "w", encoding="utf-8") as f:

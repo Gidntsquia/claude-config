@@ -1,0 +1,12 @@
+settings.json is no longer valid JSON (trailing comma left after an edit).
+--- a/settings.json
++++ b/settings.json
+@@ -21,7 +21,7 @@
+       "Agent(evaluator)",
+       "Agent(planner)",
+       "Agent(worker)",
+-      "Agent(report-writer-archived-2026-10-21)"
++      "Agent(report-writer-archived-2026-10-21)",
+     ],
+     "defaultMode": "auto"
+   },

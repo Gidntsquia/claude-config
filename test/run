@@ -1,0 +1,415 @@
+#!/bin/bash
+# The one test command.   test/run [quick|machine|docker|all]      (default: quick)
+#                         test/run --only <feature>                (that feature's quick and machine tests)
+#
+#   quick    test/quick/*.bats and the pytest files: temp HOME, no network, no installed app. Every OS.
+#   machine  test/machine/*.bats: the real tools (Firefox, keychain, network). macOS and Linux.
+#   docker   test/docker/*.bats: needs Docker. Linux.
+#   all      the three tiers in that order.
+#
+# Order: lint over the test files, the feature list (test/features.txt), the records (test/lib/records.bash), then
+# the tier's tests (several files at once: TEST_JOBS). A failing run ends with one `FAILED <feature>: <test name>`
+# line per failure (`FAILED <feature>: <test name> [<case>]` when a looped test printed `case: <input>` lines), then
+# `FAIL <failed> of <n>` (exit 1). A passing run ends `PASS <n> tests` (exit 0). Exit 2 means
+# the suite could not start (bad argument, no bats).
+# A skipped test is counted in <n>; `skipped <k>` is printed above the result. In the quick tier a skip whose reason
+# says something is "missing" is a failure.
+# TEST_SEED=<number> runs the test files in the order that seed gives (bin/release/repeat sets it).
+# bats comes from the submodule test/vendor/bats-core; when that is absent, from a `bats` on PATH
+# (`brew install bats-core`). bash 3.2; pytest for the python files.
+# Faults, repeated runs and the trust report are release tools: bin/release/faults, repeat, trust-report.
+
+set -u
+export TZ=UTC LC_ALL=C
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$HERE/.." && pwd)"
+BATS="$HERE/vendor/bats-core/bin/bats"
+
+USAGE="usage: test/run [quick|machine|docker|all] | --only <feature>"
+usage() { echo "$USAGE" >&2; exit 2; }
+
+mode="tiers"; tier="quick"; only=""
+case "$#:${1:-}" in
+  0:) ;;
+  1:quick|1:machine|1:docker|1:all) tier="$1" ;;
+  2:--only) mode=only; only="$2" ;;
+  *) usage ;;
+esac
+case "${TEST_SEED:-}" in *[!0-9]*) echo "test/run: TEST_SEED takes a number" >&2; usage ;; esac
+
+if [ "$tier" = all ]; then tiers="quick machine docker"; else tiers="$tier"; fi
+
+total=0
+failed=0
+skips=0
+tier_now=""
+
+# fail_line <text>: one `FAILED ...` line for the end of a failing run
+FAILED_LINES=""
+fail_line() { FAILED_LINES="$FAILED_LINES$1
+"; }
+# fail_lines <kind>: stdin holds `<kind>: <problem>` lines; each becomes `FAILED <kind>: <problem>`
+fail_lines() { local l; while IFS= read -r l; do [ -z "$l" ] || fail_line "FAILED $l"; done; }
+
+# ---- lint ---------------------------------------------------------------------------------------------------
+# One problem per line: `lint: <file>:<line>: <rule>`. Each problem counts as one failed test. The rules and why
+# they exist are in plans/research/testing-framework.md ("False reds"); there is no per-line way to switch one off.
+#   sleep            waiting is `wait_until <seconds> <command>` (test/helpers/wait.bash)
+#   curl, wget       no network in the quick tier
+#   $HOME, ~         a test's home is "$TEST_HOME" from temp_home (test/helpers/home.bash)
+#   bare skip        `skip "<tool> missing"`: a skip says why
+#   fixed port       two runs on one machine would collide; ask the OS for a free port
+#   bare ! [[ ((     under macOS's bash 3.2 such a line fails silently in the middle of a test
+lint() {
+  local f rel problems=0 out
+  for f in "$HERE"/quick/*.bats "$HERE"/machine/*.bats "$HERE"/docker/*.bats "$HERE"/helpers/*.bash; do
+    [ -f "$f" ] || continue
+    rel="${f#$REPO/}"
+    out="$(awk -v file="$rel" '
+      function bad(rule) { printf "lint: %s:%d: %s\n", file, NR, rule; n++ }
+      BEGIN {
+        quick   = (file ~ /^test\/quick\//)
+        waitlib = (file == "test/helpers/wait.bash")
+        homelib = (file == "test/helpers/home.bash")
+      }
+      /^[ \t]*#/ { next }
+      {
+        line = $0
+        if (!waitlib && (line ~ /(^|[^A-Za-z0-9_.\/-])((\/usr)?\/bin\/)?sleep([ \t]|$)/ || line ~ /time\.sleep\(/))
+          bad("sleep: use wait_until <seconds> <command>")
+        if (quick && line ~ /(^|[^A-Za-z0-9_.\/-])((\/usr)?\/bin\/)?(curl|wget)([ \t]|$)/)
+          bad("curl or wget in the quick tier: no network here")
+        if (!homelib && (line ~ /\$HOME([^A-Za-z0-9_]|$)/ || line ~ /\$\{HOME[}:]/ || line ~ /(^|[ \t"\047:])~(\/|[ \t"\047]|$)/ || line ~ /=~(\/|["\047]|$)/))
+          bad("$HOME or ~: use \"$TEST_HOME\" from temp_home")
+        if (file ~ /\.bats$/ && line ~ /^[ \t]*(!|\[\[|\(\()[ \t]/ && line !~ /(\|\||&&|\\$)/)
+          bad("a bare !, [[ or (( cannot fail a test under bash 3.2: use [ ], run with assert_failure, or add || false")
+        if (line ~ /(^|[ \t;&|])skip[ \t]*($|;|\}|#)/)
+          bad("skip with no reason: skip \"<tool> missing\"")
+        if (line ~ /(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):[0-9][0-9]+/ || line ~ /(--port|-port|PORT)[ =][0-9][0-9]+/)
+          bad("fixed port number: ask the OS for a free port")
+      }
+      END { exit (n > 0) }
+    ' "$f")"
+    if [ -n "$out" ]; then
+      echo "$out"
+      fail_lines <<<"$out"
+      problems=$((problems + $(printf '%s\n' "$out" | wc -l)))
+    fi
+  done
+  total=$((total + problems))
+  failed=$((failed + problems))
+  [ "$problems" -eq 0 ] && echo "lint: clean" || echo "lint: $problems problem(s)"
+}
+
+# ---- feature list -------------------------------------------------------------------------------------------
+# test/features.txt: `<id> | <description>`. A test carries `# bats test_tags=feature:<id>` (or its file
+# `# bats file_tags=...`); a pytest file carries a `# feature:<id>` line and its `def test_` functions count.
+# The run fails when a listed feature has no test, or a test's feature tag is missing or not in the list.
+# Nothing is counted by hand: adding or deleting a test needs no edit here.
+features() {
+  local f list="$HERE/features.txt" out problems=0 summary files=()
+  while IFS= read -r f; do files[${#files[@]}]="$f"; done < <(test_files)
+  if [ ! -f "$list" ]; then
+    out="features: test/features.txt is missing"; summary=""
+  else
+    out="$(awk -v repo="$REPO/" '
+      function bad(m) { print "features: " m }
+      function trim(s) { gsub(/^[ \t]+|[ \t\r]+$/, "", s); return s }
+      # one test with the tags in `t` (comma or space separated), found at `where`
+      function one(t, where,   n, a, i, seen, id, has) {
+        n = split(t, a, /[, \t\r]+/); split("", seen); tests++
+        for (i = 1; i <= n; i++) {
+          if (a[i] == "" || (a[i] in seen)) continue
+          seen[a[i]] = 1; found[a[i]]++
+          if (a[i] ~ /^feature:/) {
+            has = 1; id = substr(a[i], 9)
+            if (!(id in listed)) bad(where ": " a[i] " names an id that is not in test/features.txt")
+          }
+        }
+        if (!has) bad(where ": a test with no feature tag")
+      }
+      function end_python(   i) {
+        if (py != "") for (i = 1; i <= defs; i++) one(filetags, py)
+        py = ""
+      }
+      FILENAME == ARGV[1] {
+        if ($0 ~ /^[ \t\r]*(#|$)/) next
+        n = split($0, col, "|")
+        id = trim(col[1])
+        if (n != 2 || id == "" || trim(col[2]) == "") { bad("test/features.txt:" FNR ": wanted `<id> | <description>`"); next }
+        if (id in listed) { bad(id ": listed twice"); next }
+        listed[id] = 1; order[++count] = id
+        next
+      }
+      FNR == 1 {
+        end_python(); rel = FILENAME; sub(repo, "", rel); pending = ""; filetags = ""; defs = 0
+        if (rel ~ /\.py$/) py = rel
+      }
+      py != "" {
+        if ($0 ~ /^#[ \t]*feature:/) { t = $0; sub(/^#[ \t]*/, "", t); filetags = filetags " " t }
+        if ($0 ~ /^[ \t]*(async[ \t]+)?def test_/) defs++
+        next
+      }
+      /^[ \t]*#[ \t]*bats[ \t]+file_tags=/ { t = $0; sub(/^[^=]*=/, "", t); filetags = filetags " " t; next }
+      /^[ \t]*#[ \t]*bats[ \t]+test_tags=/ { t = $0; sub(/^[^=]*=/, "", t); pending = pending " " t; next }
+      /^[ \t]*@test[ \t]/ { one(filetags " " pending, rel ":" FNR); pending = "" }
+      END {
+        end_python()
+        for (i = 1; i <= count; i++) if (found["feature:" order[i]] + 0 == 0) bad(order[i] " has no test")
+        print "summary " count + 0 " features, " tests + 0 " tests"
+      }
+    ' "$list" ${files[@]+"${files[@]}"})"
+    summary="$(printf '%s\n' "$out" | sed -n 's/^summary //p')"
+    out="$(printf '%s\n' "$out" | grep -v '^summary ' || true)"
+  fi
+  if [ -n "$out" ]; then
+    echo "$out"
+    fail_lines <<<"$out"
+    problems=$(printf '%s\n' "$out" | wc -l)
+    problems=$((problems))
+    total=$((total + problems))
+    failed=$((failed + problems))
+    echo "features: $problems problem(s)"
+  else
+    echo "features: $summary, every feature has one"
+  fi
+}
+
+# test_features <bats file>: `<feature id><TAB><test name>` for each @test, read from the tags above it
+test_features() {
+  awk '
+    function first(t,   n, a, i) { n = split(t, a, /[, \t\r]+/); for (i = 1; i <= n; i++) if (a[i] ~ /^feature:/) return substr(a[i], 9); return "untagged" }
+    /^[ \t]*#[ \t]*bats[ \t]+file_tags=/ { t = $0; sub(/^[^=]*=/, "", t); filetags = filetags " " t; next }
+    /^[ \t]*#[ \t]*bats[ \t]+test_tags=/ { t = $0; sub(/^[^=]*=/, "", t); pending = pending " " t; next }
+    /^[ \t]*@test[ \t]/ {
+      name = $0; sub(/^[ \t]*@test[ \t]+/, "", name); sub(/[ \t]*\{[ \t\r]*$/, "", name)
+      q = substr(name, 1, 1)
+      if (q == "\"" || q == "\047") name = substr(name, 2, length(name) - 2)
+      print first(pending " " filetags) "\t" name; pending = ""
+    }' "$1"
+}
+# feature_of <map from test_features> <test name>: the feature of that test, else of the file's first test
+feature_of() {
+  printf '%s\n' "$1" | name="$2" awk -F'\t' '
+    NR == 1 { fallback = $1 }
+    $2 == ENVIRON["name"] { print $1; hit = 1; exit }
+    END { if (!hit) print (fallback == "" ? "untagged" : fallback) }'
+}
+
+# ---- bats ---------------------------------------------------------------------------------------------------
+# The submodule's bats; without it a bats on PATH. Neither: exit 2 (or 1 when the lint already failed).
+find_bats() {
+  [ -f "$BATS" ] && return 0
+  if command -v bats >/dev/null 2>&1; then
+    BATS="$(command -v bats)"
+    echo "test/vendor/bats-core is absent: using $BATS ($("$BATS" --version 2>/dev/null))"
+    return 0
+  fi
+  echo "test/vendor/bats-core is missing and no bats is on PATH"
+  echo "run: git submodule update --init      (or: brew install bats-core)"
+  # A lint problem is a failure whether or not the tests could start.
+  [ "$failed" -gt 0 ] && { printf '%s' "$FAILED_LINES"; echo "FAIL $failed of $total"; exit 1; }
+  exit 2
+}
+
+# Each file runs in its own bats process, TEST_JOBS (4) at a time; tests inside a file run in order. A file's
+# output is printed whole when it ends. A file still running after TEST_FILE_TIMEOUT seconds (900) is killed with
+# everything it started and counts as failed. bats' own BATS_TEST_TIMEOUT is not used: it leaves a sleep behind
+# for every test, and a test that calls `wait` then waits for it.
+JOBS="${TEST_JOBS:-4}"
+FILE_TIMEOUT="${TEST_FILE_TIMEOUT:-900}"
+WORK=""
+ONLY_TAG=""     # --only: run just the tests with this tag
+SHUFFLE_SEED="${TEST_SEED:-}" # the order of the test files
+pids=()    # slot -> process group of the running file, "" when free
+
+stop_all() {
+  local p
+  for p in ${pids[@]+"${pids[@]}"}; do [ -n "$p" ] && kill -9 -- "-$p" 2>/dev/null; done
+  [ -n "$WORK" ] && rm -rf "$WORK"
+}
+trap stop_all EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# finish_file <file> <log> <exit status> <seconds> <timed out: 0|1>: print the output and add up its tests.
+finish_file() {
+  local f="$1" out rc="$3" ok notok plan written missing rel="${1#$REPO/}" map name case why="" TAB="$(printf '\t')"
+  out="$(cat "$2")"
+  printf -- '-- %s (%s s)\n%s\n' "$rel" "$4" "$out"
+  map="$(test_features "$f")"
+  # A looped test prints `case: <input>` before each case; the last one printed by a failed test is the case that
+  # failed, and goes on its line in brackets.
+  while IFS="$TAB" read -r name case; do
+    fail_line "FAILED $(feature_of "$map" "$name"): $name${case:+ [$case]}"
+  done < <(printf '%s\n' "$out" | awk '
+    function flush() { if (have) print name "\t" c; have = 0 }
+    /^not ok [0-9]+ / { flush(); name = $0; sub(/^not ok [0-9]+ /, "", name); have = 1; c = ""; next }
+    /^ok [0-9]+ / { flush(); next }
+    have && /^# case: / { c = substr($0, 9) }
+    END { flush() }')
+  ok="$(printf '%s\n' "$out" | grep -c '^ok ')"
+  notok="$(printf '%s\n' "$out" | grep -c '^not ok ')"
+  total=$((total + ok + notok))
+  failed=$((failed + notok))
+  skips=$((skips + $(printf '%s\n' "$out" | grep -c '^ok .* # skip')))
+  # In the quick tier a missing tool is a failure, never a skip.
+  if [ "$tier_now" = quick ]; then
+    local lacking
+    lacking="$(printf '%s\n' "$out" | grep -c '^ok .* # skip .*missing')"
+    if [ "$lacking" -gt 0 ]; then
+      echo "$rel: $lacking skipped for a missing tool: in the quick tier that is a failure"
+      failed=$((failed + lacking))
+      while IFS= read -r name; do
+        fail_line "FAILED $(feature_of "$map" "${name%% # skip *}"): $name"
+      done < <(printf '%s\n' "$out" | sed -n '/ # skip .*missing/s/^ok [0-9][0-9]* //p')
+    fi
+  fi
+  # bats itself stopped (a syntax error, a crash, a killed run): that is never a pass, whatever lines it printed.
+  # bats also drops the tests of a file it cannot parse and still exits 0, so the tests are counted here too.
+  written="$(grep -c '^[[:space:]]*@test[[:space:]]' "$f")"
+  # --only runs part of a file: bats' own plan line is then the count to meet.
+  [ -z "$ONLY_TAG" ] || written=0
+  plan="$(printf '%s\n' "$out" | sed -n 's/^1\.\.\([0-9][0-9]*\)$/\1/p' | head -1)"
+  [ -n "$plan" ] && [ "$plan" -gt "$written" ] && written="$plan"
+  missing=$((written - ok - notok))
+  [ "$missing" -lt 0 ] && missing=0
+  if [ "$5" = 1 ]; then
+    why="$rel: took longer than $FILE_TIMEOUT s and was killed"
+    [ "$missing" -eq 0 ] && missing=1
+  elif [ "$missing" -gt 0 ]; then
+    why="$rel: $written tests are written and bats reported $((ok + notok))"
+  elif [ $((ok + notok)) -eq 0 ]; then
+    why="$rel: bats ran no test"; missing=1
+  elif [ "$notok" -eq 0 ] && [ "$rc" != 0 ]; then
+    why="$rel: bats exited $rc with no failing test"; missing=1
+  fi
+  [ -z "$why" ] || { echo "$why"; fail_line "FAILED $(feature_of "$map" ""): $why"; }
+  total=$((total + missing))
+  failed=$((failed + missing))
+}
+
+# Files whose name starts with `_` (the template) are not run.
+run_bats() {
+  local t="$1" f i n next=0 running=0 timed_out rc
+  local files=() slot_file=() slot_start=()
+  for f in "$HERE/$t"/*.bats; do
+    [ -f "$f" ] || continue
+    case "$(basename "$f")" in _*) continue ;; esac
+    [ -z "$ONLY_TAG" ] || has_tag "$f" "$ONLY_TAG" || continue
+    files[${#files[@]}]="$f"
+  done
+  n=${#files[@]}
+  if [ "$n" -eq 0 ]; then echo "$t: no test files"; return; fi
+  if [ -n "$SHUFFLE_SEED" ]; then
+    local order=()
+    while IFS= read -r f; do order[${#order[@]}]="$f"; done < <(printf '%s\n' "${files[@]}" | shuffle "$SHUFFLE_SEED")
+    files=("${order[@]}")
+  fi
+  echo "== $t ($n files, $JOBS at a time)"
+  WORK="$(mktemp -d "${TMPDIR:-/tmp}/test-run.XXXXXX")"
+  while [ "$next" -lt "$n" ] || [ "$running" -gt 0 ]; do
+    i=0
+    while [ "$i" -lt "$JOBS" ]; do
+      if [ -z "${pids[$i]:-}" ] && [ "$next" -lt "$n" ]; then
+        set -m   # a process group of its own, so a hung file can be killed whole
+        ( cd "$REPO" && exec "$BATS" --tap ${ONLY_TAG:+--filter-tags "$ONLY_TAG"} "${files[$next]}" </dev/null >"$WORK/$i.log" 2>&1 ) &
+        pids[$i]=$!
+        set +m
+        slot_file[$i]="${files[$next]}"; slot_start[$i]=$SECONDS
+        next=$((next + 1)); running=$((running + 1))
+      elif [ -n "${pids[$i]:-}" ]; then
+        timed_out=0
+        if kill -0 "${pids[$i]}" 2>/dev/null; then
+          [ $((SECONDS - slot_start[i])) -ge "$FILE_TIMEOUT" ] || { i=$((i + 1)); continue; }
+          timed_out=1
+          kill -9 -- "-${pids[$i]}" 2>/dev/null
+        fi
+        wait "${pids[$i]}" 2>/dev/null; rc=$?
+        finish_file "${slot_file[$i]}" "$WORK/$i.log" "$rc" $((SECONDS - slot_start[i])) "$timed_out"
+        pids[$i]=""; running=$((running - 1))
+        continue   # fill this slot again at once
+      fi
+      i=$((i + 1))
+    done
+    [ "$running" -gt 0 ] && sleep 0.2
+  done
+  rm -rf "$WORK"; WORK=""
+}
+
+# ---- pytest (the python helpers; quick tier) ----------------------------------------------------------------
+run_pytest() {
+  local dirs="" d out line p f e rc feat
+  for d in "$REPO"/skills/*/tests "$REPO"/hooks/*/tests "$REPO"/helper-mcp/tests "$REPO"/assistant/tests; do
+    ls "$d"/test_*.py >/dev/null 2>&1 || continue
+    if [ -z "$ONLY_TAG" ]; then dirs="$dirs $d"; continue; fi
+    for f in "$d"/test_*.py; do has_tag "$f" "$ONLY_TAG" && dirs="$dirs $f"; done
+  done
+  [ -n "$dirs" ] || return 0
+  echo "== pytest"
+  if python3 -c 'import pytest' 2>/dev/null; then
+    # shellcheck disable=SC2086
+    out="$(cd "$REPO" && python3 -m pytest -q -p no:cacheprovider $dirs 2>&1)"; rc=$?
+  elif command -v uv >/dev/null 2>&1; then
+    # shellcheck disable=SC2086
+    out="$(cd "$REPO" && uv run --quiet --group dev python -m pytest -q -p no:cacheprovider $dirs 2>&1)"; rc=$?
+  else
+    echo "pytest is missing: pip install pytest, or install uv"
+    fail_line "FAILED pytest: pytest is missing"
+    total=$((total + 1)); failed=$((failed + 1)); return
+  fi
+  printf '%s\n' "$out"
+  line="$(printf '%s\n' "$out" | grep -E '^[0-9]+ (passed|failed|error)|, [0-9]+ (passed|failed|error)' | tail -1)"
+  p="$(printf '%s\n' "$line" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) passed.*/\1/p; s/^\([0-9][0-9]*\) passed.*/\1/p' | head -1)"
+  f="$(printf '%s\n' "$line" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) failed.*/\1/p; s/^\([0-9][0-9]*\) failed.*/\1/p' | head -1)"
+  e="$(printf '%s\n' "$line" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) errors\{0,1\}.*/\1/p; s/^\([0-9][0-9]*\) errors\{0,1\}.*/\1/p' | head -1)"
+  p="${p:-0}"; f="${f:-0}"; e="${e:-0}"
+  d="$(printf '%s\n' "$line" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) skipped.*/\1/p; s/^\([0-9][0-9]*\) skipped.*/\1/p' | head -1)"
+  skips=$((skips + ${d:-0}))
+  total=$((total + p + f + e))
+  failed=$((failed + f + e))
+  # pytest's own summary names each failure `FAILED <file>::<test>`; the file's `# feature:<id>` line says whose it is
+  while IFS= read -r line; do
+    feat="$(sed -En 's/^#[[:space:]]*feature:([A-Za-z0-9_-]*).*/\1/p' "$REPO/${line%%::*}" 2>/dev/null | head -1)"
+    fail_line "FAILED ${feat:-pytest}: $line"
+  done < <(printf '%s\n' "$out" | sed -En 's/^(FAILED|ERROR) ([^ ]*).*/\2/p')
+  if [ $((p + f + e)) -eq 0 ]; then total=$((total + 1)); failed=$((failed + 1)); echo "pytest: no result line"; fail_line "FAILED pytest: no result line"
+  elif [ $((f + e)) -eq 0 ] && [ "$rc" != 0 ]; then total=$((total + 1)); failed=$((failed + 1)); echo "pytest: exited $rc with no failing test"; fail_line "FAILED pytest: exited $rc with no failing test"; fi
+}
+
+# ---- run ----------------------------------------------------------------------------------------------------
+. "$HERE/lib/common.bash"
+. "$HERE/lib/records.bash"
+
+[ -z "$SHUFFLE_SEED" ] || echo "seed $SHUFFLE_SEED"
+case "$mode" in
+  only)
+    find_bats
+    ONLY_TAG="feature:$only"
+    for t in quick machine; do
+      tier_now="$t"
+      run_bats "$t"
+    done
+    run_pytest
+    [ "$total" -gt 0 ] || { echo "test/run: no test is tagged $ONLY_TAG" >&2; exit 2; } ;;
+  tiers)
+    lint
+    features
+    records
+    find_bats
+    for t in $tiers; do
+      tier_now="$t"
+      run_bats "$t"
+      [ "$t" = quick ] && run_pytest
+    done ;;
+esac
+
+[ "$skips" -eq 0 ] || echo "skipped $skips (counted in the total below; each says why above)"
+if [ "$failed" -eq 0 ]; then
+  echo "PASS $total tests"
+  exit 0
+fi
+printf '%s' "$FAILED_LINES"
+echo "FAIL $failed of $total"
+exit 1

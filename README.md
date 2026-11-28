@@ -4,6 +4,8 @@
   <img alt="The status line showing the project name, git branch, model, and 5-hour usage" src="https://raw.githubusercontent.com/wiki/Gidntsquia/claude-config/statusline.png">
 </p>
 
+[Last full run: 2026-11-27, macOS 27.0.1: all 796 tests passed (35 skipped); Ubuntu 24.04: all 796 tests passed (60 skipped); Windows: not run](TESTING.md)
+
 My [Claude Code](https://claude.com/claude-code) setup: eight agents, seven skills, a custom status line, and my global `CLAUDE.md` and `settings.json`. The files live in this repo and `~/.claude` holds symlinks to them, so edits made from either place end up here.
 
 The agents split a project into planning, building and checking. The [wiki](https://github.com/Gidntsquia/claude-config/wiki) is a beginner's guide to that workflow, starting from a fresh Windows or Mac install.

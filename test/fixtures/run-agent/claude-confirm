@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Fake claude for the confirm window: records its arguments and session id, and leaves a transcript to be deleted.
+printf '%s\n' "$@" > "$REC_OUT.part"; echo "$RUN_AGENT_CONFIRM_ID" >> "$REC_OUT.part"
+touch "$HOME/.claude/projects/p1/$RUN_AGENT_CONFIRM_ID.jsonl"; cp "$HOME/.claude/projects/p1/$RUN_AGENT_CONFIRM_ID.jsonl" "$REC_OUT.transcript-seen"
+mv "$REC_OUT.part" "$REC_OUT"

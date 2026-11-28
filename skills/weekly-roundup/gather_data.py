@@ -197,7 +197,7 @@ def price_row(model: str, input_t, output_t, cache_read_t, cache_5m_t, cache_1h_
 
 
 def git(repo: Path, *args):
-    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
+    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
     return r.stdout.strip()
 
 
@@ -296,7 +296,7 @@ def scan_project_dir(dir_path: Path, window_start: datetime, window_end: datetim
         sid = jsonl.parent.parent.name if jsonl.parent.name == "subagents" else jsonl.stem
         sess = sessions.setdefault(sid, {"start": None, "prompt": "", "usage": {}, "days": {}})
         try:
-            lines = jsonl.read_text(errors="ignore").splitlines()
+            lines = jsonl.read_text(encoding="utf-8", errors="ignore").splitlines()
         except OSError:
             continue
         for line in lines:
@@ -939,7 +939,7 @@ POOL_RE = re.compile(r'<script type="application/json" id="roundup-data">(.*?)</
 
 def load_pool(path):
     """Pooled week data from a JSON file or from a published roundup page (its roundup-data block)."""
-    text = Path(path).expanduser().read_text()
+    text = Path(path).expanduser().read_text(encoding="utf-8")
     if path.endswith((".html", ".htm")) or text.lstrip().startswith("<"):
         m = POOL_RE.search(text)
         if not m:
@@ -1010,7 +1010,7 @@ def main():
     old_sids = set().union(*(entry_sids(c) for c in replaced)) if replaced else set()
     other_sids = set().union(*(entry_sids(c) for c in others)) if others else set()
     if args.features_file:
-        features_map = json.loads(Path(args.features_file).expanduser().read_text())
+        features_map = json.loads(Path(args.features_file).expanduser().read_text(encoding="utf-8"))
     elif old_sids:
         # This machine's earlier assignments are dropped; the skill reassigns from scratch.
         features_map = {
@@ -1037,11 +1037,11 @@ def main():
     features_map = cleaned
 
     colors_file = Path(args.colors_file).expanduser()
-    local_colors = json.loads(colors_file.read_text()) if colors_file.exists() else {}
+    local_colors = json.loads(colors_file.read_text(encoding="utf-8")) if colors_file.exists() else {}
     colormap = {**local_colors, **pool.get("project_colors", {})}  # the page wins on conflict
     out = report(contributions, args.cap_pct, features_map, args, people, colormap)
     colormap = dict(sorted(colormap.items()))
-    colors_file.write_text(json.dumps(colormap, indent=1, ensure_ascii=False) + "\n")
+    colors_file.write_text(json.dumps(colormap, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
 
     authored = pool.get("authored") or {"projects": {}, "fixed": {}}
     authored.setdefault("projects", {})
@@ -1072,7 +1072,7 @@ def main():
             "days": out["days"],
             "devices": others + [public_contribution(mine)],
         }
-        Path(args.pool_out).expanduser().write_text(json.dumps(pool_out, separators=(",", ":")))
+        Path(args.pool_out).expanduser().write_text(json.dumps(pool_out, separators=(",", ":")), encoding="utf-8")
     print(json.dumps(out, indent=2))
 
 

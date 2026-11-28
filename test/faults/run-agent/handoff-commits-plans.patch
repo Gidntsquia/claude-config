@@ -1,0 +1,12 @@
+A handoff's WIP commit takes plans/ along when plans/ is not ignored.
+--- a/skills/run-agent/scripts/run-agent.sh
++++ b/skills/run-agent/scripts/run-agent.sh
+@@ -378,7 +378,7 @@
+   else
+     what=$(awk 'f && NF {sub(/^[-*] */,""); print; exit} /^In progress:/ {r=$0; sub(/^In progress: */,"",r); if (r!="") {print r; exit}; f=1}' <<<"$text")
+     title="WIP: stopped at usage limit — ${what:-see WORKER_NOTES.md}"
+-    git add -A -- . && { git reset -q -- plans 2>/dev/null || true; }   # plans/ stays out even when not ignored
++    git add -A -- .
+     git commit -q -m "$title" -m "Handoff written by run-agent.sh --handoff; plans/WORKER_NOTES.md has Done / In progress / Next.
+ 
+ Co-Authored-By: Claude <noreply@anthropic.com>"

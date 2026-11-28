@@ -22,6 +22,11 @@ hidden=$(printf '%s\n' "$out" | grep '^hidden: ' | head -1)
 for i in $(seq 1 30); do [ "$(tmux list-clients -t "$t" 2>/dev/null | wc -l)" -gt 0 ] && break; sleep 0.5; done
 [ "$(tmux list-clients -t "$t" | wc -l)" -gt 0 ] || { echo "window never attached"; tmux kill-session -t "$t" 2>/dev/null; exit 1; }
 hwnd=$(printf '%s\n' "$hidden" | awk '{print $2}')
-[ -n "$hwnd" ] || { for i in $(seq 1 20); do out=$("$W" find "$t") && break; sleep 0.5; done || { echo "$out"; exit 1; }; hwnd=${out%% *}; "$W" reg "$hwnd" "$t" >/dev/null; }
+if [ -z "$hwnd" ]; then
+  found=""
+  for i in $(seq 1 20); do out=$("$W" find "$t") && { found=1; break; }; sleep 0.5; done
+  [ -n "$found" ] || { echo "$out"; tmux kill-session -t "$t" 2>/dev/null; exit 1; }
+  hwnd=${out%% *}; "$W" reg "$hwnd" "$t" >/dev/null
+fi
 if [ $# -gt 0 ]; then tmux send-keys -t "$t" C-u; tmux send-keys -t "$t" -l "$*"; tmux send-keys -t "$t" Enter; fi
 echo "opened $t HWND=$hwnd${hidden:+ ($hidden)}"

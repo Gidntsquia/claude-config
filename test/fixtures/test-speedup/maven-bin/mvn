@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Fake `mvn test`: writes a surefire report with three test cases.
+echo "$*" >> "${FAKE_LOG:?}"
+mkdir -p target/surefire-reports
+cat > target/surefire-reports/TEST-a.xml <<'XML'
+<testsuite>
+<testcase name="quick" classname="A" time="0.01"/>
+<testcase name="slowest" classname="A" time="9.50"/>
+<testcase name="middle" classname="A" time="2.00"/>
+</testsuite>
+XML

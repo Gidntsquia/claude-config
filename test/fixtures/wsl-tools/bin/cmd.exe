@@ -1,0 +1,11 @@
+#!/bin/bash
+# Stand-in cmd.exe: answers `cmd.exe /C "echo %VAR%"` with a CRLF line; logs each call.
+# STUB_NO_PROFILE=1: %USERPROFILE% comes back unexpanded.
+echo "cmd.exe $*" >> "$STUB_LOG"
+case "$*" in
+  *%USERPROFILE%*) v='C:\Users\Test User'; [ -z "${STUB_NO_PROFILE:-}" ] || v='%USERPROFILE%' ;;
+  *%LOCALAPPDATA%*) v='C:\Users\Test User\AppData\Local' ;;
+  *%ProgramFiles%*) v='C:\Program Files' ;;
+  *) v=unknown ;;
+esac
+printf '%s\r\n' "$v"

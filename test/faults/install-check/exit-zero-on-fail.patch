@@ -1,0 +1,12 @@
+--check exits 0 even when it printed FAIL lines.
+--- a/install.sh
++++ b/install.sh
+@@ -401,7 +401,7 @@
+     else warn "Firefox not installed: items open in the default browser, no phone pictures"; fi
+   fi
+   echo "$([ $fails -eq 0 ] && echo "all checks passed" || echo "$fails check(s) failed")"
+-  [ $fails -eq 0 ]; exit $?
++  exit 0
+ fi
+ 
+ # =================================================================================================================

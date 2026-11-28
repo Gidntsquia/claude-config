@@ -1,0 +1,11 @@
+--- a/bin/release/faults
++++ b/bin/release/faults
+@@ -56,7 +56,7 @@
+       fault_run "$id" "$w" "$c" > "$w/$id.$short.log" 2>&1; rc=$?
+       case "$rc" in
+         1) echo "caught $name" >> "$out" ;;
+-        0) echo "missed $name" >> "$out" ;;
++        0) echo "caught $name" >> "$out" ;;
+         *) echo "error $name: test/run exited $rc" >> "$out" ;;
+       esac
+     fi

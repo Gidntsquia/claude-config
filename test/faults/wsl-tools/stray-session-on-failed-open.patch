@@ -1,0 +1,12 @@
+When the window fails to open, the tmux session is left behind.
+--- a/local-tools/wsl/term-open.sh
++++ b/local-tools/wsl/term-open.sh
+@@ -17,7 +17,7 @@
+ # win.sh show "<Title>" X Y W H un-hides and places it. EVSHOW_WT=<path> overrides wt.exe (tests).
+ out=$(EVSHOW_HIDE_TIMEOUT="${EVSHOW_HIDE_TIMEOUT:-20}" bash "$HOME/.claude/local-tools/win-app.sh" --hidden --title "$t" wt -w new -p "${TERM_OPEN_PROFILE:-Ubuntu}" \
+   --title "$t" --suppressApplicationTitle wsl.exe -d "${WSL_DISTRO_NAME:-Ubuntu}" -- tmux attach -t "$t") \
+-  || { echo "$out" | grep -v '^hide-log'; tmux kill-session -t "$t" 2>/dev/null; exit 1; }
++  || { echo "$out" | grep -v '^hide-log'; exit 1; }
+ hidden=$(printf '%s\n' "$out" | grep '^hidden: ' | head -1)
+ for i in $(seq 1 30); do [ "$(tmux list-clients -t "$t" 2>/dev/null | wc -l)" -gt 0 ] && break; sleep 0.5; done
+ [ "$(tmux list-clients -t "$t" | wc -l)" -gt 0 ] || { echo "window never attached"; tmux kill-session -t "$t" 2>/dev/null; exit 1; }

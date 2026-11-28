@@ -1,0 +1,12 @@
+The Windows Terminal default profile is changed even without --default-profile.
+--- a/wsl/wt-profile.py
++++ b/wsl/wt-profile.py
+@@ -41,7 +41,7 @@
+     p["commandline"] = cmd
+     p.setdefault("font", {})["face"] = font
+ old_default = s.get("defaultProfile")
+-if make_default and guid:
++if guid:
+     s["defaultProfile"] = guid
+ with open(path, "w", encoding="utf-8") as f:
+     json.dump(s, f, indent=4)

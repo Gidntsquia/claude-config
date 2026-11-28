@@ -1,0 +1,12 @@
+Only local-tools/common is linked; the WSL or Mac evaluator tools are never installed.
+--- a/install.sh
++++ b/install.sh
+@@ -686,7 +686,7 @@
+   case "$t" in */wsl/local-tools/*|*/local-tools/wsl/*|*/local-tools/macos/*|*/local-tools/common/*) ;; *) continue ;; esac   # this installer's
+   rm "$p"; echo "  removed $p (was $t: not a tool of this OS)"
+ done
+-for d in common $TOOLS_OS; do
++for d in common; do
+   for f in "$R/local-tools/$d"/*; do link "$f" "$C/local-tools/$(basename "$f")"; done
+ done
+ echo "  evaluator tools: local-tools/common${TOOLS_OS:+ and local-tools/$TOOLS_OS} linked into $C/local-tools"

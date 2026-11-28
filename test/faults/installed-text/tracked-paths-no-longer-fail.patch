@@ -1,0 +1,13 @@
+A committed file naming a home folder no longer fails the check (exit status now comes from the untracked scan).
+--- a/bin/find-personal-paths.sh
++++ b/bin/find-personal-paths.sh
+@@ -20,8 +20,8 @@
+   return "$hit"
+ }
+ if [ -n "$GIT" ]; then
++  git ls-files --cached | scan ""
+   git ls-files --others --exclude-standard | scan "WARN "
+-  git ls-files --cached | scan ""
+ else
+   find . -path ./.git -prune -o -type f -print | sed 's|^\./||' | scan ""
+ fi

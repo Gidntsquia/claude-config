@@ -1,0 +1,12 @@
+Resolving an update conflict keeps the release's side where it should keep the user's.
+--- a/bin/resolve-kept-edits.py
++++ b/bin/resolve-kept-edits.py
+@@ -157,7 +157,7 @@
+     left = []
+     for path in paths:
+         base, ours, theirs = (stage(top, n, path) for n in (1, 2, 3))
+-        mine, rel = (theirs, ours) if mine_side == "theirs" else (ours, theirs)
++        mine, rel = (ours, theirs) if mine_side == "theirs" else (theirs, ours)
+         if mine is None or rel is None:
+             left.append((path, "one side deleted it"))
+             continue

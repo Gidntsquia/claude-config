@@ -1,0 +1,12 @@
+Figures may be read from files outside the --data directory.
+--- a/agents/report-writer/build.py
++++ b/agents/report-writer/build.py
+@@ -237,7 +237,7 @@
+         if "derived" in e or e.get("value") is not None or not e.get("file"):
+             continue
+         fp = os.path.realpath(e["file"] if os.path.isabs(e["file"]) else os.path.join(data, e["file"]))
+-        if fp.startswith(os.path.realpath(OUTDIR) + os.sep) or not fp.startswith(os.path.realpath(data) + os.sep):
++        if fp.startswith(os.path.realpath(OUTDIR) + os.sep):
+             notes.append(f"{key}: file {e['file']} is a writer-made data file (inside the report dir or outside --data); figures come from study files only, use [?k=v]…|mean on the raw file")
+             continue
+         loaded = load_file(data, e["file"])

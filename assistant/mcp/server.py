@@ -132,8 +132,10 @@ def my_session() -> str:
 
 # ============================================================================ processes under a pane
 def _proc_tree(root: str) -> list[tuple[str, str, list[str]]]:
-    """[(pid, comm, argv)] for root and every descendant (Linux /proc)"""
+    """[(pid, comm, argv)] for root and every descendant (Linux /proc; macOS ps)"""
     kids: dict[str, list[str]] = {}
+    if not os.path.isdir("/proc/self"):
+        return _proc_tree_ps(root)
     for n in os.listdir("/proc"):
         if n.isdigit():
             try:
@@ -150,6 +152,25 @@ def _proc_tree(root: str) -> list[tuple[str, str, list[str]]]:
         except OSError:
             comm, argv = "", []
         out.append((p, comm, argv))
+        todo.extend(kids.get(p, []))
+    return out
+
+
+def _proc_tree_ps(root: str) -> list[tuple[str, str, list[str]]]:
+    """_proc_tree without /proc: ps lists the processes, run-agent's proc.py reads each argv"""
+    import proc as ra_proc
+    r = subprocess.run(["ps", "-A", "-o", "pid=,ppid=,comm="], capture_output=True, text=True)
+    kids: dict[str, list[str]] = {}
+    comms: dict[str, str] = {}
+    for ln in r.stdout.splitlines():
+        f = ln.split(None, 2)
+        if len(f) == 3:
+            kids.setdefault(f[1], []).append(f[0])
+            comms[f[0]] = os.path.basename(f[2].strip())
+    out, todo = [], [root]
+    while todo:
+        p = todo.pop()
+        out.append((p, comms.get(p, ""), ra_proc.argv(p) if p in comms else []))
         todo.extend(kids.get(p, []))
     return out
 

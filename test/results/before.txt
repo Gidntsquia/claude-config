@@ -1,0 +1,32 @@
+# Tests per feature before the overhaul, for the before/after table bin/release/trust-report writes into TESTING.md.
+# <id> | <checks on main> | <tests after the 1-to-1 port, commit ab957fb>. The third column, tests now, is counted
+# from the tags. main: the result lines main's test scripts print (install-scenarios.sh 276, run-agent test.sh 329,
+# evaluator-tools.sh 120 + 20 live, iterm2-live.sh 19, owner-text.sh 3, real-usage.sh 3, the usage-guard suite 286,
+# pytest 18, the defer-artifact mod's own 16, two WSL scripts run by hand). ab957fb: `@test` lines per file, pytest 18.
+# `in <id>`: main and the port did not tell these apart from that feature's checks.
+install | 276 | 111
+user-settings | in install | in install
+updates | in install | in install
+install-check | in install | in install
+installed-text | 3 | 3
+run-agent | 329 | 275
+usage-api | 3 | 2
+evaluator-tools | 140 | 71
+windows-install | in install | 0
+usage-guard | 286 | 0
+report-writer | 0 | 0
+restore-sessions | 0 | 0
+test-speedup | 0 | 0
+weekly-roundup | 18 | 18
+defer-artifact | 16 | 0
+update-by-claude | 0 | 0
+statusline | 0 | 0
+agent-prompts | 0 | 0
+terminal-setup | 19 | 18
+phone-pictures | in evaluator-tools | 11
+wsl-tools | 2 | 0
+helper | 0 | 0
+assistant | 0 | 0
+doc-skills | 0 | 0
+context-trims | 0 | 0
+test-runner | 0 | 11

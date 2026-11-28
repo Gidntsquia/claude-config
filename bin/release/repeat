@@ -1,0 +1,70 @@
+#!/bin/bash
+# usage: bin/release/repeat <n>                       the quick tier <n> times, test files in a new order each time
+#        bin/release/repeat <n> <result file>...      add up result files (CI runs 300 as 10 shards of 30 per system)
+#        REPEAT_RECORD=<system> bin/release/repeat <n> <result file>...   also keep the sum as
+#                                                     test/results/repeat-<system>.txt (REPEAT_NOTE: where it ran)
+# Repeated runs: does the same code give the same answer every time? Prints one `run <i> seed <s>: <result>` line
+# per run, then `agreed <k> of <n>`; exit 0 only when all <n> passed with the same count. Nothing is retried.
+# The first seed is printed; TEST_SEED=<s> starts from that one again (run <i> uses seed + <i> - 1).
+# Records test/results/repeat.txt.
+set -u
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+HERE="$REPO/test"
+. "$HERE/lib/common.bash"
+usage() { echo "usage: bin/release/repeat <n> [<result file>...]" >&2; exit 2; }
+case "${1:-}" in ''|*[!0-9]*|0) usage ;; esac
+n="$1"; shift
+WORK_EXTRA=""
+trap '[ -z "$WORK_EXTRA" ] || rm -rf "${WORK_EXTRA:?}"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# agree <file of `run ...: <result>` lines> <planned>: prints `agreed <k> of <m>`, k being the runs with the
+# commonest result; status 0 only when every planned run passed with one and the same result.
+agree() {
+  awk -v planned="$2" '
+    /^run / { r = $0; sub(/^[^:]*: /, "", r); count[r]++; m++ }
+    END {
+      best = 0
+      for (r in count) if (count[r] > best || (count[r] == best && r ~ /^PASS /)) { best = count[r]; top = r }
+      if (planned + 0 > m) m = planned + 0
+      printf "agreed %d of %d\n", best, m
+      exit !(m > 0 && best == m && top ~ /^PASS /)
+    }' "$1"
+}
+
+scratch; w="$WORK_EXTRA"
+if [ $# -gt 0 ]; then
+  cat "$@" > "$w/runs" || exit 2
+  result="$(agree "$w/runs" "$n")"; rc=$?
+  case "${REPEAT_RECORD:-}" in
+    '') ;;
+    *[!A-Za-z0-9]*) echo "repeat: REPEAT_RECORD takes a system name of letters and digits" >&2; usage ;;
+    *) mkdir -p "$RESULTS"
+       { echo "# bin/release/repeat $n, ${REPEAT_NOTE:-added up $(stamp)}"; grep '^run ' "$w/runs"; echo "$result"; } > "$RESULTS/repeat-$REPEAT_RECORD.txt" ;;
+  esac
+  echo "$result"; exit "$rc"
+fi
+
+seed="${TEST_SEED:-$(date +%s)}"
+case "$seed" in ''|*[!0-9]*) echo "repeat: TEST_SEED takes a number" >&2; usage ;; esac
+echo "seed $seed ($n runs; rerun the same orders with TEST_SEED=$seed)"
+: > "$w/runs"
+i=1
+while [ "$i" -le "$n" ]; do
+  s=$((seed + i - 1))
+  TEST_SEED="$s" "$HERE/run" quick > "$w/log" 2>&1; rc=$?
+  last="$(tail -n 1 "$w/log")"
+  case "$rc:$last" in
+    0:PASS\ *) result="$last" ;;
+    1:FAIL\ *) result="$last [$(sed -n 's/^FAILED \([A-Za-z0-9_-]*: .*\)/\1/p' "$w/log" | sort | tr '\n' ';')]"; cat "$w/log" ;;
+    *) result="FAIL test/run exited $rc"; cat "$w/log" ;;
+  esac
+  echo "run $i seed $s: $result" | tee -a "$w/runs"
+  i=$((i + 1))
+done
+result="$(agree "$w/runs" "$n")"; rc=$?
+mkdir -p "$RESULTS"
+{ echo "# TEST_SEED=$seed bin/release/repeat $n, $(stamp)"; cat "$w/runs"; echo "$result"; } > "$RESULTS/repeat.txt"
+echo "$result"
+exit "$rc"

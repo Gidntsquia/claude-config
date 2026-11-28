@@ -1,0 +1,9 @@
+{
+  "permissions": { "deny": ["Workflow", "ReportFindings", "Agent(statusline-setup)"] },
+  "skillOverrides": { "alpha": "user-invocable-only", "beta": "off", "gamma": "name-only", "delta": "on" },
+  "deniedMcpServers": [ { "serverName": "repo-denied" } ],
+  "enableWorkflows": false,
+  "workflowKeywordTriggerEnabled": false,
+  "enabledPlugins": { "trimmed@market": false, "kept@market": true },
+  "env": { "ENABLE_CLAUDEAI_MCP_SERVERS": "false" }
+}

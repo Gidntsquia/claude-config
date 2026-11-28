@@ -1,0 +1,12 @@
+'measure.sh time' exits 0 when the timed command fails.
+--- a/skills/test-speedup/scripts/measure.sh
++++ b/skills/test-speedup/scripts/measure.sh
+@@ -223,7 +223,7 @@
+     cap "$@"
+     status=$?
+     { echo "CMD=$*"; echo "WALL_SECONDS=$(( $(date +%s) - start ))"; echo "EXIT=$status"; echo "DONE"; } | emit
+-    exit $status ;;
++    exit 0 ;;
+ 
+   # profile is a full run either way, so it is just baseline under another
+   # name — it returns timing and count too. Kept for backward compatibility.

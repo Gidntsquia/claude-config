@@ -72,7 +72,7 @@ def read_stamp() -> dict | None:
     wf = WIKI / "Workflow.md"
     if not wf.is_file():
         return None
-    m = STAMP_RE.search(wf.read_text())
+    m = STAMP_RE.search(wf.read_text(encoding="utf-8"))
     if not m:
         return None
     hashes = {}
@@ -115,7 +115,7 @@ def wiki_list() -> str:
 def wiki_read(page: str) -> str:
     """Read one wiki page in full by title, e.g. 'Getting-Started' or 'Cheat-Sheet'."""
     p = _page(page)
-    return f"# file: wiki/{p.name}\n" + p.read_text()
+    return f"# file: wiki/{p.name}\n" + p.read_text(encoding="utf-8")
 
 
 @mcp.tool()
@@ -124,7 +124,7 @@ def wiki_search(query: str) -> str:
     q = query.strip().lower()
     hits = []
     for p in _pages():
-        for i, line in enumerate(p.read_text().splitlines(), 1):
+        for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
             if q in line.lower():
                 hits.append(f"{p.stem}:{i}: {line.strip()}")
     return "\n".join(hits[:200]) if hits else f"No lines match '{query}' in the wiki."
@@ -138,7 +138,7 @@ def agent_read(name: str) -> str:
     if key not in AGENT_FILES:
         raise ValueError(f"Unknown agent '{name}'. Choose from: {', '.join(AGENT_FILES)}")
     p = AGENTS / AGENT_FILES[key]
-    return f"# file: agents/{p.name}\n" + p.read_text()
+    return f"# file: agents/{p.name}\n" + p.read_text(encoding="utf-8")
 
 
 @mcp.tool()

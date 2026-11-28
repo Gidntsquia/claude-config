@@ -1,0 +1,12 @@
+Answering anything but Yes to the readiness question still starts moving windows.
+--- a/local-tools/common/evshow_watch.py
++++ b/local-tools/common/evshow_watch.py
+@@ -54,7 +54,7 @@
+                 cc = b.get("content")
+                 if isinstance(cc, list): cc = " ".join(x.get("text", "") for x in cc if isinstance(x, dict))
+                 cc = str(cc)
+-                if mode == "first" and '="Yes"' not in cc:
++                if mode == "first" and '="' not in cc:
+                     log(f"watcher: answer was not Yes ({cc[:80]!r}), waiting"); continue
+                 a = et(d.get("timestamp", ""))
+                 with open(os.path.join(D, "answer"), "w") as f: f.write(a)

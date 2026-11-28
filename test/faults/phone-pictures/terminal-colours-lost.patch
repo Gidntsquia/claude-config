@@ -1,0 +1,12 @@
+Terminal pictures lose their colours.
+--- a/local-tools/common/phone-shot.sh
++++ b/local-tools/common/phone-shot.sh
+@@ -37,7 +37,7 @@
+     wrap "$(basename "$src")${range:+ lines $range}" "$tmp/body.html"; url="file://$tmp/page.html" ;;
+   tmux)
+     tmux has-session -t "$src" 2>/dev/null || { echo "phone-shot.sh: no tmux session '$src'"; exit 1; }
+-    if [ "$arg4" = "--no-ansi" ]; then tmux capture-pane -p -t "$src" > "$tmp/pane.txt"; else tmux capture-pane -e -p -t "$src" > "$tmp/pane.txt"; fi
++    if [ "$arg4" = "--no-ansi" ]; then tmux capture-pane -p -t "$src" > "$tmp/pane.txt"; else tmux capture-pane -p -t "$src" > "$tmp/pane.txt"; fi
+     python3 - "$tmp/pane.txt" > "$tmp/body.html" <<'PY'
+ import html, re, sys
+ # minimal ANSI SGR -> HTML (colours 30-37/90-97, 38;5;n, bold, reset); anything else is dropped

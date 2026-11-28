@@ -1,0 +1,12 @@
+The merge replaces the user's own values (model, theme, ...) with the repo's.
+--- a/bin/merge-settings.py
++++ b/bin/merge-settings.py
+@@ -21,7 +21,7 @@
+         return out
+     if isinstance(user, list) and isinstance(repo, list):
+         return user + [x for x in repo if x not in user]
+-    return user
++    return repo
+ 
+ 
+ def load(path):

@@ -1,0 +1,12 @@
+A file page for lines A-B leaves out line A.
+--- a/local-tools/common/file-page.sh
++++ b/local-tools/common/file-page.sh
+@@ -100,7 +100,7 @@
+                 rows = []; total = 0
+                 for total, l in enumerate(f, 1):
+                     if total > b: break
+-                    if total >= a: rows.append((total, l))
++                    if total > a: rows.append((total, l))
+                 if not rows: fail('%s has %d lines, none in %s' % (path, total, rng))
+                 note = 'lines %d-%d' % (rows[0][0], rows[-1][0])
+             elif big:

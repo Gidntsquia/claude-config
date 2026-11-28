@@ -1,0 +1,7 @@
+#!/bin/bash
+# Stand-in grep: with STUB_WSL set, a search of /proc/version succeeds (1) or fails (0); every other search is real grep.
+for a in "$@"; do
+  if [ "$a" = /proc/version ] && [ -n "${STUB_WSL:-}" ]; then [ "$STUB_WSL" = 1 ]; exit; fi
+done
+for g in /usr/bin/grep /bin/grep; do [ -x "$g" ] && exec "$g" "$@"; done
+exit 2

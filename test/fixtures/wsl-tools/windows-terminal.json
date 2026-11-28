@@ -1,0 +1,15 @@
+{
+    "$schema": "https://aka.ms/terminal-profiles-schema",
+    "defaultProfile": "{powershell-guid}",
+    "copyOnSelect": false,
+    "profiles": {
+        "defaults": {},
+        "list": [
+            { "guid": "{powershell-guid}", "name": "Windows PowerShell", "commandline": "powershell.exe" },
+            { "guid": "{ubuntu-guid}", "name": "Ubuntu", "source": "Microsoft.WSL", "font": { "size": 11 } },
+            { "guid": "{debian-guid}", "name": "Debian", "source": "Microsoft.WSL" },
+            { "guid": "{impostor-guid}", "name": "Ubuntu", "commandline": "cmd.exe" }
+        ]
+    },
+    "schemes": []
+}

@@ -1,0 +1,12 @@
+With no fresh credentials file, the token is not found in the macOS Keychain.
+--- a/skills/run-agent/scripts/parse.py
++++ b/skills/run-agent/scripts/parse.py
+@@ -94,7 +94,7 @@
+ 
+ 
+ CA_FILE = "/etc/ssl/cert.pem"            # macOS: python3 ships no CA bundle, the system one lives here
+-KEYCHAIN_ITEM = "Claude Code-credentials"  # macOS login keychain: the same claudeAiOauth JSON as .credentials.json
++KEYCHAIN_ITEM = "Claude Code"  # macOS login keychain: the same claudeAiOauth JSON as .credentials.json
+ 
+ 
+ def oauth_token():

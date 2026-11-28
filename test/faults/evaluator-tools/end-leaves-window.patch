@@ -1,0 +1,12 @@
+Ending a run no longer closes the last item's window.
+--- a/local-tools/common/evshow.sh
++++ b/local-tools/common/evshow.sh
+@@ -198,7 +198,7 @@
+   end)
+     D=$(ev_state_dir) || D=""; need_session; export EVSHOW_STATE="$D"
+     "$0" disarm >/dev/null 2>&1
+-    cur=$(cat "$D/current" 2>/dev/null); [ -n "$cur" ] && { "$W" untop "$cur"; "$W" close "$cur"; rm -f "$D/current"; }
++    cur=$(cat "$D/current" 2>/dev/null); [ -n "$cur" ] && { "$W" untop "$cur"; rm -f "$D/current"; }
+     [ -e "$D/zpid" ] && { kill "$(cat "$D/zpid")" 2>/dev/null; pkill -P "$(cat "$D/zpid")" 2>/dev/null; rm -f "$D/zpid"; }
+     "$W" close-cloaked   # a cloaked (never shown) window is never left behind
+     if [ "$EVOS" = mac ]; then echo "now unchanged"   # the terminal was never moved

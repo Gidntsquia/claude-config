@@ -1,0 +1,11 @@
+--- a/statusline.sh
++++ b/statusline.sh
+@@ -386,7 +386,7 @@
+ }
+ 
+ theme=$(printf '%s' "${CLAUDE_STATUSLINE_THEME:-}" | tr '[:upper:]' '[:lower:]')
+-[ "$theme" = plane ] || theme=squid
++theme=squid
+ 
+ if [ "${1:-}" = "--preview" ]; then
+   case "$(printf '%s' "${2:-}" | tr '[:upper:]' '[:lower:]')" in

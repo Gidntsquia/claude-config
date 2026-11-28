@@ -1,0 +1,12 @@
+An update from before v1.3 leaves ~/.claude/hooks as a whole-folder link into the clone.
+--- a/install.sh
++++ b/install.sh
+@@ -461,7 +461,7 @@
+ done
+ #    Folders this script fills one item at a time must be real folders. Before v1.3 ~/.claude/hooks was one link to
+ #    the clone's hooks/, and filling it wrote into the clone.
+-for d in skills hooks; do
++for d in skills; do
+   if [ -L "$C/$d" ] && { in_clone "$C/$d" || [ ! -e "$C/$d" ]; }; then
+     rm "$C/$d"; echo "  $C/$d was a link (older layout); it is now a folder of its own"
+   fi

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Fake `pgrep -af claude`: prints $FAKE_PROCS ("<pid> <command line>" per line).
+[ -s "${FAKE_PROCS:-}" ] || exit 1
+cat "$FAKE_PROCS"

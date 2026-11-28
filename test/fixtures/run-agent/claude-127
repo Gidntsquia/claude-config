@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Fake claude that cannot start.
+echo "claude: no such model zork" >&2
+exit 127

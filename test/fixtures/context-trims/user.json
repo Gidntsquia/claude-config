@@ -1,0 +1,8 @@
+{
+  "permissions": { "deny": ["Bash(rm:*)", "Workflow"] },
+  "skillOverrides": { "beta": "on", "mine": "off" },
+  "deniedMcpServers": [ { "serverName": "user-denied" } ],
+  "enableWorkflows": true,
+  "enabledPlugins": { "trimmed@market": true },
+  "env": { "MINE": "1" }
+}

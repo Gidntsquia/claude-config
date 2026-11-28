@@ -1,0 +1,96 @@
+#!/bin/bash
+# usage: bin/release/faults [<feature>...]        (no feature: all of them, about an hour; run one at a time)
+# Planted faults: does a broken feature turn its tests red? Each test/faults/<feature>/*.patch is applied in a
+# scratch clone of the working tree and that feature's tests run there (`test/run --only <feature>`): exit 1 is
+# `caught`, exit 0 is `missed`. A patch may not edit test/. Prints `caught <n> of <m>`; exit 0 only when all are
+# caught and every feature has three patches. A run of all features records test/results/faults.txt.
+# FAULT_JOBS (3) features at a time; FAULT_LOGS=<dir> keeps each run's output.
+set -u
+export TZ=UTC LC_ALL=C
+# Windows git turns LF into CRLF on checkout by default; the scratch clones keep every file byte for byte.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.autocrlf GIT_CONFIG_VALUE_0=false
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+HERE="$REPO/test"
+. "$HERE/lib/common.bash"
+WORK_EXTRA=""
+trap '[ -z "$WORK_EXTRA" ] || rm -rf "${WORK_EXTRA:?}"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+scratch_git() { git -c user.name=faults -c user.email=faults@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
+
+# make_base <dir> <index file>: a clone of this repo holding the working tree as it is now, as a commit (tests
+# clone it again). The commit is built through a throwaway index, so the repo's own index and files are untouched.
+make_base() {
+  local base="$1" index="$2" tree commit
+  cp "$(cd "$REPO" && git rev-parse --git-path index | sed "s|^[^/]|$REPO/&|")" "$index" || return 1
+  GIT_INDEX_FILE="$index" git -C "$REPO" add -A || return 1
+  tree="$(GIT_INDEX_FILE="$index" git -C "$REPO" write-tree)" || return 1
+  commit="$(scratch_git -C "$REPO" commit-tree "$tree" -p HEAD -m 'the working tree')" || return 1
+  git clone -q --no-checkout "$REPO" "$base" || return 1
+  git -C "$base" fetch -q "$REPO" "$commit" && git -C "$base" checkout -q -B faults-base "$commit"
+}
+
+# fault_run <id> <work dir> <clone>: the clone's tests of <id>. A runner with a planted fault must not be the one
+# that judges itself, so for test-runner the unfaulted runner runs the tests and they exercise the clone's.
+fault_run() {
+  if [ "$1" = test-runner ]; then TEST_RUNNER_UNDER_TEST="$3/test" "$2/base/test/run" --only "$1"
+  else "$3/test/run" --only "$1"; fi
+}
+
+# fault_feature <id> <work dir>: the baseline, then each patch. One line per patch in <work>/<id>.result.
+fault_feature() {
+  local id="$1" w="$2" p name short c rc base_rc out="$2/$1.result" patches=()
+  : > "$out"
+  for p in "$HERE/faults/$id"/*.patch; do [ -f "$p" ] && patches[${#patches[@]}]="$p"; done
+  [ "${#patches[@]}" -gt 0 ] || return 0
+  c="$w/$id.base"
+  git clone -q "$w/base" "$c" && fault_run "$id" "$w" "$c" > "$w/$id.base.log" 2>&1; base_rc=$?
+  for p in "${patches[@]}"; do
+    short="$(basename "$p" .patch)"; name="$id/$short"
+    if [ "$base_rc" != 0 ]; then echo "error $name: the tests of $id do not pass without the fault (exit $base_rc)" >> "$out"; continue; fi
+    c="$w/$id.$short"
+    git clone -q "$w/base" "$c"
+    if grep -E '^(\+\+\+|---) [ab]/test/' "$p" | grep -qvE "$([ "$id" = test-runner ] && echo ' [ab]/test/(run([[:space:]]|$)|lib/)' || echo '^$')"; then echo "error $name: a fault may not edit test/" >> "$out"
+    elif ! git -C "$c" apply --whitespace=nowarn "$p" 2>"$w/apply.$id"; then echo "error $name: the patch does not apply: $(head -1 "$w/apply.$id")" >> "$out"
+    else
+      git -C "$c" add -A && scratch_git -C "$c" commit -q -m "fault $name"
+      fault_run "$id" "$w" "$c" > "$w/$id.$short.log" 2>&1; rc=$?
+      case "$rc" in
+        1) echo "caught $name" >> "$out" ;;
+        0) echo "missed $name" >> "$out" ;;
+        *) echo "error $name: test/run exited $rc" >> "$out" ;;
+      esac
+    fi
+  done
+}
+
+ids="$*"; full=0; jobs="${FAULT_JOBS:-3}"; short=0
+[ -n "$ids" ] || { full=1; ids="$(feature_ids)"; }
+for id in $ids; do
+  feature_ids | grep -qx -- "$id" || { echo "faults: no feature $id in test/features.txt" >&2; echo "usage: bin/release/faults [<feature>...]" >&2; exit 2; }
+done
+scratch; w="$WORK_EXTRA"
+make_base "$w/base" "$w/index" || { echo "faults: could not make the scratch clone" >&2; exit 2; }
+for id in $ids; do
+  while [ "$(jobs -rp | wc -l)" -ge "$jobs" ]; do sleep 0.5; done
+  ( trap - EXIT; export TEST_JOBS="${TEST_JOBS:-2}"; fault_feature "$id" "$w"; cat "$w/$id.result" ) &
+done
+wait
+: > "$w/all"
+for id in $ids; do
+  cat "$w/$id.result" >> "$w/all"
+  count="$(grep -c . "$w/$id.result")"
+  [ "$count" -ge 3 ] || { echo "short $id: $count of 3 faults planted" >> "$w/all"; short=1; }
+done
+n="$(grep -c '^caught ' "$w/all")"
+m="$(grep -cE '^(caught|missed|error) ' "$w/all")"
+echo "== faults"
+sort "$w/all"
+if [ "$full" = 1 ]; then
+  mkdir -p "$RESULTS"
+  { echo "# bin/release/faults, $(stamp)"; sort "$w/all"; echo "caught $n of $m"; } > "$RESULTS/faults.txt"
+fi
+if [ -n "${FAULT_LOGS:-}" ]; then mkdir -p "$FAULT_LOGS" && cp "$w"/*.log "$FAULT_LOGS"/; fi
+echo "caught $n of $m"
+[ "$n" = "$m" ] && [ "$short" = 0 ]

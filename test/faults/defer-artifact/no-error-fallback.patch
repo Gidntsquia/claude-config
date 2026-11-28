@@ -1,0 +1,10 @@
+An error in the hook is no longer passed through to the normal description.
+--- a/mods/defer-artifact/hooks/register.js
++++ b/mods/defer-artifact/hooks/register.js
+@@ -5,5 +5,5 @@
+   on('tool.describe', { tool: 'Artifact' }, async ($, e, next) => {
+     const described = await next(e)
+     return { ...described, isDeferred: true }
+-  }).catch(($, e, next) => next(e))
++  })
+ }

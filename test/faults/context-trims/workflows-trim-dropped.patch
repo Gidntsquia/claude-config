@@ -1,0 +1,12 @@
+The repo no longer switches Workflows off.
+--- a/settings.json
++++ b/settings.json
+@@ -172,8 +172,6 @@
+       }
+     ]
+   },
+-  "enableWorkflows": false,
+-  "workflowKeywordTriggerEnabled": false,
+   "statusLine": {
+     "type": "command",
+     "command": "bash ~/.claude/statusline.sh"

@@ -1,0 +1,11 @@
+--- a/test/run
++++ b/test/run
+@@ -155,7 +155,7 @@
+       /^[ \t]*@test[ \t]/ { one(filetags " " pending, rel ":" FNR); pending = "" }
+       END {
+         end_python()
+-        for (i = 1; i <= count; i++) if (found["feature:" order[i]] + 0 == 0) bad(order[i] " has no test")
++        for (i = 1; i <= count; i++) if (found["feature:" order[i]] + 0 < 0) bad(order[i] " has no test")
+         print "summary " count + 0 " features, " tests + 0 " tests"
+       }
+     ' "$list" ${files[@]+"${files[@]}"})"

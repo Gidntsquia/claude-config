@@ -17,7 +17,8 @@
 #   <id-prefix> -> S:W.P      put it in pane P of S:W (an idle shell there is reused; a busy pane is refused)
 #   <id-prefix> -> S          put it in the first window of session S with room
 set -euo pipefail
-tm() { if [ -n "${RS_TMUX_L:-}" ]; then tmux -L "$RS_TMUX_L" "$@"; else tmux "$@"; fi; }
+# -u: outside a UTF-8 locale tmux prints a tab in a format as "_", so the tab-separated list asks for UTF-8
+tm() { local u=(); [ "$1" != -u ] || { u=(-u); shift; }; if [ -n "${RS_TMUX_L:-}" ]; then tmux "${u[@]+"${u[@]}"}" -L "$RS_TMUX_L" "$@"; else tmux "${u[@]+"${u[@]}"}" "$@"; fi; }
 
 cand="" out="" stop="" boot="" prev="" projects="${RS_PROJECTS:-$HOME/.claude/projects}"
 fixes=()
@@ -42,7 +43,7 @@ epoch() { [ -n "$1" ] && date -d "$1" +%s 2>/dev/null || echo 0; }
 # Live state. A tmux server that is not running is not an error: every target session is then new.
 panes="$out/panes.tsv"; : > "$panes"
 if tm list-panes -a -F '#{session_name}:#{window_index}.#{pane_index} #{pane_current_command} #{pane_pid}' > "$out/before.txt" 2>/dev/null; then
-  tm list-panes -a -F "#{session_name}	#{window_index}	#{pane_index}	#{pane_id}	#{pane_current_command}	#{pane_pid}" |
+  tm -u list-panes -a -F "#{session_name}	#{window_index}	#{pane_index}	#{pane_id}	#{pane_current_command}	#{pane_pid}" |
   while IFS=$'\t' read -r s w p id cmd pid; do
     kids=$(ps -o args= --ppid "$pid" 2>/dev/null | tr '\n' '\037' || true)
     self=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)

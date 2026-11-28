@@ -30,7 +30,7 @@ def main():
     if not shutil.which("node"):
         blocked("install Node.js so `node` is on PATH (the cards are drawn by cards.mjs)")
     try:
-        r = subprocess.run(["node", os.path.join(HERE, "cards.mjs"), "--find"], capture_output=True, text=True, timeout=60)
+        r = subprocess.run(["node", os.path.join(HERE, "cards.mjs"), "--find"], capture_output=True, text=True, encoding="utf-8", timeout=60)
     except (OSError, subprocess.TimeoutExpired) as ex:
         blocked(f"`node {os.path.join(HERE, 'cards.mjs')} --find` did not run ({ex.__class__.__name__}); fix node and rerun")
     if r.returncode != 0:

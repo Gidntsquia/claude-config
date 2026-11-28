@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Fake `journalctl --list-boots`: prints $FAKE_BOOTS, or fails when there is no such file.
+[ -f "${FAKE_BOOTS:-}" ] || { echo "No journal files were found." >&2; exit 1; }
+cat "$FAKE_BOOTS"

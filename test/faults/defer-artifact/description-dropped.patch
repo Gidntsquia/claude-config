@@ -1,0 +1,11 @@
+The deferred Artifact tool loses its description and other fields.
+--- a/mods/defer-artifact/hooks/register.js
++++ b/mods/defer-artifact/hooks/register.js
+@@ -4,6 +4,6 @@
+ export function register(on) {
+   on('tool.describe', { tool: 'Artifact' }, async ($, e, next) => {
+     const described = await next(e)
+-    return { ...described, isDeferred: true }
++    return { isDeferred: true }
+   }).catch(($, e, next) => next(e))
+ }

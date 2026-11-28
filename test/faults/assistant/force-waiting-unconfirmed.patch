@@ -1,0 +1,12 @@
+force=True on a pane waiting for an answer or on a trust dialog needs no confirmation.
+--- a/assistant/hooks/guard.py
++++ b/assistant/hooks/guard.py
+@@ -177,7 +177,7 @@
+         if me and d["id"] == me and not own_ok:
+             block(f"blocked: {mention(d)} is my own pane; it closes only when the order names me and you answered yes to `this closes me too` (then self=True)")
+     if force and not confirmed:
+-        if d is not None and d["state"] not in ("running", "waiting", "trust"):
++        if d is not None and d["state"] not in ("running",):
+             pass   # force on a pane that is not busy changes nothing: allowed
+         else:
+             what = mention(d) if d is not None else (f"window {target}" if target else "the retile")

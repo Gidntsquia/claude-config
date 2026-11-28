@@ -1,0 +1,12 @@
+settings.json no longer gets the clone's mods in env.CLAUDE_CODE_PLUGIN_DIRS, so defer-artifact never loads.
+--- a/install.sh
++++ b/install.sh
+@@ -201,7 +201,7 @@
+     return os.path.isabs(os.path.expanduser(path)) and not os.path.exists(os.path.expanduser(path))
+ modnames = {m.rsplit("/", 1)[1] for m in mods}
+ dirs = []
+-for d in dirs_in(s.get("env", {}).get("CLAUDE_CODE_PLUGIN_DIRS")) + prior + dirs_in(os.environ.get("CLAUDE_CODE_PLUGIN_DIRS")) + mods:
++for d in dirs_in(s.get("env", {}).get("CLAUDE_CODE_PLUGIN_DIRS")) + prior + dirs_in(os.environ.get("CLAUDE_CODE_PLUGIN_DIRS")):
+     parts = d.replace("\\", "/").rstrip("/").rsplit("/", 2)
+     if len(parts) == 3 and parts[1] == "mods" and parts[2] in modnames and d not in mods and stale(d):
+         continue   # this mod under the clone's old path

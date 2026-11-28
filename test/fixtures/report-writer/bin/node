@@ -1,0 +1,26 @@
+#!/usr/bin/env python3
+"""Stand-in for `node cards.mjs ...` so build.py and preflight.py run without Node or a browser.
+
+`--find` fails with $FAKE_FIND_ERR on stderr when that is set. `<outdir> <mode> <html>` writes cards/measure.json
+with every <section class="card"> 426 css px tall (400 after build.py takes off its 26 px of card padding), or fails
+with $FAKE_CARDS_ERR."""
+import json
+import os
+import re
+import sys
+
+args = sys.argv[2:]
+if args[:1] == ["--find"]:
+    err = os.environ.get("FAKE_FIND_ERR")
+    if err:
+        sys.exit(err)
+    sys.exit(0)
+if os.environ.get("FAKE_CARDS_ERR"):
+    sys.exit(os.environ["FAKE_CARDS_ERR"])
+outdir, mode, page = args
+text = open(os.path.join(outdir, page), encoding="utf-8").read()
+cards = [{"slug": s, "css_height_px": 426} for s in re.findall(r'<section class="card" id="([^"]+)"', text)]
+os.makedirs(os.path.join(outdir, "cards"), exist_ok=True)
+with open(os.path.join(outdir, "cards", "measure.json"), "w") as f:
+    json.dump({"cards": cards, "paragraphs": [], "scale": 2}, f)
+print("fake cards: %s %s" % (mode, len(cards)))

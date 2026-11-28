@@ -1,0 +1,11 @@
+The previous iTerm2 default profile is not saved when Claude tmux becomes the default.
+--- a/install.sh
++++ b/install.sh
+@@ -655,7 +655,6 @@
+       if [ "$DEFPROF" = true ]; then
+         old="$(defaults read com.googlecode.iterm2 'Default Bookmark Guid' 2>/dev/null || true)"
+         if [ "$old" != claude-config-claude-tmux ]; then
+-          [ -n "$old" ] && ITERM_OLD="$old"   # saved in claude-config.json (step 10) as itermDefault
+           defaults write com.googlecode.iterm2 'Default Bookmark Guid' -string claude-config-claude-tmux
+           echo "  iTerm2: \"Claude tmux\" is now the default profile (restart iTerm2). To undo:"
+           if [ -n "$old" ]; then echo "      defaults write com.googlecode.iterm2 'Default Bookmark Guid' -string '$old'"

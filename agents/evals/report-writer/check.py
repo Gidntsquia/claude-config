@@ -60,6 +60,18 @@ Checks: numbers_match_sources  every numbers.json entry equals the value in the 
 """
 import json, os, re, sys, html as H
 
+
+def _utf8_streams():
+    """Windows: Python's stdout is cp1252 and turns each newline into CRLF. Print UTF-8 with plain newlines everywhere."""
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(encoding="utf-8", newline="\n")
+        except (AttributeError, ValueError):
+            pass
+
+
+_utf8_streams()
+
 PROSE = False  # --prose: a hand-written report (golden r4): no verdict box, caveats box or decision table
 NUM_RE = re.compile(r"(?<![\w.:/−+-])[−+-]?\d[\d,]*(?:\.\d+)?%?(?![\w.:/−-])")
 ALLOW = re.compile(r"^(?:\d{4}-\d\d-\d\d|\d\d?:\d\d)$")
@@ -903,7 +915,7 @@ def check_checker_line(page, outdir):
         probs.append("checker/findings.json missing")
     else:
         try:
-            f = json.load(open(fp))
+            f = json.load(open(fp, encoding="utf-8"))
             if not isinstance(f, list):
                 probs.append("checker/findings.json is not a list")
         except ValueError as ex:
@@ -1555,7 +1567,7 @@ def golden_values():
         return
     saved = (list(out_lines), list(fails))
     gp = open(GOLDEN_HTML, encoding="utf-8").read()
-    gn = json.load(open(os.path.join(os.path.dirname(GOLDEN_MD), "numbers.json")))
+    gn = json.load(open(os.path.join(os.path.dirname(GOLDEN_MD), "numbers.json"), encoding="utf-8"))
     STYLE_VALUES.clear()
     GOLDEN_VALUES = {}
     check_style(gp, os.path.dirname(GOLDEN_MD), gn)
@@ -1620,7 +1632,7 @@ def check_expected(outdir, N, page, exp_path, traps_path):
     """--expected expected.json: deciding figures within tolerance, the ask's state words in the ending, trap list complete"""
     if not exp_path or not os.path.exists(exp_path):
         return
-    E = json.load(open(exp_path))
+    E = json.load(open(exp_path, encoding="utf-8"))
     probs = []
     by_label = {}
     for k, e in N.items():
@@ -2024,7 +2036,7 @@ def check_outline_budget(outdir):
     mw = None
     if os.path.exists(mp):
         try:
-            mw = {" ".join(w["section"].split()): w["words"] for w in json.load(open(mp)).get("words", [])}
+            mw = {" ".join(w["section"].split()): w["words"] for w in json.load(open(mp, encoding="utf-8")).get("words", [])}
         except (ValueError, KeyError, TypeError, AttributeError):
             mw = None
     secs = report_sections(src)
@@ -2532,14 +2544,14 @@ def main():
     other = a[a.index("--other") + 1] if "--other" in a else None
     expected = a[a.index("--expected") + 1] if "--expected" in a else None
     rpath = os.path.join(outdir, "report.json")
-    R = json.load(open(rpath)) if os.path.exists(rpath) else None
-    N = json.load(open(os.path.join(outdir, "numbers.json")))
+    R = json.load(open(rpath, encoding="utf-8")) if os.path.exists(rpath) else None
+    N = json.load(open(os.path.join(outdir, "numbers.json"), encoding="utf-8"))
     page = open(os.path.join(outdir, "report.html"), encoding="utf-8").read()
     if mode is None:
         mm = re.search(r'<body data-mode="(\w+)"', page)
         mode = mm.group(1) if mm else "desktop"
     mpath = os.path.join(outdir, "cards", "measure.json")
-    measure = json.load(open(mpath)) if os.path.exists(mpath) else None
+    measure = json.load(open(mpath, encoding="utf-8")) if os.path.exists(mpath) else None
     global PROSE
     PROSE = "--prose" in a
     check_numbers_match_sources(N, data, outdir)

@@ -1,0 +1,12 @@
+--check no longer fails on an evaluator tool belonging to another OS.
+--- a/install.sh
++++ b/install.sh
+@@ -393,7 +393,7 @@
+     [ "$d" = "$TOOLS_OS" ] && continue
+     for n in $(tool_names "$d"); do
+       case "$mine" in *" $n "*) continue ;; esac
+-      if [ -e "$C/local-tools/$n" ] || [ -L "$C/local-tools/$n" ]; then fail "local-tools/$n is a $d tool; this install is ${TOOLS_OS:-neither wsl nor macos} (run ./install.sh)"; fi
++      if [ -e "$C/local-tools/$n" ] || [ -L "$C/local-tools/$n" ]; then warn "local-tools/$n is a $d tool; this install is ${TOOLS_OS:-neither wsl nor macos} (run ./install.sh)"; fi
+     done
+   done
+   if [ "$OS" = mac ]; then

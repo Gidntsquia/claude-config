@@ -26,7 +26,7 @@ If the folder already holds a clone of this repo, run `git -C ~/.claude-config p
 - Read what is in `~/.claude` already: `ls -la ~/.claude ~/.claude/agents ~/.claude/skills` and `~/.claude/settings.json` (note `model` and `statusLine`). Do not change anything.
 - If `~/.claude/claude-config.json` exists, this machine was installed before: run `./install.sh` with no flags (it prints "reusing saved choices"), skip to step 6, and ask none of the questions.
 
-On native Windows without WSL, tell the user before the questions: agents, skills, the settings merge and CLAUDE.md install from Git Bash, but the status line, tmux and the terminal setup need WSL (https://github.com/Gidntsquia/claude-config/wiki/Setting-Up-WSL). Ask only questions 1 and 4, and pass `--no-terminal --statusline keep`.
+On native Windows without WSL, tell the user before the questions: agents, skills, the settings merge, CLAUDE.md and the status line (it needs `jq`) install from Git Bash, but tmux and the terminal setup need WSL (https://github.com/Gidntsquia/claude-config/wiki/Setting-Up-WSL). Leave out the terminal question and pass `--no-terminal`.
 
 ## 4. Ask four questions
 
@@ -63,7 +63,7 @@ Run `./install.sh --check`. Every line must be PASS or SKIP and the last line `a
 
 ## 7. Tour
 
-Run `bash ~/.claude/statusline.sh --preview` (skip it if they kept their status line or are on Windows without WSL), then send this text, filling in `<projects>` and adding one line per kept agent (`Your planner stayed; mine is claude --agent planner-claude-config.`). Leave out step 2 if they said no to the terminal setup.
+Run `bash ~/.claude/statusline.sh --preview` (skip it if they kept their status line), then send this text, filling in `<projects>` and adding one line per kept agent (`Your planner stayed; mine is claude --agent planner-claude-config.`). Leave out step 2 if they said no to the terminal setup.
 
 ```
 Installed. Five steps to get going:

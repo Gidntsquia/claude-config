@@ -1,0 +1,12 @@
+A run aimed at a folder that does not exist goes ahead without asking before creating it.
+--- a/skills/run-agent/scripts/launch.py
++++ b/skills/run-agent/scripts/launch.py
+@@ -219,7 +219,7 @@
+         return ("ask", "unsure", d, d["unsure"][0])
+     if d["dry"]:
+         return ("say", (IGNORED + "\n" if d.get("target_ignored") else "") + dry_text(d), 0)
+-    if d["confirm"] or d.get("dir_state") == "missing":  # a folder is created only after a yes
++    if d["confirm"]:
+         return ("ask", "confirm", d, None)
+     return ("run", d)
+ 

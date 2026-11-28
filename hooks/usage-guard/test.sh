@@ -433,7 +433,9 @@ is "the second call answers from the save, logs emptied (R14)" "$second" "$first
 # ---- R8 / R18: status line ------------------------------------------------------------------------------------------
 SL="$HERE/../../statusline.sh"
 if [ -f "$SL" ] && command -v jq >/dev/null; then
-  mkdir -p "$HOME/.claude/hooks"; ln -sfn "$HERE" "$HOME/.claude/hooks/usage-guard"
+  # No installed guard while the count and FE cases run: with one, the first status line starts `guard fe-refresh`
+  # in the background, and that write (0.0) could land after the 12.4 written below (the 1-in-6 failure on Linux).
+  rm -rf "$HOME/.claude/hooks/usage-guard"
   sl() { printf '{"workspace":{"current_dir":"%s","project_dir":"%s"},"model":{"display_name":"Sonnet"}}' "$1" "$1" | bash "$SL" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'; }
   Q="$T/quiet"; mkdir -p "$Q/.git"
   [[ "$(sl "$Q")" != *guard* ]] && ok "status line silent at count 0" || bad "status line silent at count 0" "$(sl "$Q")"
@@ -442,6 +444,13 @@ if [ -f "$SL" ] && command -v jq >/dev/null; then
   [[ "$(sl "$P")" != *unlocked* ]] && ok "no unlock text without an allow file" || bad "no unlock text without an allow file"
   echo 12.4 > "$S/assistant-agent/$DAY.fe"
   has "status line shows FE after the count" "$(sl "$P")" "guard 7/30 12.4M FE"
+  # the refresh itself, with a stand-in guard that only records its call: started for a stale FE file, not a fresh one
+  mkdir -p "$HOME/.claude/hooks" "$T/stubguard"; ln -sfn "$T/stubguard" "$HOME/.claude/hooks/usage-guard"
+  printf '#!/bin/sh\necho "$@" >> "%s/refresh-called"\n' "$T" > "$T/stubguard/guard"; chmod +x "$T/stubguard/guard"
+  sl "$P" >/dev/null
+  touch -d '-10 minutes' "$S/assistant-agent/$DAY.fe"; sl "$P" >/dev/null
+  i=0; while [ ! -s "$T/refresh-called" ] && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+  is "a stale FE file starts one refresh, a fresh one none" "$(cat "$T/refresh-called" 2>/dev/null)" "fe-refresh $P"
   (cd "$P" && "$GUARD" allow until 9pm >/dev/null)
   has "status line shows the unlock" "$(sl "$P")" "unlocked→21:00"
   (cd "$P" && "$GUARD" revoke >/dev/null)

@@ -36,7 +36,7 @@ while IFS=$'\t' read -r k p now planned; do
   printf '%s\t%s\t%s\t%s\t%s\n' "$k" "$p" "$now" "$cmd" "$cap" >> "$dir/check.tsv"
 done < "$dir/panes-final.tsv"
 # Every pane of the touched windows, for the window x pane table.
-tmux "${L[@]}" list-panes -a -F '#{session_name}:#{window_index}	#{pane_index}	#{pane_id}	#{pane_current_command}	#{pane_pid}' > "$dir/after.tsv" 2>/dev/null
+tmux -u "${L[@]}" list-panes -a -F '#{session_name}:#{window_index}	#{pane_index}	#{pane_id}	#{pane_current_command}	#{pane_pid}' > "$dir/after.tsv" 2>/dev/null
 tmux "${L[@]}" list-panes -a -F '#{session_name}:#{window_index}.#{pane_index} #{pane_current_command} #{pane_pid}' > "$dir/after.txt" 2>/dev/null
 
 png=""

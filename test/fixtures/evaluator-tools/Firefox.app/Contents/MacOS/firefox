@@ -1,0 +1,8 @@
+#!/bin/bash
+# Stands in for Firefox: records its arguments, writes prefs.js into its profile (not with $FF_SLOW), exits at once
+# with $FF_DIE, otherwise stays running until it is killed.
+echo "$*" >> "${FF_LOG:-/dev/null}"
+[ -n "${FF_DIE:-}" ] && exit 1
+prof=""; while [ $# -gt 0 ]; do [ "$1" = -profile ] && prof=$2; shift; done
+[ -n "${FF_SLOW:-}" ] || [ -z "$prof" ] || : > "$prof/prefs.js"
+while :; do sleep 0.2; done

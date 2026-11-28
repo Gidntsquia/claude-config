@@ -1,0 +1,12 @@
+wiki_read no longer finds a page when its title is typed with spaces.
+--- a/helper-mcp/server.py
++++ b/helper-mcp/server.py
+@@ -34,7 +34,7 @@
+ 
+ def _page(name: str) -> Path:
+     name = name.strip()
+-    for cand in (name, f"{name}.md", name.replace(" ", "-"), f"{name.replace(' ', '-')}.md"):
++    for cand in (name, f"{name}.md"):
+         p = WIKI / cand
+         if p.is_file() and p.suffix == ".md":
+             return p

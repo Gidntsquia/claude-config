@@ -1,0 +1,12 @@
+A table split over several cards has its column headings on the first card only.
+--- a/agents/report-writer/build.py
++++ b/agents/report-writer/build.py
+@@ -506,7 +506,7 @@
+     out = []
+     for ci, rows in enumerate(chunks):
+         trs = "".join("<tr>" + "".join(f'<td class="{"num" if numeric[j] else "lab"}">{cell(c, j)}</td>' for j, c in enumerate(r)) + "</tr>" for r in rows)
+-        thead = "<thead><tr>" + "".join(th(j) for j in range(ncol)) + "</tr></thead>"
++        thead = ("<thead><tr>" + "".join(th(j) for j in range(ncol)) + "</tr></thead>") if ci == 0 else ""
+         last = ci == len(chunks) - 1
+         cont = "" if last else ' <span class="cont">(continued)</span>'
+         cap_html = inline(cap, N, "html", used) if last else ""

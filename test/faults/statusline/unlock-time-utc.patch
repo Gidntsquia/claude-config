@@ -1,0 +1,12 @@
+The usage-guard "unlocked" time is shown in UTC instead of US Eastern.
+--- a/statusline.sh
++++ b/statusline.sh
+@@ -520,7 +520,7 @@
+   guard_exp=$(head -1 "$guard_dir/allow" 2>/dev/null)
+   if [ "${guard_exp:-0}" -gt "$(date +%s)" ] 2>/dev/null; then
+     # GNU date takes -d @epoch, macOS date takes -r epoch
+-    guard_seg+=" unlocked→$(TZ="$guard_tz" date -d "@$guard_exp" +%H:%M 2>/dev/null || TZ="$guard_tz" date -r "$guard_exp" +%H:%M)"
++    guard_seg+=" unlocked→$(TZ=UTC date -d "@$guard_exp" +%H:%M 2>/dev/null || TZ=UTC date -r "$guard_exp" +%H:%M)"
+   fi
+   out+=" $(esc '38;2;168;153;132')$guard_seg$(rst)"
+ fi

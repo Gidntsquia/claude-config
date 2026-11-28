@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### One test command and written records 🧪
+
+- `test/run` is the one test command, here and in CI: quick, machine and docker tiers on bats, ending `PASS <n> tests` or `FAIL <failed> of <n>`. The old `test/*.sh` scripts are gone.
+- `test/features.txt` lists every feature; a test belongs to one by its tag, and a run fails when a feature has no test. A failing run names each failed test: `FAILED <feature>: <test name>`.
+- `test/review.md` gives every test a verdict and a reason, one table per feature; 10 duplicate tests were deleted and 59 merged into 18 (805 tests to 757).
+- The suite is pared down by rule: tests with one setup that differed only in input and expected answer are one test looping over a case list. 92 `/run-agent` parse tests became 15 holding the same 107 cases, and a failing case is named: `FAILED <feature>: <test name> [<case>]`. A feature with no test prints `FAILED features: <id> has no test`. Two tests deleted earlier with no covering test are back.
+- A scheduled run whose claude exits with an error in its first two seconds is logged `failed: claude did not start`. Before, the runner could see the process just before it died and log `fired`.
+- `TESTING.md` is the one page: run, read a failure, add a test, what a pass means. Planted faults, repeated runs and the trust report are `bin/release/faults`, `bin/release/repeat <n>` and `bin/release/trust-report`.
+- `ARCHITECTURE.md` and `.claude/CLAUDE.md` are new. `test/run` fails when they name a missing path or outgrow their caps.
+- Windows without WSL: `install.sh` now installs the status line from Git Bash (it needs `jq`); only tmux and the terminal setup are skipped. The report tools, the helper server and the weekly roundup read and write UTF-8 and print forward-slash paths there, and `.gitattributes` keeps every text file LF.
+- `TESTING.md` opens with its three tables; run, read a failure, add a test and what a pass means follow, each a command block and one sentence. The repeated-runs cell reads `<system> agreed <k> of <n>` per system, with the failing tests named when a run failed.
+- `TESTING.md` now says why each piece of the test setup is kept, names the 12 old bugs with the test that fails when each fix is taken out (`bin/release/redgreen.sh`), and gives each feature its counts on main, after the port and now.
+- The usage-guard suite no longer fails now and then at "status line shows FE after the count": a background refresh could overwrite the value the test had just written. `bin/release/repeat 300` runs weekly on Ubuntu and macOS.
+- Status line on Windows Git Bash: the unlock time and the day's launch count now follow US Eastern. Before, they silently followed UTC there.
+- The README carries the last full run's result, written by `bin/release/trust-report all`.
+
 ### Evaluator on a Mac 🍎
 
 - The evaluator now runs on a Mac as it does on a Windows PC. Its tools are split by OS: `local-tools/common/` installs everywhere, `local-tools/wsl/` on WSL and `local-tools/macos/` on a Mac. `wsl/local-tools/` is gone; `./install.sh` relinks.
@@ -15,8 +31,9 @@
 
 ### Install 🧰
 
+- On Windows without symlinks, rerunning `./install.sh` after an update now replaces the copies it made and you did not edit. Before, it kept the old copies as yours. Copies made by an earlier version are still kept: delete them once to get the new ones.
 - `./install.sh --check` prints a PASS or FAIL line per evaluator tool, a FAIL for a tool of the other OS, and on a Mac a Firefox line (`WARN Firefox not installed: items open in the default browser, no phone pictures` when it is missing).
-- New tests: `test/evaluator-tools.sh` (the tools against a stand-in Firefox, `tmux` and `open`, no window opened; real phone pictures from headless Firefox on a Mac), `test/owner-text.sh`, and the `oswsl` and `osmac` cases of `test/install-scenarios.sh`.
+- New tests cover the evaluator tools against a stand-in Firefox, `tmux` and `open` (no window opened), real phone pictures from headless Firefox on a Mac, the author's own text, and installs on WSL and a Mac.
 
 ### The author's own text is out of what you install 🧹
 

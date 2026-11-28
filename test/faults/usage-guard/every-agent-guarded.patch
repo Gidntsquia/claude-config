@@ -1,0 +1,8 @@
+The guard acts on every agent session (planner, evaluator), not only on the worker.
+--- a/hooks/usage-guard/usage_guard.py
++++ b/hooks/usage-guard/usage_guard.py
+@@ -603,3 +603,3 @@
+     marker = os.path.join(G, "sessions", session)
+-    if data.get("agent_type") == "worker":
++    if data.get("agent_type"):
+         if session and not os.path.exists(marker):

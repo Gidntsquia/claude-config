@@ -1,3 +1,4 @@
+# feature:weekly-roundup
 """daychart.py (week and archive bar charts) and build_archive.py's `days` handling."""
 import os
 import json
@@ -55,9 +56,9 @@ def test_archive_chart_and_days_required(tmp_path):
         r = subprocess.run([sys.executable, str(HERE / "build_archive.py"), "--base", str(base), "--add", str(week),
                             "--days-from", str(out), "--out", str(tmp_path / "a.html")], capture_output=True, text=True, env=env)
         assert r.returncode == 0, r.stderr
-        page = (tmp_path / "a.html").read_text()
+        page = (tmp_path / "a.html").read_text(encoding="utf-8")
         assert "Usage by day" in page and "no daily data" in page and 'title="Alpha · Jet · 10.0%"' in page
-        weeks = json.loads(weeks_file.read_text())
+        weeks = json.loads(weeks_file.read_text(encoding="utf-8"))
         assert weeks[0] == old and weeks[1]["days"] == DAYS
     finally:
         weeks_file.write_text(saved)

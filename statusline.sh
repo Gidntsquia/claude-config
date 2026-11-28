@@ -504,7 +504,9 @@ out+="$(esc "${prev_fg}")${SEP}$(rst)"
 # Shown only once the project has a counted launch today; silent otherwise.
 guard_root=$(git -C "${project_dir:-$cwd}" rev-parse --show-toplevel 2>/dev/null) || guard_root="${project_dir:-$cwd}"
 guard_dir="$HOME/.cache/claude-guard/$(basename "$guard_root")"
-guard_day=$(TZ=America/New_York date +%F)
+# US Eastern spelled out: Git Bash on Windows has no zone files, and there America/New_York silently reads as UTC
+guard_tz="EST5EDT,M3.2.0,M11.1.0"
+guard_day=$(TZ="$guard_tz" date +%F)
 guard_count=$(cat "$guard_dir/$guard_day.count" 2>/dev/null)
 if [ "${guard_count:-0}" -gt 0 ] 2>/dev/null; then
   guard_seg="guard $guard_count/30"
@@ -517,7 +519,8 @@ if [ "${guard_count:-0}" -gt 0 ] 2>/dev/null; then
   fi
   guard_exp=$(head -1 "$guard_dir/allow" 2>/dev/null)
   if [ "${guard_exp:-0}" -gt "$(date +%s)" ] 2>/dev/null; then
-    guard_seg+=" unlocked→$(TZ=America/New_York date -d "@$guard_exp" +%H:%M)"
+    # GNU date takes -d @epoch, macOS date takes -r epoch
+    guard_seg+=" unlocked→$(TZ="$guard_tz" date -d "@$guard_exp" +%H:%M 2>/dev/null || TZ="$guard_tz" date -r "$guard_exp" +%H:%M)"
   fi
   out+=" $(esc '38;2;168;153;132')$guard_seg$(rst)"
 fi
