@@ -3,8 +3,9 @@
 #        bin/release/trust-report all      first run `test/run all`, keep this system's result in
 #                                          test/results/full-<system>.txt and rewrite the README status line
 # The trust report: why each piece of the test system is kept and its number today, the old bugs replayed by name and
-# the tests per feature before and after, each read from the tags on the tests and from the last recorded runs in
-# test/results/ (bin/release/faults, repeat, redgreen.sh; before.txt for main and the port).
+# the tests per feature before and after, then one line saying when each was measured. All of it is read from the
+# tags on the tests and from the last recorded runs in test/results/ (bin/release/faults, repeat, redgreen.sh;
+# before.txt for main and the port).
 set -u
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 HERE="$REPO/test"
@@ -17,6 +18,12 @@ trap '[ -z "$WORK_EXTRA" ] || rm -rf "${WORK_EXTRA:?}"' EXIT
 
 result_head() { sed -n '1s/^# [^,]*, //p' "$1"; }
 result_count() { sed -n "s/^$2 \([0-9]* of [0-9]*\)\$/\1/p" "$1"; }
+
+# failed_names <repeat result file>: the tests that failed in any run, each once, `; ` between them
+failed_names() {
+  sed -n 's/^run [0-9]* seed [0-9]*: FAIL .*\[\(.*\)\]$/\1/p' "$1" | tr ';' '\n' | sed 's/|/\//g' | awk 'NF && !seen[$0]++' |
+    awk '{ printf "%s%s", (NR > 1 ? "; " : ""), $0 } END { if (NR) print "" }'
+}
 
 # now_counts: `<feature id> <tests carrying its tag>` per line, counted as test/run counts them
 now_counts() {
@@ -78,13 +85,12 @@ report_block() {
   for f in "$RESULTS"/repeat-*.txt; do
     [ -f "$f" ] || continue
     sys="$(basename "$f" .txt)"; sys="${sys#repeat-}"
-    extra="$(grep -cE '^run [0-9]+ seed [0-9]+: FAIL ' "$f")"
-    [ "$extra" = 0 ] && extra="" || extra=" ($extra failed)"
-    cell="${cell:+$cell, }$sys $(result_count "$f" agreed)$extra"
+    extra="$(failed_names "$f")"
+    cell="${cell:+$cell, }$sys agreed $(result_count "$f" agreed)${extra:+ (failed: $extra)}"
     measured="${measured:+$measured; }repeat on $sys $(result_head "$f")"
   done
   f="$RESULTS/repeat.txt"
-  if [ -n "$cell" ]; then cell="$cell shuffled runs agreed"
+  if [ -n "$cell" ]; then :
   elif [ -f "$f" ]; then
     extra="$(grep -cE '^run [0-9]+ seed [0-9]+: FAIL ' "$f")"
     [ "$extra" = 0 ] && extra="" || extra=" ($extra of the runs failed)"
@@ -93,13 +99,6 @@ report_block() {
   echo "| Repeated runs (\`bin/release/repeat <n>\`) | a test that passes only sometimes, or only in one order, is found before you are | $cell |"
   echo "| Stand-in comparisons (\`standin:<id>\`) | 11 errors reached a real Mac because a stand-in differed from the tool it stood for | $(tags_of standin | grep -c .) compared in the machine tier |"
   echo "| Record caps (\`FAILED records:\`) | this page, \`ARCHITECTURE.md\` and \`.claude/CLAUDE.md\` stay short and name only real paths | this page: at most 80 lines |"
-  echo
-  f="$RESULTS/faults.txt"
-  if [ -f "$f" ]; then
-    missed="$(grep -E '^(missed|error|short) ' "$f" | awk '{ sub(/:$/, "", $2); printf "%s ", $2 }')"
-    [ -z "$missed" ] || missed=" Faults not caught: ${missed% }."
-  fi
-  echo "Written by \`bin/release/trust-report\` from the tags and \`test/results/\`${measured:+. Measured: $measured}.${missed:-}"
   # the old bugs by name: `bug <id> | <what happened> | <test that went red>` lines of escapes.txt
   f="$RESULTS/escapes.txt"
   if [ -f "$f" ] && grep -q '^bug ' "$f"; then
@@ -129,6 +128,13 @@ report_block() {
       i=$((i + 1))
     done
   fi
+  f="$RESULTS/faults.txt"
+  if [ -f "$f" ]; then
+    missed="$(grep -E '^(missed|error|short) ' "$f" | awk '{ sub(/:$/, "", $2); printf "%s ", $2 }')"
+    [ -z "$missed" ] || missed=" Faults not caught: ${missed% }."
+  fi
+  echo
+  echo "Written by \`bin/release/trust-report\` from the tags and \`test/results/\`${measured:+. Measured: $measured}.${missed:-}"
 }
 
 doc="$REPO/TESTING.md"

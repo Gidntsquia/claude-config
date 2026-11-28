@@ -11,6 +11,7 @@
 - `TESTING.md` is the one page: run, read a failure, add a test, what a pass means. Planted faults, repeated runs and the trust report are `bin/release/faults`, `bin/release/repeat <n>` and `bin/release/trust-report`.
 - `ARCHITECTURE.md` and `.claude/CLAUDE.md` are new. `test/run` fails when they name a missing path or outgrow their caps.
 - Windows without WSL: `install.sh` now installs the status line from Git Bash (it needs `jq`); only tmux and the terminal setup are skipped. The report tools, the helper server and the weekly roundup read and write UTF-8 and print forward-slash paths there, and `.gitattributes` keeps every text file LF.
+- `TESTING.md` opens with its three tables; run, read a failure, add a test and what a pass means follow, each a command block and one sentence. The repeated-runs cell reads `<system> agreed <k> of <n>` per system, with the failing tests named when a run failed.
 - `TESTING.md` now says why each piece of the test setup is kept, names the 12 old bugs with the test that fails when each fix is taken out (`bin/release/redgreen.sh`), and gives each feature its counts on main, after the port and now.
 - The usage-guard suite no longer fails now and then at "status line shows FE after the count": a background refresh could overwrite the value the test had just written. `bin/release/repeat 300` runs weekly on Ubuntu and macOS.
 - Status line on Windows Git Bash: the unlock time and the day's launch count now follow US Eastern. Before, they silently followed UTC there.

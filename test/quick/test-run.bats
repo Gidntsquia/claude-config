@@ -574,13 +574,13 @@ fault() {
   assert_success
   assert_equal "$(last_line)" "agreed 2 of 2"
   assert_equal "$(head -n 1 "$R/test/results/repeat-macOS.txt")" "# bin/release/repeat 2, CI run 7, 11-27, commit abc"
-  printf 'run 1 seed 1: PASS 4 tests\n' >"$BATS_TEST_TMPDIR/short"
-  tool repeat REPEAT_RECORD=Ubuntu REPEAT_NOTE="CI run 7, 11-27, commit abc" -- 2 "$BATS_TEST_TMPDIR/short"
+  printf 'run 1 seed 1: PASS 4 tests\nrun 2 seed 2: FAIL 2 of 4 [x: the late one;y: a | b;]\nrun 3 seed 3: FAIL 1 of 4 [x: the late one;]\n' >"$BATS_TEST_TMPDIR/short"
+  tool repeat REPEAT_RECORD=Ubuntu REPEAT_NOTE="CI run 7, 11-27, commit abc" -- 3 "$BATS_TEST_TMPDIR/short"
   assert_failure
   printf '<!-- trust-report:start -->\n<!-- trust-report:end -->\n' >"$R/TESTING.md"
   tool trust-report
   assert_success
-  assert_output --partial "| Ubuntu 1 of 2, macOS 2 of 2 shuffled runs agreed |"
+  assert_output --partial "| Ubuntu agreed 1 of 3 (failed: x: the late one; y: a / b), macOS agreed 2 of 2 |"
   assert_output --partial "repeat on macOS CI run 7, 11-27, commit abc"
 }
 
@@ -594,6 +594,21 @@ fault() {
   tool trust-report
   assert_success
   assert_output --partial "| 2 of 2 shuffled runs agreed (2 of the runs failed) |"
+}
+
+# bats test_tags=feature:test-runner
+@test "bin/release/trust-report: the three tables come first and the line saying when each was measured comes last" {
+  mkdir -p "$R/test/results"
+  put a.bats true
+  features_are "x | one"
+  printf '# by hand, 11-27 on Test, commit abc\nbug e1 | the clock ran backwards | clock: it counts forwards\nred 1 of 1\n' >"$R/test/results/escapes.txt"
+  printf 'x | 7 | 3\n' >"$R/test/results/before.txt"
+  printf '# Testing\n<!-- trust-report:start -->\n<!-- trust-report:end -->\n' >"$R/TESTING.md"
+  tool trust-report
+  assert_success
+  run grep -n '^| Piece \|^| Old bug \|^| Feature | \|^Written by \|^<!-- trust-report:end' "$R/TESTING.md"
+  assert_equal "$(printf '%s\n' "$output" | sed 's/^[0-9]*:\(.\{9\}\).*/\1/' | tr '\n' ',')" "| Piece |,| Old bug,| Feature,Written b,<!-- trus,"
+  assert_equal "$(sed -n 3p "$R/TESTING.md")" "| Piece | Why it is kept | Today |"
 }
 
 # workflow_step <step name>: the script of that step of the CI workflow, with its ${{ }} values replaced by 1

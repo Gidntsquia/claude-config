@@ -2,9 +2,9 @@
 
 Every test, what break it catches, and a verdict: keep, merge, delete or new. `before` counts the tests as they stood
 on commit 4bbcc43 (2026-11-27); `after` counts the `@test` lines in the tree now. The `after` numbers sum to
-663, the number of `@test` lines under `test/`. The pytest functions are in the last table and in no sum.
+665, the number of `@test` lines under `test/`. The pytest functions are in the last table and in no sum.
 
-Total: before 784, after 663 (8 deleted; 143 merged into 25; 5 added since, marked new).
+Total: before 784, after 665 (8 deleted; 143 merged into 25; 7 added since, marked new).
 
 - A test is listed once, under the first feature it is tagged with.
 - merge: tests with one setup whose bodies differed only in the input and the expected answer are one test looping
@@ -986,6 +986,7 @@ test/run: tiers, lint, feature list.
 | bin/release/trust-report all: runs every tier, records this system's result and rewrites the README status line | trust-report all not running every tier or not rewriting the README line | keep | the pages a new session reads; an unchecked page goes stale |
 | bin/release/trust-report: any argument but all is refused | trust-report accepting other arguments | keep | the pages a new session reads; an unchecked page goes stale |
 | test/run: a TESTING.md over 80 lines fails the run; 80 passes | TESTING.md growing past 80 lines | keep | the pages a new session reads; an unchecked page goes stale |
+| TESTING.md: the tables follow the title, then four sections, each a command and at most one sentence | prose growing back above the tables, or a section past one sentence | new | the pages a new session reads; an unchecked page goes stale |
 | the project CLAUDE.md points a session at the records and the one test command | the project CLAUDE.md no longer pointing at the records and test/run | keep | the pages a new session reads; an unchecked page goes stale |
 | the README's status line links to TESTING.md | the README status line no longer linking to TESTING.md | keep | the pages a new session reads; an unchecked page goes stale |
 | ARCHITECTURE.md: every part says its folder and where new work goes | an ARCHITECTURE.md row with no folder or no place for new work | keep | the pages a new session reads; an unchecked page goes stale |
@@ -1031,13 +1032,14 @@ test/run: tiers, lint, feature list.
 | bin/release/trust-report: repeated runs that all failed the same way are shown as failed | runs that all failed alike shown as agreement | keep | the runner's own promise; if this breaks, a pass means nothing |
 | weekly repeat job: passes at 300 passing runs on each system, fails when 300 failed the same way or a system is missing | the weekly job passing on 300 identical failures | keep | the runner's own promise; if this breaks, a pass means nothing |
 | weekly repeat job: a shard that dies before finishing leaves no old result to upload | a dead shard uploading an old result | keep | the runner's own promise; if this breaks, a pass means nothing |
+| bin/release/trust-report: the three tables come first and the line saying when each was measured comes last | the measured line splitting the tables again | new | the runner's own promise; if this breaks, a pass means nothing |
 | bin/release/trust-report: a TESTING.md without the marks is left alone and exits 2 | a TESTING.md without marks rewritten | keep | the runner's own promise; if this breaks, a pass means nothing |
 | bin/release/trust-report: names each replayed bug with its test, and gives each feature its counts before and now | the page losing the list of old bugs or the per-feature counts | new | the runner's own promise; if this breaks, a pass means nothing |
 | bin/release/repeat <n> <files> with REPEAT_RECORD keeps each system's sum, and the trust report shows them side by side | one system's repeat result overwriting the other's | new | the runner's own promise; if this breaks, a pass means nothing |
 | test/run: a looped test that fails names the case it stopped at, in brackets on its FAILED line | a failing case list not saying which case failed | new | the runner's own promise; if this breaks, a pass means nothing |
 | install.sh --check prints PASS for every link after a fresh install | nothing: it is the example in `test/quick/_template.bats`, which `test/run` does not run | new | the file a new feature's tests are copied from; listed so the `after` sum equals the `@test` lines |
 
-before 56, after 60
+before 56, after 62
 
 ## pytest functions
 

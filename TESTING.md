@@ -1,38 +1,4 @@
 # Testing
-## Run the tests
-```
-test/run                     # the quick tier: every OS, no network, nothing of yours touched
-test/run all                 # quick, machine (real tools) and docker: before a release
-test/run --only <feature>    # one feature's tests; the ids are the first column of test/features.txt
-```
-The last line is `PASS <n> tests` or `FAIL <failed> of <n>`. Nothing else is an argument.
-
-## Read a failure
-```
-FAILED install: install.sh --check prints PASS for every link after a fresh install
-FAIL 1 of 800
-```
-A failing run ends with one such line per failed test: the feature that broke, then the test's name, then
-`[<case>]` when the test loops over a case list. Search `test/` for the name; what the test printed is higher up,
-under `not ok`. `FAILED lint:`, `FAILED features:` and `FAILED records:` come from the checks made before any test.
-
-## Add a test
-1. Open the feature's file in `test/quick/`. A new input for a behaviour that has a case list: add one line to it.
-2. Else copy a neighbouring `@test` with the line above it, `# bats test_tags=feature:<id>`, and rename it.
-3. Run `test/run`; see it fail before the code exists, pass after.
-
-No other file is edited. A new feature: a row in `test/features.txt` (`<id> | <description>`) and a copy of
-`test/quick/_template.bats`; a new test file passes `bin/release/repeat 10` before it is committed. A bug that reached
-a real machine: a test also tagged `escape:<id>`; a stand-in against the real tool: `standin:<id>`. Verdicts: `test/review.md`.
-
-## What a pass means
-Every feature in `test/features.txt` behaved as its tests assert, on the system that ran them (CI: Linux, macOS and
-Windows for quick; Linux and macOS for machine; Linux for docker), from throwaway homes. Not covered: what only a
-signed-in session shows (the usage API's success answer, Claude Code's hooks, mods and permissions:
-`bin/release/rehearsal.sh`); real windows (Firefox and iTerm2 open only with `EVSHOW_LIVE=1` or in CI; WSL's Windows
-side has no runner); your own Mac's PATH, shell files and `~/.claude`; a skipped machine test (its line says why).
-
-## Why each piece exists, and how far to trust a pass
 <!-- trust-report:start -->
 | Piece | Why it is kept | Today |
 |---|---|---|
@@ -44,8 +10,6 @@ side has no runner); your own Mac's PATH, shell files and `~/.claude`; a skipped
 | Repeated runs (`bin/release/repeat <n>`) | a test that passes only sometimes, or only in one order, is found before you are | 10 of 10 shuffled runs agreed |
 | Stand-in comparisons (`standin:<id>`) | 11 errors reached a real Mac because a stand-in differed from the tool it stood for | 17 compared in the machine tier |
 | Record caps (`FAILED records:`) | this page, `ARCHITECTURE.md` and `.claude/CLAUDE.md` stay short and name only real paths | this page: at most 80 lines |
-
-Written by `bin/release/trust-report` from the tags and `test/results/`. Measured: faults 2026-11-27 06:40 PM ET on Darwin, commit 3255399; old bugs 2026-11-27 06:09 PM ET on Darwin, commit 8c957cf; repeat 2026-11-27 02:05 PM ET on Darwin, commit 978e0de. Faults not caught: restore-sessions/resume-without-model.
 
 | Old bug that reached a real machine, its fix taken out again | Test that went red |
 |---|---|
@@ -69,12 +33,48 @@ Written by `bin/release/trust-report` from the tags and `test/results/`. Measure
 | updates | in install | in install | 45 | update-by-claude | 0 | 0 | 3 |
 | install-check | in install | in install | 23 | statusline | 0 | 0 | 10 |
 | installed-text | 3 | 3 | 4 | agent-prompts | 0 | 0 | 13 |
-| run-agent | 329 | 275 | 255 | terminal-setup | 19 | 18 | 9 |
+| run-agent | 329 | 275 | 178 | terminal-setup | 19 | 18 | 9 |
 | usage-api | 3 | 2 | 4 | phone-pictures | in evaluator-tools | 11 | 15 |
-| evaluator-tools | 140 | 71 | 71 | wsl-tools | 2 | 0 | 33 |
+| evaluator-tools | 140 | 71 | 73 | wsl-tools | 2 | 0 | 33 |
 | windows-install | in install | 0 | 8 | helper | 0 | 0 | 13 |
 | usage-guard | 286 | 0 | 9 | assistant | 0 | 0 | 15 |
 | report-writer | 0 | 0 | 34 | doc-skills | 0 | 0 | 11 |
 | restore-sessions | 0 | 0 | 32 | context-trims | 0 | 0 | 6 |
-| test-speedup | 0 | 0 | 18 | test-runner | 0 | 11 | 58 |
+| test-speedup | 0 | 0 | 18 | test-runner | 0 | 11 | 61 |
+
+Written by `bin/release/trust-report` from the tags and `test/results/`. Measured: faults 2026-11-28 02:17 AM ET on Darwin, commit 26853e3 with uncommitted changes; old bugs 2026-11-28 01:22 AM ET on Darwin, commit 26853e3; repeat 2026-11-28 03:01 AM ET on Darwin, commit 62a1d61. Faults not caught: restore-sessions/resume-without-model.
 <!-- trust-report:end -->
+
+## Run the tests
+```
+test/run                     # Quick tier: runs on every OS, uses no network and a throwaway home
+test/run all                 # Quick, machine (real tools) and docker. Run it before a release
+test/run --only <feature>    # One feature's tests. The ids are the first column of test/features.txt
+```
+The last line is `PASS <n> tests` or `FAIL <failed> of <n>`.
+
+## Read a failure
+```
+FAILED run-agent: /run-agent time: a length of time after in counts from now [worker in 90m]
+FAIL 1 of 632
+grep -rn "a length of time after in counts from now" test/    # What the test printed is higher up, under "not ok"
+```
+Each failed test gets one `FAILED` line with its feature, its name and, for a test that loops over a case list, the failing case in brackets.
+
+## Add a test
+```
+worker in an hour => 2026-10-22 19:00 | in an hour |    # A new input for a behaviour with a case list is one line in that list
+# bats test_tags=feature:<id>                           # Otherwise copy a neighbouring @test with this line above it and rename it
+test/run --only <id>                                    # It should fail before the code exists and pass after
+cp test/quick/_template.bats test/quick/<id>.bats       # A new feature. It also needs a row in test/features.txt
+bin/release/repeat 10                                   # A new test file has to pass this before it's committed
+```
+A new case or test for an existing feature edits no other file, and a bug that reached a real machine adds `,escape:<bug>` to the tag line.
+
+## What a pass means
+```
+test/run all                      # CI runs quick on Linux, macOS and Windows, machine on Linux and macOS, docker on Linux
+EVSHOW_LIVE=1 test/run machine    # Opens real Firefox windows on a Mac. Without it only CI does
+bin/release/rehearsal.sh          # Covers what only a signed-in session shows (the usage API's success answer, Claude Code's hooks, mods, permissions)
+```
+A pass says every feature in `test/features.txt` behaved as its tests assert on the system that ran them, which leaves out WSL's Windows side, your own PATH, shell files and `~/.claude`, and any skipped machine test.

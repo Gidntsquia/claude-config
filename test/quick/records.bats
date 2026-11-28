@@ -139,6 +139,28 @@ status_line_of() {
   assert_line "FAILED records: TESTING.md has 81 lines, at most 80: it is the one page about the tests"
 }
 
+@test "TESTING.md: the tables follow the title, then four sections, each a command and at most one sentence" {
+  run python3 - "$REPO/TESTING.md" <<'EOF'
+import re, sys
+lines = open(sys.argv[1], encoding="utf-8").read().split("\n")
+assert lines[0] == "# Testing" and lines[1] == "<!-- trust-report:start -->", lines[:2]
+end = lines.index("<!-- trust-report:end -->")
+assert not [l for l in lines[:end] if l.startswith("## ")], "a heading before the tables"
+rest = "\n".join(lines[end + 1:])
+parts = re.split(r"(?m)^## (.*)$", rest)
+names = parts[1::2]
+assert names == ["Run the tests", "Read a failure", "Add a test", "What a pass means"], names
+for name, body in zip(names, parts[2::2]):
+    assert body.count("```") == 2, name + ": one code block"
+    prose = re.sub(r"(?s)```.*?```", "", body)
+    ends = len(re.findall(r"[.?!:](?=\s|$)", prose.strip()))
+    assert ends <= 1, "%s: %d sentences" % (name, ends)
+    assert prose.strip(), name + ": no sentence"
+print("shape ok")
+EOF
+  assert_output "shape ok"
+}
+
 @test "the project CLAUDE.md points a session at the records and the one test command" {
   run cat "$REPO/.claude/CLAUDE.md"
   for want in "test/run" "ARCHITECTURE.md" "test/features.txt" "TESTING.md" "agents/USAGE.txt" "planner" "worker" "evaluator"; do
