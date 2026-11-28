@@ -86,12 +86,13 @@ window_run_fires_at_its_time() {  # <seconds from run_at to "until">
   assert_equal "$(jget "$ID" run_at)" "$R"
   usage_at $(( R + 18000 ))
   assert_file_exist "$RUN_AGENT_HOME/jobs/$ID.json"   # still pending: the API moved before the run fired
-  logged 30 "  #$ID  "
+  logged 75 "  #$ID  "
   fired=$(date +%s)
-  # 'woke N s after' allows up to 19 s here and 15 s from the clock below: a loaded runner has woken 10 s late; the
-  # fault guarded against is a skip or an hour's sleep
+  # 'woke N s after' allows up to 19 s here and 75 s from the clock below, which also holds the runner's wait for
+  # claude to start: loaded macOS runners logged more than 15 s after the due time (3 of 300 runs). The fault
+  # guarded against is a skip or an hour's sleep
   fhas "$LOG" "  #$ID  fired  $SHOWN  (due $(python3 "$RA_SRC/parse.py" --fmt-s "$R") live, woke 1\{0,1\}[0-9] s after)\$"
-  [ $(( fired - R )) -le 15 ]
+  [ $(( fired - R )) -le 75 ]
   no grep -q "  #$ID  \(skipped\|fired late\)" "$LOG"
   claude_ran 'arg=worker: repo (fable)'
   assert_equal "$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['run_at'])" "$RUN_AGENT_HOME/done/$ID.json")" "$R"

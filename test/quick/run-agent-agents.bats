@@ -56,7 +56,8 @@ waiting_job() {
   ra_asleep "$ID"
   local pid; pid="$(jget "$ID" pid)"
   TM kill-window -t t:agentwin
-  logged 20 "  #$ID  waiting: no pane  "
+  # 60 s: a loaded macOS runner took over 20 s from the kill to this line (the runner starts python some 20 times)
+  logged 60 "  #$ID  waiting: no pane  "
   ra_dead "$pid"
 }
 
@@ -99,6 +100,8 @@ waiting_job() {
   keys "'$S' --jobs > '$T/ag3.out' 2>&1"
   logged 20 "  #$ID  fired in new window  "
   claude_ran 'arg=worker: repo'
+  # the call prints this line after the fake claude has started: wait for it
+  wait_until 15 grep -q "^waiting job #$ID started in a new window: " "$T/ag3.out"
   fhas "$T/ag3.out" "^waiting job #$ID started in a new window: "
   assert_equal "$(windows)" $(( n + 1 ))
   assert_equal "$(TM list-panes -t t:0 | wc -l)" 1

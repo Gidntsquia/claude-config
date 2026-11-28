@@ -20,7 +20,8 @@ result_count() { sed -n "s/^$2 \([0-9]* of [0-9]*\)\$/\1/p" "$1"; }
 
 # now_counts: `<feature id> <tests carrying its tag>` per line, counted as test/run counts them
 now_counts() {
-  test_files | python3 -c '
+  # paths relative to the repo: Windows Python cannot open Git Bash's /tmp/... or /c/... paths
+  test_files | while IFS= read -r f; do printf '%s\n' "${f#"$REPO"/}"; done | (cd "$REPO" && python3 -c '
 import re, sys
 n = {}
 for path in sys.stdin.read().split("\n"):
@@ -50,7 +51,7 @@ for path in sys.stdin.read().split("\n"):
             pending = set()
 sys.stdout.reconfigure(newline="\n")
 for t in sorted(n):
-    print(t, n[t])'
+    print(t, n[t])')
 }
 
 report_block() {
