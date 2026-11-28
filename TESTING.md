@@ -12,18 +12,18 @@ The last line is `PASS <n> tests` or `FAIL <failed> of <n>`. Nothing else is an 
 FAILED install: install.sh --check prints PASS for every link after a fresh install
 FAIL 1 of 800
 ```
-A failing run ends with one such line per failed test: the feature that broke, then the test's name. Search `test/`
-for the name; what the test printed is higher up, under `not ok`. `FAILED lint:`, `FAILED features:` and
-`FAILED records:` come from the checks made before any test runs; each says the file, the line and what to change.
+A failing run ends with one such line per failed test: the feature that broke, then the test's name, then
+`[<case>]` when the test loops over a case list. Search `test/` for the name; what the test printed is higher up,
+under `not ok`. `FAILED lint:`, `FAILED features:` and `FAILED records:` come from the checks made before any test.
 
 ## Add a test
-1. Open the feature's file in `test/quick/` and copy a neighbouring `@test`.
-2. Keep the line above it, `# bats test_tags=feature:<id>`, and rename the test after what a user sees.
+1. Open the feature's file in `test/quick/`. A new input for a behaviour that has a case list: add one line to it.
+2. Else copy a neighbouring `@test` with the line above it, `# bats test_tags=feature:<id>`, and rename it.
 3. Run `test/run`; see it fail before the code exists, pass after.
 
 No other file is edited. A new feature: a row in `test/features.txt` (`<id> | <description>`) and a copy of
-`test/quick/_template.bats`. A bug that reached a real machine: a test also tagged `escape:<id>`; a machine test of a
-stand-in against the real tool: `standin:<id>`. Each test's verdict (keep, merge, delete): `test/review.md`.
+`test/quick/_template.bats`; a new test file passes `bin/release/repeat 10` before it is committed. A bug that reached
+a real machine: a test also tagged `escape:<id>`; a stand-in against the real tool: `standin:<id>`. Verdicts: `test/review.md`.
 
 ## What a pass means
 Every feature in `test/features.txt` behaved as its tests assert, on the system that ran them (CI: Linux, macOS and

@@ -22,7 +22,7 @@ setup() {
   echo "scratch" >"$R/.claude/CLAUDE.md"
 }
 
-# put <file under test/quick> <test body>: one @test in a file of its own.
+# put <file under test/quick> <test body>: one test in a file of its own.
 put() { printf '# bats file_%s=feature:x\n@%s "case" {\n  %s\n}\n' tags test "$2" >"$R/test/quick/$1"; }
 
 # list: a features.txt that matches the scratch files, unless the case wrote its own
@@ -65,6 +65,19 @@ last_line() { printf '%s\n' "$output" | tail -n 1; }
   suite
   assert_failure 1
   assert_equal "$(last_line)" "FAIL 1 of 2"
+}
+
+# bats test_tags=feature:test-runner
+@test "test/run: a looped test that fails names the case it stopped at, in brackets on its FAILED line" {
+  put a.bats 'for c in "at 9pm" "in 2h" "at noon"; do echo "case: $c"; [ "$c" != "in 2h" ]; done'
+  put b.bats 'echo "case: passes"; true'
+  put c.bats 'echo "no case line"; false'
+  suite
+  assert_failure 1
+  assert_line "FAILED x: case [in 2h]"
+  assert_line "FAILED x: case"
+  assert_equal "$(printf '%s\n' "$output" | grep -c '^FAILED ')" 2
+  assert_equal "$(last_line)" "FAIL 2 of 3"
 }
 
 # bats test_tags=feature:test-runner
@@ -171,7 +184,7 @@ last_line() { printf '%s\n' "$output" | tail -n 1; }
   suite
   assert_failure 1
   assert_line "FAILED lint: test/quick/a.bats:3: sleep: use wait_until <seconds> <command>"
-  assert_line "FAILED features: beta: no test is tagged feature:beta"
+  assert_line "FAILED features: beta has no test"
 }
 
 # bats test_tags=feature:test-runner
@@ -251,8 +264,8 @@ tagged() {
   own "alpha | A" "beta | B"
   suite
   assert_failure 1
-  assert_line "features: beta: no test is tagged feature:beta"
-  assert_line "FAILED features: beta: no test is tagged feature:beta"
+  assert_line "features: beta has no test"
+  assert_line "FAILED features: beta has no test"
 }
 
 # bats test_tags=feature:test-runner

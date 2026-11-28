@@ -37,6 +37,7 @@ to this repo. `test/run` checks that every path named here exists.
 - bats-core runs the tests: the maintained runner that works on bash 3.2 and Windows Git Bash.
 - `test/run` takes a tier or `--only <feature>` and nothing else; faults, repeat and the report are release tools.
 - Tests are counted from their tags; the feature list holds no numbers, so adding a test edits one file.
+- Tests that differ only in input and expected answer are one test over a case list (`pcases` in `test/helpers/run-agent.bash`); it prints `case: <input>` and a failure names the case. Different behaviours are never merged; a test is deleted only when a named test covers it.
 - Stand-ins in the quick tier must be compared with the real tool in the machine tier (a test tagged `standin:<id>`).
 - Every test starts from a throwaway home; 11 errors reached a real Mac because tests began clean and faked what failed, so lived-in homes are tested too.
 - An install never overwrites or backs up a file of the user's own; it says `kept yours`.

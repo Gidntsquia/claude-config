@@ -9,7 +9,8 @@
 #
 # Order: lint over the test files, the feature list (test/features.txt), the records (test/lib/records.bash), then
 # the tier's tests (several files at once: TEST_JOBS). A failing run ends with one `FAILED <feature>: <test name>`
-# line per failure, then `FAIL <failed> of <n>` (exit 1). A passing run ends `PASS <n> tests` (exit 0). Exit 2 means
+# line per failure (`FAILED <feature>: <test name> [<case>]` when a looped test printed `case: <input>` lines), then
+# `FAIL <failed> of <n>` (exit 1). A passing run ends `PASS <n> tests` (exit 0). Exit 2 means
 # the suite could not start (bad argument, no bats).
 # A skipped test is counted in <n>; `skipped <k>` is printed above the result. In the quick tier a skip whose reason
 # says something is "missing" is a failure.
@@ -155,7 +156,7 @@ features() {
       /^[ \t]*@test[ \t]/ { one(filetags " " pending, rel ":" FNR); pending = "" }
       END {
         end_python()
-        for (i = 1; i <= count; i++) if (found["feature:" order[i]] + 0 == 0) bad(order[i] ": no test is tagged feature:" order[i])
+        for (i = 1; i <= count; i++) if (found["feature:" order[i]] + 0 == 0) bad(order[i] " has no test")
         print "summary " count + 0 " features, " tests + 0 " tests"
       }
     ' "$list" ${files[@]+"${files[@]}"})"
@@ -234,13 +235,20 @@ trap 'exit 143' TERM
 
 # finish_file <file> <log> <exit status> <seconds> <timed out: 0|1>: print the output and add up its tests.
 finish_file() {
-  local f="$1" out rc="$3" ok notok plan written missing rel="${1#$REPO/}" map name why=""
+  local f="$1" out rc="$3" ok notok plan written missing rel="${1#$REPO/}" map name case why="" TAB="$(printf '\t')"
   out="$(cat "$2")"
   printf -- '-- %s (%s s)\n%s\n' "$rel" "$4" "$out"
   map="$(test_features "$f")"
-  while IFS= read -r name; do
-    fail_line "FAILED $(feature_of "$map" "$name"): $name"
-  done < <(printf '%s\n' "$out" | sed -n 's/^not ok [0-9][0-9]* //p')
+  # A looped test prints `case: <input>` before each case; the last one printed by a failed test is the case that
+  # failed, and goes on its line in brackets.
+  while IFS="$TAB" read -r name case; do
+    fail_line "FAILED $(feature_of "$map" "$name"): $name${case:+ [$case]}"
+  done < <(printf '%s\n' "$out" | awk '
+    function flush() { if (have) print name "\t" c; have = 0 }
+    /^not ok [0-9]+ / { flush(); name = $0; sub(/^not ok [0-9]+ /, "", name); have = 1; c = ""; next }
+    /^ok [0-9]+ / { flush(); next }
+    have && /^# case: / { c = substr($0, 9) }
+    END { flush() }')
   ok="$(printf '%s\n' "$out" | grep -c '^ok ')"
   notok="$(printf '%s\n' "$out" | grep -c '^not ok ')"
   total=$((total + ok + notok))

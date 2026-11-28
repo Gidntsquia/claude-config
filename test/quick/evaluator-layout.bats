@@ -61,6 +61,12 @@ code_lines() {
 }
 
 # bats test_tags=feature:evaluator-tools
+@test "the old top-level wsl/local-tools folder is gone" {
+  [ -d "$LT/wsl" ]
+  [ ! -e "$REPO/wsl/local-tools" ]
+}
+
+# bats test_tags=feature:evaluator-tools
 @test "every evaluator shell script parses" {
   n=0; bad=""
   for f in "$LT"/common/*.sh "$LT"/macos/*.sh "$LT"/wsl/*.sh; do
@@ -94,6 +100,13 @@ code_lines() {
   [ -z "$x" ] || { echo "$x"; return 1; }
   x=$(code_lines 'modeidx|EVSHOW_MAC_MODE|iTerm' "$LT/common/evshow.sh")
   [ -z "$x" ] || { echo "$x"; return 1; }
+}
+
+# bats test_tags=feature:evaluator-tools
+@test "the evaluator asks no question about which way of showing to use" {
+  assert_file_exist "$REPO/agents/evaluator.md"
+  run grep -niE 'Which way of showing|EVSHOW_MAC_MODE|mode=tmux|mode=iterm|mode=tab' "$REPO/agents/evaluator.md"
+  assert_failure 1
 }
 
 # bats test_tags=feature:evaluator-tools

@@ -164,6 +164,37 @@ tcheck() {
   pcheck "$1" "$over"
 }
 
+# pcases: a case list on stdin, one case a line: `<what is typed> => <json overrides>`, each checked by pcheck.
+# `\n` in the typed part is a line break; empty lines and lines starting with # are skipped. `case: <typed>` is
+# printed before each case: test/run puts the last one in the FAILED line, so a failure names its case.
+pcases() { ra_cases pcheck; }
+# tcases: the same for tcheck: `<what is typed> => <epoch or YYYY-MM-DD HH:MM ET> | <at_text> [| <derived text> [| <extra json>]]`
+tcases() { ra_cases ra_tcase; }
+ra_tcase() {
+  local when text shown extra
+  IFS='|' read -r when text shown extra <<<"$2"
+  when="$(ra_trim "$when")"
+  case "$when" in ????-??-??\ ??:??) when="$(ep "$when")" ;; esac
+  tcheck "$1" "$when" "$(ra_trim "$text")" "$(ra_trim "$shown")" "$(ra_trim "$extra")"
+}
+ra_trim() { local v="$1"; v="${v#"${v%%[! ]*}"}"; printf '%s' "${v%"${v##*[! ]}"}"; }
+# ra_cases <check>: the list is read whole first, so nothing a case runs can eat the rest of it.
+ra_cases() {
+  local l list=() n=0 nl='
+'
+  while IFS= read -r l; do
+    case "$l" in ''|'#'*) continue ;; esac
+    case "$l" in *' => '*) ;; *) echo "not a case line (wanted: <typed> => <expected>): $l"; return 1 ;; esac
+    list[${#list[@]}]="$l"
+  done
+  [ "${#list[@]}" -gt 0 ] || { echo "an empty case list"; return 1; }
+  for l in "${list[@]}"; do
+    echo "case: ${l%% => *}"
+    "$1" "$(ra_typed "${l%% => *}" "$nl")" "${l#* => }" || return 1
+  done
+}
+ra_typed() { local v="$1"; printf '%s' "${v//\\n/$2}"; }
+
 # ---- tmux ------------------------------------------------------------------------------------------------------
 need_tmux() {
   if ra_on_windows; then skip "run-agent needs tmux, which Windows Git Bash lacks"; fi

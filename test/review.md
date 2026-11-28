@@ -1,16 +1,20 @@
 # Which tests are kept
 
-Every test as it stood on commit 4bbcc43 (2026-11-27), what break it catches, and a verdict: keep, merge, rewrite
-or delete. The tree matches this page as of the commit that added it; a test added later is listed with the verdict new.
+Every test, what break it catches, and a verdict: keep, merge, delete or new. `before` counts the tests as they stood
+on commit 4bbcc43 (2026-11-27); `after` counts the `@test` lines in the tree now. The `after` numbers sum to
+663, the number of `@test` lines under `test/`. The pytest functions are in the last table and in no sum.
 
-Total: before 805, after 757 (10 deleted; 59 merged into 18; 3 added after the review, marked new).
+Total: before 784, after 663 (8 deleted; 143 merged into 25; 5 added since, marked new).
 
-- A test is listed once, under the first feature it is tagged with; each table says how many tests of other tables
-  also carry its tag.
-- delete: the same input is tested elsewhere, or the test pins something no behaviour depends on.
-- merge: several tests read one run or one rule; they are now one test, and the failure output says which line broke.
-- rewrite: none. The sleeps the research wanted rewritten were replaced in the port and are refused by the lint.
-- A cut that would lower `bin/release/faults` is put back and marked keep.
+- A test is listed once, under the first feature it is tagged with.
+- merge: tests with one setup whose bodies differed only in the input and the expected answer are one test looping
+  over a case list (U2W, ASE 2025); the row names that test. Tests of different behaviours are never merged
+  (Bavota, ICSM 2012). A failing case is named on the `FAILED` line in brackets.
+- delete: only when another named test checks the same behaviour, and `bin/release/faults` and
+  `bin/release/redgreen.sh` give the same result without it. The row names the covering test. No test was cut for
+  never having failed or for overlapping coverage (Rothermel 1998; Inozemtseva 2014).
+- A cut that lowers `bin/release/faults` gets a new case line until the count is back; the removed test stays removed.
+- new: added after the 2026-11-27 review.
 
 ## install
 
@@ -45,7 +49,7 @@ install.sh links the config into ~/.claude and --check verifies a fresh or exist
 | update from v1.2.1 with your edits: --check passes, no new .pre-link copy, git status lists only your four files | --check failing, .pre-link copies made, or stray files in the clone (from v1.2.1) | keep | one group of checks of this install scenario; no other scenario starts from this home |
 | dirty-v121: the whole scenario ran to its end with no failed check | the scenario stopping early or any of its checks failing (from v1.2.1) | keep | one group of checks of this install scenario; no other scenario starts from this home |
 | existing settings: install.sh exits 0 and install.sh --check passes | install.sh or --check failing on a home with settings | keep | one group of checks of this install scenario; no other scenario starts from this home |
-| existing settings: the repo holds no personal path | nothing the installed-text tests do not catch: it reads the repo, not the home | delete | same check as installed-text's two path tests; the scenario still runs it and “ran to its end” fails if it does |
+| existing settings: the repo holds no personal path | nothing the installed-text tests do not catch: it reads the repo, not the home | delete | covered by “no tracked installed file holds a personal home path” (installed-text), the same check of the repo |
 | existing settings: claude doctor exits 0 | an install over your settings that claude doctor rejects | keep | one group of checks of this install scenario; no other scenario starts from this home |
 | existing settings: claude-config.json names this clone | claude-config.json naming another clone | keep | one group of checks of this install scenario; no other scenario starts from this home |
 | existing settings: your model, status line and deny list stay, and the repo's keys are added | your model, status line or deny list overwritten | keep | one group of checks of this install scenario; no other scenario starts from this home |
@@ -55,7 +59,7 @@ install.sh links the config into ~/.claude and --check verifies a fresh or exist
 | existing settings: no .pre-link file is left and --check shows every repo agent installed or kept | .pre-link files left, or --check missing an agent | keep | one group of checks of this install scenario; no other scenario starts from this home |
 | b: the whole scenario ran to its end with no failed check | the scenario stopping early or any of its checks failing | keep | one group of checks of this install scenario; no other scenario starts from this home |
 | fresh install: install.sh exits 0 and install.sh --check passes | install.sh or --check failing on an empty .claude | keep | one group of checks of this install scenario; no other scenario starts from this home |
-| fresh install: the repo holds no personal path | nothing the installed-text tests do not catch: it reads the repo, not the home | delete | same check as installed-text's two path tests; the scenario still runs it and “ran to its end” fails if it does |
+| fresh install: the repo holds no personal path | nothing the installed-text tests do not catch: it reads the repo, not the home | delete | covered by “no tracked installed file holds a personal home path” (installed-text), the same check of the repo |
 | fresh install: claude doctor exits 0 | an install claude doctor rejects | keep | one group of checks of this install scenario; no other scenario starts from this home |
 | fresh install: claude-config.json names this clone | claude-config.json naming another clone | keep | one group of checks of this install scenario; no other scenario starts from this home |
 | fresh install: the status line, CLAUDE.md, the mod dir and the planner agent are in place | the status line, CLAUDE.md, mod dir or planner agent not installed | keep | one group of checks of this install scenario; no other scenario starts from this home |
@@ -141,8 +145,6 @@ your own settings, agents, skills and CLAUDE.md survive an install.
 |---|---|---|---|
 | a skill of yours with the same name stays as it is when --agent-clash is not given | your same-name skill replaced without --agent-clash | keep | one group of checks of this install scenario; no other scenario starts from this home |
 
-7 more tests carry `feature:user-settings` and are listed under their first tag.
-
 before 1, after 1
 
 ## updates
@@ -153,8 +155,6 @@ updating an older install: old tags, moved clones, dirty clones.
 |---|---|---|---|
 | plain ./install.sh keeps every choice made at the first install | a plain rerun resetting the choices of the first install | keep | one group of checks of this install scenario; no other scenario starts from this home |
 
-44 more tests carry `feature:updates` and are listed under their first tag.
-
 before 1, after 1
 
 ## install-check
@@ -164,8 +164,6 @@ install.sh --check reports each item as PASS, WARN, SKIP or FAIL.
 | Test | Catches | Verdict | Reason |
 |---|---|---|---|
 | --check names a leftover .pre-link backup inside skills and agents | --check missing leftovers nested in skills and agents | keep | one group of checks of this install scenario; no other scenario starts from this home |
-
-22 more tests carry `feature:install-check` and are listed under their first tag.
 
 before 1, after 1
 
@@ -350,126 +348,126 @@ run-agent starts, schedules, revives and hands off agent runs.
 | /run-agent outside tmux answers with the line to type | /run-agent outside tmux failing with no line to type | keep | where a launch goes and what the next-step lines say; agents print those lines verbatim |
 | /run-agent typed inside an agent session counts as the person's, not the agent's | a person's /run-agent inside an agent session refused as the agent's | keep | where a launch goes and what the next-step lines say; agents print those lines verbatim |
 | settings.json runs the /run-agent hook with at least 60 s to answer | the /run-agent hook timing out | keep | where a launch goes and what the next-step lines say; agents print those lines verbatim |
-| /run-agent time: at 9pm | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: at 9pm and --at 9pm”: two spellings, one answer |
-| /run-agent time: --at 9pm | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: at 9pm and --at 9pm”: two spellings, one answer |
-| /run-agent time: at 9:30pm | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: at 21:40 | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: at 2140 | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: at 9 (bare hour, next occurrence = 9 PM) | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: at 5 (bare hour, 5 PM passed -> 5 AM) | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: at 5 pm (passed -> tomorrow) | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: in 2h | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: in 2h and --in 2h”: two spellings, one answer |
-| /run-agent time: --in 2h | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: in 2h and --in 2h”: two spellings, one answer |
-| /run-agent time: in 90m | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: in 1h30 | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: in 2 hours | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: in 45 min | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: after window | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: after window, after the window, next window, when the window resets, after reset and --after window all mean the reset”: six phrasings, one answer |
-| /run-agent time: after the window | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: after window, after the window, next window, when the window resets, after reset and --after window all mean the reset”: six phrasings, one answer |
-| /run-agent time: next window | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: after window, after the window, next window, when the window resets, after reset and --after window all mean the reset”: six phrasings, one answer |
-| /run-agent time: when the window resets | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: after window, after the window, next window, when the window resets, after reset and --after window all mean the reset”: six phrasings, one answer |
-| /run-agent time: after reset | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: after window, after the window, next window, when the window resets, after reset and --after window all mean the reset”: six phrasings, one answer |
-| /run-agent time: --after window | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: after window, after the window, next window, when the window resets, after reset and --after window all mean the reset”: six phrasings, one answer |
-| /run-agent time: after window until 11pm | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: until without a window phrase -> unsure | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: unparseable after at -> unsure | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: in <dir> still a directory | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: dir + at 9pm | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: dry with model, effort, at | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: dry run alone fetches the reset | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: dry run and --dry-run alone fetch the reset”: two spellings, one answer |
-| /run-agent time: --dry-run | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: dry run and --dry-run alone fetch the reset”: two spellings, one answer |
-| /run-agent time: 'tomorrow at 1am' with a model and effort is the next calendar day | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: 'two hours before the window' counts back from the reset | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: '1 hr before the current window' counts back from the reset | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: '2 h after the window resets' counts on from the reset | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: '30 min before window ends' counts back from the reset | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: 1 hr before 9pm | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: 2 hours after 9pm | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: tomorrow (default 9 AM) | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: tomorrow 7am | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: at 1am tomorrow | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: 3pm tomorrow | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: tonight (default 7 PM) | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: tonight at 9 (PM) | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: this evening (default 7 PM) | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: today at 9pm | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: noon (next = tomorrow) | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: at midnight | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: friday at 3pm (tomorrow is Friday) | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: monday (next Monday, default 9 AM) | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: next thursday = a week ahead | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: in 2 hours 10 min | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: in an hour | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: today alone -> unsure | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: tomorrow at 25pm -> unsure | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: today at 5pm (already past) -> unsure | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
-| /run-agent time: 3 hours before the window (already past) -> at_error | this time phrase read as the wrong time, or not read | keep | its own phrase with its own expected time; no other test parses this input |
+| /run-agent time: at 9pm | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a clock time after at is its next occurrence”: now its case lines “worker at 9pm”, “worker --at 9pm” |
+| /run-agent time: --at 9pm | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a clock time after at is its next occurrence”: now its case lines “worker at 9pm”, “worker --at 9pm” |
+| /run-agent time: at 9:30pm | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a clock time after at is its next occurrence”: now its case line “worker at 9:30pm” |
+| /run-agent time: at 21:40 | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a clock time after at is its next occurrence”: now its case line “worker at 21:40” |
+| /run-agent time: at 2140 | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a clock time after at is its next occurrence”: now its case line “worker at 2140” |
+| /run-agent time: at 9 (bare hour, next occurrence = 9 PM) | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a clock time after at is its next occurrence”: now its case line “worker at 9” |
+| /run-agent time: at 5 (bare hour, 5 PM passed -> 5 AM) | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a clock time after at is its next occurrence”: now its case line “worker at 5” |
+| /run-agent time: at 5 pm (passed -> tomorrow) | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a clock time after at is its next occurrence”: now its case line “worker at 5 pm” |
+| /run-agent time: in 2h | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length of time after in counts from now”: now its case lines “worker in 2h”, “worker --in 2h” |
+| /run-agent time: --in 2h | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length of time after in counts from now”: now its case lines “worker in 2h”, “worker --in 2h” |
+| /run-agent time: in 90m | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length of time after in counts from now”: now its case line “worker in 90m” |
+| /run-agent time: in 1h30 | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length of time after in counts from now”: now its case line “worker in 1h30” |
+| /run-agent time: in 2 hours | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length of time after in counts from now”: now its case line “worker in 2 hours” |
+| /run-agent time: in 45 min | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length of time after in counts from now”: now its case line “worker in 45 min” |
+| /run-agent time: after window | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a window phrase means the reset, and until bounds it”: now its case lines “worker after window”, “worker after the window”, “worker next window”, “worker when the window resets”, “worker after reset”, “worker --after window” |
+| /run-agent time: after the window | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a window phrase means the reset, and until bounds it”: now its case lines “worker after window”, “worker after the window”, “worker next window”, “worker when the window resets”, “worker after reset”, “worker --after window” |
+| /run-agent time: next window | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a window phrase means the reset, and until bounds it”: now its case lines “worker after window”, “worker after the window”, “worker next window”, “worker when the window resets”, “worker after reset”, “worker --after window” |
+| /run-agent time: when the window resets | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a window phrase means the reset, and until bounds it”: now its case lines “worker after window”, “worker after the window”, “worker next window”, “worker when the window resets”, “worker after reset”, “worker --after window” |
+| /run-agent time: after reset | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a window phrase means the reset, and until bounds it”: now its case lines “worker after window”, “worker after the window”, “worker next window”, “worker when the window resets”, “worker after reset”, “worker --after window” |
+| /run-agent time: --after window | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a window phrase means the reset, and until bounds it”: now its case lines “worker after window”, “worker after the window”, “worker next window”, “worker when the window resets”, “worker after reset”, “worker --after window” |
+| /run-agent time: after window until 11pm | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a window phrase means the reset, and until bounds it”: now its case line “worker after window until 11pm” |
+| /run-agent time: until without a window phrase -> unsure | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a time that cannot be read, or is already past, is asked about and schedules nothing”: now its case line “worker at 9pm until 11pm” |
+| /run-agent time: unparseable after at -> unsure | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a time that cannot be read, or is already past, is asked about and schedules nothing”: now its case line “worker at 25pm” |
+| /run-agent time: in <dir> still a directory | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a folder after in and a dry run keep their meaning beside a time”: now its case line “worker in sibling” |
+| /run-agent time: dir + at 9pm | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a folder after in and a dry run keep their meaning beside a time”: now its case line “worker in ../../sibling at 9pm” |
+| /run-agent time: dry with model, effort, at | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a folder after in and a dry run keep their meaning beside a time”: now its case line “worker fable low effort at 9pm dry” |
+| /run-agent time: dry run alone fetches the reset | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a folder after in and a dry run keep their meaning beside a time”: now its case lines “worker dry run”, “worker --dry-run” |
+| /run-agent time: --dry-run | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a folder after in and a dry run keep their meaning beside a time”: now its case lines “worker dry run”, “worker --dry-run” |
+| /run-agent time: 'tomorrow at 1am' with a model and effort is the next calendar day | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker fable low tomorrow at 1am” |
+| /run-agent time: 'two hours before the window' counts back from the reset | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length before or after the window or a clock time counts from that point”: now its case line “worker fable low two hours before the window” |
+| /run-agent time: '1 hr before the current window' counts back from the reset | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length before or after the window or a clock time counts from that point”: now its case line “worker "." 1 hr before the current window” |
+| /run-agent time: '2 h after the window resets' counts on from the reset | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length before or after the window or a clock time counts from that point”: now its case line “worker 2 h after the window resets” |
+| /run-agent time: '30 min before window ends' counts back from the reset | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length before or after the window or a clock time counts from that point”: now its case line “worker 30 min before window ends” |
+| /run-agent time: 1 hr before 9pm | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length before or after the window or a clock time counts from that point”: now its case line “worker 1 hr before 9pm” |
+| /run-agent time: 2 hours after 9pm | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length before or after the window or a clock time counts from that point”: now its case line “worker 2 hours after 9pm” |
+| /run-agent time: tomorrow (default 9 AM) | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker tomorrow” |
+| /run-agent time: tomorrow 7am | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker tomorrow 7am” |
+| /run-agent time: at 1am tomorrow | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker at 1am tomorrow” |
+| /run-agent time: 3pm tomorrow | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker 3pm tomorrow” |
+| /run-agent time: tonight (default 7 PM) | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker tonight” |
+| /run-agent time: tonight at 9 (PM) | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker tonight at 9” |
+| /run-agent time: this evening (default 7 PM) | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker this evening” |
+| /run-agent time: today at 9pm | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker today at 9pm” |
+| /run-agent time: noon (next = tomorrow) | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker noon” |
+| /run-agent time: at midnight | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker at midnight” |
+| /run-agent time: friday at 3pm (tomorrow is Friday) | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker friday at 3pm” |
+| /run-agent time: monday (next Monday, default 9 AM) | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker monday” |
+| /run-agent time: next thursday = a week ahead | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: day words (tomorrow, tonight, today, noon, midnight, a weekday) pick the day and a default hour”: now its case line “worker next thursday 8am” |
+| /run-agent time: in 2 hours 10 min | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length of time after in counts from now”: now its case line “worker in 2 hours 10 min” |
+| /run-agent time: in an hour | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a length of time after in counts from now”: now its case line “worker in an hour” |
+| /run-agent time: today alone -> unsure | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a time that cannot be read, or is already past, is asked about and schedules nothing”: now its case line “worker today” |
+| /run-agent time: tomorrow at 25pm -> unsure | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a time that cannot be read, or is already past, is asked about and schedules nothing”: now its case line “worker tomorrow at 25pm” |
+| /run-agent time: today at 5pm (already past) -> unsure | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a time that cannot be read, or is already past, is asked about and schedules nothing”: now its case line “worker today at 5pm” |
+| /run-agent time: 3 hours before the window (already past) -> at_error | this time phrase read as the wrong time, or not read | merge | into “/run-agent time: a time that cannot be read, or is already past, is asked about and schedules nothing”: now its case line “worker 3 hours before the window” |
 | a launch from tmux starts claude in the chosen folder, spaces and all | claude started in the wrong folder, or a spaced path split | keep | the launch itself, in a real tmux pane |
 | the session name reaches claude as one argument | the session name split into several arguments | keep | the launch itself, in a real tmux pane |
 | when claude exits a shell is left in the pane | the pane closing when claude exits | keep | the launch itself, in a real tmux pane |
 | a planner launch carries no subagent limits | a planner limited like a worker | keep | the launch itself, in a real tmux pane |
 | a worker launch carries sonnet subagents, 3 at a time, depth 1, and the shell left behind does not keep them | a worker without its subagent limits, or the limits leaking into the shell | keep | the launch itself, in a real tmux pane |
 | outside tmux the worker line to type carries the subagent limits | the typed worker line missing the limits | keep | the launch itself, in a real tmux pane |
-| /run-agent log: key=value, spaced =, commas | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent log: key=value, spaced =, commas, confirm | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent log: effort =medium | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent log: em dashes | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent log: single dashes | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent log: bare model + '<effort> effort' | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent log: model+effort | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent log: commas everywhere | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent log: confirm before em-dash flags | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent log: curly quotes | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent log: claude --agent evaluator '.' | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent log: newline inside the prompt | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: haiku usage error on 'model=fable effort =medium' | this typed form parsed into the wrong launch | delete | same input and expected answer as “log: effort =medium” |
-| /run-agent sessions: haiku usage error on em-dash flags | this typed form parsed into the wrong launch | delete | same input and expected answer as “log: em dashes” |
-| /run-agent sessions: haiku 'not run' on single-dash flags | this typed form parsed into the wrong launch | delete | same input and expected answer as “log: single dashes” |
-| /run-agent sessions: haiku dropped 'low effort' | this typed form parsed into the wrong launch | delete | same input and expected answer as “log: bare model + '<effort> effort'” |
-| /run-agent sessions: haiku 'could not parse' bare model + em-dash effort | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: haiku dry run | this typed form parsed into the wrong launch | delete | same input as “time: dry with model, effort, at” |
-| /run-agent sessions: full claude command with em-dash flags | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: full claude command, capital Confirm | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: full claude command, trailing dot | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: straight open quote, curly close | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: planner prompt, straight open, curly close | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: confirm before the curly prompt | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: confirm after the curly prompt | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: --confirm flag | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: newline inside a curly prompt | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: 'model fable, effort medium' words | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: model=opus, effort=medium | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: 'using opus' | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: flag before the agent | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: stray words -> unsure | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: yolo | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent sessions: bare agent 'planner' (no default prompt) | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent typo: fabel -> fable | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent typo: efort lo -> effort low | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent typo: wroker -> worker | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent typo: zzqx -> unsure | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent typo: lwo (tie low/two-ish) -> unsure | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent words: with opus yolo resume | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent words: just do it is three unplaceable words | this typed form parsed into the wrong launch | merge | into “/run-agent words: just do it, force, go, yolo-run, no confirm and a trailing ! cannot be placed and are asked about”: six inputs through one rule (a word with no place is asked about) |
-| /run-agent words: confirm inside the prompt is prompt | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent words: old force words inside the prompt are prompt | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent words: worker! -> the bare ! is unplaceable | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent words: trailing ! is unplaceable | this typed form parsed into the wrong launch | merge | into “/run-agent words: just do it, force, go, yolo-run, no confirm and a trailing ! cannot be placed and are asked about”: six inputs through one rule (a word with no place is asked about) |
-| /run-agent words: force alone is unplaceable | this typed form parsed into the wrong launch | merge | into “/run-agent words: just do it, force, go, yolo-run, no confirm and a trailing ! cannot be placed and are asked about”: six inputs through one rule (a word with no place is asked about) |
-| /run-agent words: go alone is unplaceable | this typed form parsed into the wrong launch | merge | into “/run-agent words: just do it, force, go, yolo-run, no confirm and a trailing ! cannot be placed and are asked about”: six inputs through one rule (a word with no place is asked about) |
-| /run-agent words: yolo-run is unplaceable | this typed form parsed into the wrong launch | merge | into “/run-agent words: just do it, force, go, yolo-run, no confirm and a trailing ! cannot be placed and are asked about”: six inputs through one rule (a word with no place is asked about) |
-| /run-agent words: no confirm = two unplaceable words | this typed form parsed into the wrong launch | merge | into “/run-agent words: just do it, force, go, yolo-run, no confirm and a trailing ! cannot be placed and are asked about”: six inputs through one rule (a word with no place is asked about) |
-| /run-agent words: now = at once, no schedule | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent words: confirm = confirm:1 | this typed form parsed into the wrong launch | merge | into “/run-agent words: confirm and --confirm both ask before the run”: two spellings, one answer |
-| /run-agent words: --confirm = confirm:1 | this typed form parsed into the wrong launch | merge | into “/run-agent words: confirm and --confirm both ask before the run”: two spellings, one answer |
-| /run-agent words: --force / -f fall where unknown flags fall | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent words: --parse has no force key | this typed form parsed into the wrong launch | delete | the confirm test compares the whole answer, so a force key already fails it |
+| /run-agent log: key=value, spaced =, commas | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker, model=fable effort = medium,” |
+| /run-agent log: key=value, spaced =, commas, confirm | this typed form parsed into the wrong launch | merge | into “/run-agent words: confirm, Confirm and --confirm, before or after the prompt, ask before the run”: now its case line “worker, model=fable effort = medium, confirm” |
+| /run-agent log: effort =medium | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker model=fable effort =medium” |
+| /run-agent log: em dashes | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker —model fable —effort low” |
+| /run-agent log: single dashes | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker -model fable -effort low” |
+| /run-agent log: bare model + '<effort> effort' | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker fable low effort” |
+| /run-agent log: model+effort | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker, opus+medium effort” |
+| /run-agent log: commas everywhere | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker, model=fable, effort=medium,” |
+| /run-agent log: confirm before em-dash flags | this typed form parsed into the wrong launch | merge | into “/run-agent words: confirm, Confirm and --confirm, before or after the prompt, ask before the run”: now its case line “worker confirm —model fable —effort medium” |
+| /run-agent log: curly quotes | this typed form parsed into the wrong launch | merge | into “/run-agent words: the prompt is what sits in quotes, straight or curly, with its line breaks; planner has no default prompt”: now its case line “evaluator “I’m on my phone”” |
+| /run-agent log: claude --agent evaluator '.' | this typed form parsed into the wrong launch | merge | into “/run-agent words: a pasted claude --agent line is read like the short form”: now its case line “claude --agent evaluator "."” |
+| /run-agent log: newline inside the prompt | this typed form parsed into the wrong launch | merge | into “/run-agent words: the prompt is what sits in quotes, straight or curly, with its line breaks; planner has no default prompt”: now its case line “planner "line one\nline two" --model opus” |
+| /run-agent sessions: haiku usage error on 'model=fable effort =medium' | this typed form parsed into the wrong launch | delete | covered by the case “worker model=fable effort =medium” of “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: the same input and answer |
+| /run-agent sessions: haiku usage error on em-dash flags | this typed form parsed into the wrong launch | delete | covered by the case “worker —model fable —effort low” of “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: the same input and answer |
+| /run-agent sessions: haiku 'not run' on single-dash flags | this typed form parsed into the wrong launch | delete | covered by the case “worker -model fable -effort low” of “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: the same input and answer |
+| /run-agent sessions: haiku dropped 'low effort' | this typed form parsed into the wrong launch | delete | covered by the case “worker fable low effort” of “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: the same input and answer |
+| /run-agent sessions: haiku 'could not parse' bare model + em-dash effort | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker fable —effort low” |
+| /run-agent sessions: haiku dry run | this typed form parsed into the wrong launch | delete | covered by the case “worker fable low effort at 9pm dry” of “/run-agent time: a folder after in and a dry run keep their meaning beside a time”: the same input and answer |
+| /run-agent sessions: full claude command with em-dash flags | this typed form parsed into the wrong launch | merge | into “/run-agent words: a pasted claude --agent line is read like the short form”: now its case line “claude --agent worker "." —model fable —effort medium” |
+| /run-agent sessions: full claude command, capital Confirm | this typed form parsed into the wrong launch | merge | into “/run-agent words: confirm, Confirm and --confirm, before or after the prompt, ask before the run”: now its case line “claude --agent evaluator "." Confirm” |
+| /run-agent sessions: full claude command, trailing dot | this typed form parsed into the wrong launch | merge | into “/run-agent words: a pasted claude --agent line is read like the short form”: now its case line “claude --agent evaluator ".".” |
+| /run-agent sessions: straight open quote, curly close | this typed form parsed into the wrong launch | merge | into “/run-agent words: the prompt is what sits in quotes, straight or curly, with its line breaks; planner has no default prompt”: now its case line “claude --agent evaluator "I’m on my phone”” |
+| /run-agent sessions: planner prompt, straight open, curly close | this typed form parsed into the wrong launch | merge | into “/run-agent words: the prompt is what sits in quotes, straight or curly, with its line breaks; planner has no default prompt”: now its case line “claude --agent planner "Replan based on plans/EVAL.md”” |
+| /run-agent sessions: confirm before the curly prompt | this typed form parsed into the wrong launch | merge | into “/run-agent words: confirm, Confirm and --confirm, before or after the prompt, ask before the run”: now its case line “evaluator confirm “I’m on my phone”” |
+| /run-agent sessions: confirm after the curly prompt | this typed form parsed into the wrong launch | merge | into “/run-agent words: confirm, Confirm and --confirm, before or after the prompt, ask before the run”: now its case line “evaluator “I’m on my phone” confirm” |
+| /run-agent sessions: --confirm flag | this typed form parsed into the wrong launch | merge | into “/run-agent words: confirm, Confirm and --confirm, before or after the prompt, ask before the run”: now its case line “evaluator “I’m on my phone” --confirm” |
+| /run-agent sessions: newline inside a curly prompt | this typed form parsed into the wrong launch | merge | into “/run-agent words: the prompt is what sits in quotes, straight or curly, with its line breaks; planner has no default prompt”: now its case line “evaluator “I’m on my\nPhone”” |
+| /run-agent sessions: 'model fable, effort medium' words | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker, model fable, effort medium” |
+| /run-agent sessions: model=opus, effort=medium | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker model=opus, effort=medium” |
+| /run-agent sessions: 'using opus' | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker "." using opus” |
+| /run-agent sessions: flag before the agent | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “--model opus worker "."” |
+| /run-agent sessions: stray words -> unsure | this typed form parsed into the wrong launch | merge | into “/run-agent words: a word that cannot be placed is asked about, never guessed”: now its case line “worker . extra words” |
+| /run-agent sessions: yolo | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker yolo” |
+| /run-agent sessions: bare agent 'planner' (no default prompt) | this typed form parsed into the wrong launch | merge | into “/run-agent words: the prompt is what sits in quotes, straight or curly, with its line breaks; planner has no default prompt”: now its case line “planner” |
+| /run-agent typo: fabel -> fable | this typed form parsed into the wrong launch | merge | into “/run-agent words: a misspelt word is corrected when exactly one known word is close”: now its case line “worker fabel low” |
+| /run-agent typo: efort lo -> effort low | this typed form parsed into the wrong launch | merge | into “/run-agent words: a misspelt word is corrected when exactly one known word is close”: now its case line “worker efort lo” |
+| /run-agent typo: wroker -> worker | this typed form parsed into the wrong launch | merge | into “/run-agent words: a misspelt word is corrected when exactly one known word is close”: now its case line “wroker fable” |
+| /run-agent typo: zzqx -> unsure | this typed form parsed into the wrong launch | merge | into “/run-agent words: a word that cannot be placed is asked about, never guessed”: now its case line “worker zzqx” |
+| /run-agent typo: lwo (tie low/two-ish) -> unsure | this typed form parsed into the wrong launch | merge | into “/run-agent words: a word that cannot be placed is asked about, never guessed”: now its case line “worker fable lwo” |
+| /run-agent words: with opus yolo resume | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker with opus yolo resume” |
+| /run-agent words: just do it is three unplaceable words | this typed form parsed into the wrong launch | merge | into “/run-agent words: a word that cannot be placed is asked about, never guessed”: now its case lines “worker just do it”, “worker "." !”, “worker force”, “worker go”, “worker yolo-run”, “worker no confirm” |
+| /run-agent words: confirm inside the prompt is prompt | this typed form parsed into the wrong launch | merge | into “/run-agent words: the prompt is what sits in quotes, straight or curly, with its line breaks; planner has no default prompt”: now its case line “worker "confirm"” |
+| /run-agent words: old force words inside the prompt are prompt | this typed form parsed into the wrong launch | merge | into “/run-agent words: the prompt is what sits in quotes, straight or curly, with its line breaks; planner has no default prompt”: now its case line “worker "go now"” |
+| /run-agent words: worker! -> the bare ! is unplaceable | this typed form parsed into the wrong launch | merge | into “/run-agent words: a word that cannot be placed is asked about, never guessed”: now its case line “worker! fable” |
+| /run-agent words: trailing ! is unplaceable | this typed form parsed into the wrong launch | merge | into “/run-agent words: a word that cannot be placed is asked about, never guessed”: now its case lines “worker just do it”, “worker "." !”, “worker force”, “worker go”, “worker yolo-run”, “worker no confirm” |
+| /run-agent words: force alone is unplaceable | this typed form parsed into the wrong launch | merge | into “/run-agent words: a word that cannot be placed is asked about, never guessed”: now its case lines “worker just do it”, “worker "." !”, “worker force”, “worker go”, “worker yolo-run”, “worker no confirm” |
+| /run-agent words: go alone is unplaceable | this typed form parsed into the wrong launch | merge | into “/run-agent words: a word that cannot be placed is asked about, never guessed”: now its case lines “worker just do it”, “worker "." !”, “worker force”, “worker go”, “worker yolo-run”, “worker no confirm” |
+| /run-agent words: yolo-run is unplaceable | this typed form parsed into the wrong launch | merge | into “/run-agent words: a word that cannot be placed is asked about, never guessed”: now its case lines “worker just do it”, “worker "." !”, “worker force”, “worker go”, “worker yolo-run”, “worker no confirm” |
+| /run-agent words: no confirm = two unplaceable words | this typed form parsed into the wrong launch | merge | into “/run-agent words: a word that cannot be placed is asked about, never guessed”: now its case lines “worker just do it”, “worker "." !”, “worker force”, “worker go”, “worker yolo-run”, “worker no confirm” |
+| /run-agent words: now = at once, no schedule | this typed form parsed into the wrong launch | merge | into “/run-agent words: the prompt is what sits in quotes, straight or curly, with its line breaks; planner has no default prompt”: now its case line “worker now” |
+| /run-agent words: confirm = confirm:1 | this typed form parsed into the wrong launch | merge | into “/run-agent words: confirm, Confirm and --confirm, before or after the prompt, ask before the run”: now its case lines “worker "." confirm”, “worker --confirm” |
+| /run-agent words: --confirm = confirm:1 | this typed form parsed into the wrong launch | merge | into “/run-agent words: confirm, Confirm and --confirm, before or after the prompt, ask before the run”: now its case lines “worker "." confirm”, “worker --confirm” |
+| /run-agent words: --force / -f fall where unknown flags fall | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker --force -f” |
+| /run-agent words: --parse has no force key | this typed form parsed into the wrong launch | delete | covered by “/run-agent words: confirm, Confirm and --confirm, before or after the prompt, ask before the run”: it compares the whole answer, so a force key fails it |
 | /run-agent words: a path under the home folder | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent words: --name given | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
+| /run-agent words: --name given | this typed form parsed into the wrong launch | merge | into “/run-agent words: model, effort and other flags, however they are spelled, become the launch's flags”: now its case line “worker --name mine” |
 | /run-agent words: two directories -> error | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
-| /run-agent words: planner has no default prompt | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
+| /run-agent words: planner has no default prompt | this typed form parsed into the wrong launch | merge | into “/run-agent words: the prompt is what sits in quotes, straight or curly, with its line breaks; planner has no default prompt”: now its case line “planner opus” |
 
-before 280, after 255
+before 280, after 178
 
 ## usage-api
 
@@ -509,13 +507,13 @@ window tools an evaluator run opens, places, shows and closes.
 | WSL and macOS each have the five window commands, executable | an OS lacking one of the five window commands, or one not executable | keep | a misplaced or unparseable tool breaks every install of that OS |
 | no PowerShell file sits in the common or macOS tool folders | a PowerShell file landing in the common or macOS folder | keep | a misplaced or unparseable tool breaks every install of that OS |
 | no tool name exists both in common and in an OS folder, so links cannot collide | one tool name in two folders, so install links collide | keep | a misplaced or unparseable tool breaks every install of that OS |
-| the old top-level wsl/local-tools folder is gone | nothing today: the folder was moved once and nothing recreates it | delete | pins a move that is finished; the layout tests beside it already need local-tools/wsl |
+| the old top-level wsl/local-tools folder is gone | nothing today: the folder was moved once and nothing recreates it | keep | put back 2026-11-28: no other test checks that the old folder stays gone |
 | every evaluator shell script parses | a shell script with a syntax error | keep | a misplaced or unparseable tool breaks every install of that OS |
 | the Mac and shared scripts parse under bash 3.2 | a bash 4 construct in a script a stock Mac runs | keep | a misplaced or unparseable tool breaks every install of that OS |
 | the macOS scripts call no command a stock Mac lacks | a Mac script calling a command a stock Mac lacks | keep | a misplaced or unparseable tool breaks every install of that OS |
 | the macOS tools open no iTerm tab, drive no other browser and need no screen permission | the Mac tools going back to iTerm tabs, another browser or screen capture | merge | into “the macOS tools and evshow.sh open no iTerm tab, drive no other browser, need no screen permission and rotate no modes”: one search for the removed ways of showing, over two sets of files |
 | evshow.sh has no rotation between ways of showing | evshow.sh going back to rotating ways of showing | merge | into “the macOS tools and evshow.sh open no iTerm tab, drive no other browser, need no screen permission and rotate no modes”: one search for the removed ways of showing, over two sets of files |
-| the evaluator asks no question about which way of showing to use | nothing in the tools: it greps the evaluator's prompt for words of a removed feature | delete | greps a prompt for words of a removed feature; no behaviour depends on it |
+| the evaluator asks no question about which way of showing to use | nothing in the tools: it greps the evaluator's prompt for words of a removed feature | keep | put back 2026-11-28: no other test reads the evaluator's prompt for the removed question |
 | every evaluator Python tool parses | a Python tool with a syntax error | keep | a misplaced or unparseable tool breaks every install of that OS |
 | the Mac phone picture tool needs no Node, Playwright or Chromium | the Mac phone tool depending on Node or Chromium again | keep | a misplaced or unparseable tool breaks every install of that OS |
 | registering a file item opens nothing yet and remembers the file | registering a file opening it at once, or forgetting it | keep | one command or failure path of win.sh on a Mac; no other quick test reaches it |
@@ -568,7 +566,7 @@ window tools an evaluator run opens, places, shows and closes.
 | disarming after the run succeeds | disarm failing | merge | into “ending the run closes the last item's window, says nothing on the desktop changed, and disarming succeeds”: three readings of the run's last two commands |
 | evshow.sh says it has no window tools on an unsupported system | a silent no-op on an unsupported system | keep | one step of the evaluator's show loop; a break here is a window that never opens |
 
-before 77, after 71
+before 77, after 73
 
 ## windows-install
 
@@ -725,29 +723,8 @@ weekly-roundup gather, archive and charts.
 
 | Test | Catches | Verdict | Reason |
 |---|---|---|---|
-| test_week_chart | the week chart drawn wrongly | keep | one rule of the roundup's numbers or colours |
-| test_archive_chart_and_days_required | the archive chart drawn without its days | keep | one rule of the roundup's numbers or colours |
-| test_first_run_one_entry | a first run writing more than one entry | keep | one rule of the roundup's numbers or colours |
-| test_rerun_equals_single_run | a rerun doubling the entry | keep | one rule of the roundup's numbers or colours |
-| test_rerun_drops_own_feature_links_keeps_other | a rerun dropping another machine's feature links | keep | one rule of the roundup's numbers or colours |
-| test_dangling_feature_link_warns_and_drops | a dangling feature link kept | keep | one rule of the roundup's numbers or colours |
-| test_same_hostname_different_person_errors | two people on one hostname merged | keep | one rule of the roundup's numbers or colours |
-| test_two_hostnames_same_person_stay_two | one person's two machines merged | keep | one rule of the roundup's numbers or colours |
-| test_legacy_entry_without_hostname_matched | an old entry without a hostname duplicated | keep | one rule of the roundup's numbers or colours |
-| test_shared_project_keeps_other_machine | a shared project losing the other machine's part | keep | one rule of the roundup's numbers or colours |
-| test_rewrite_lists_authored | the rewrite list missing authored projects | keep | one rule of the roundup's numbers or colours |
-| test_days_shape_sums_and_boundaries | day totals not summing, or wrong at the boundaries | keep | one rule of the roundup's numbers or colours |
-| test_days_two_people_and_shared_session_once | a shared session counted twice across two people | keep | one rule of the roundup's numbers or colours |
-| test_legacy_pool_entry_without_days | an old pool entry without days crashing | keep | one rule of the roundup's numbers or colours |
-| test_person_palettes_separated | two people's colours overlapping | keep | one rule of the roundup's numbers or colours |
-| test_colors_stable_across_runs_and_joining | colours changing between runs or when someone joins | keep | one rule of the roundup's numbers or colours |
-| test_mapped_color_reused_and_new_project_takes_free_accent | a mapped colour not reused, or a new project taking a used one | keep | one rule of the roundup's numbers or colours |
-| test_thirteen_projects_cycle | a crash past twelve projects | keep | one rule of the roundup's numbers or colours |
-| test_cache_reads_cost_less_on_a_model_with_a_cheaper_cache_rate | cache reads priced at the full rate | keep | one rule of the roundup's numbers or colours |
-| test_a_reply_written_to_the_log_twice_while_streaming_is_counted_once | a streamed reply counted twice | keep | one rule of the roundup's numbers or colours |
-| test_the_published_data_does_not_hold_what_you_asked_in_a_session | prompts published in the data | keep | one rule of the roundup's numbers or colours |
 
-before 21, after 21
+before 0, after 0
 
 ## defer-artifact
 
@@ -1057,5 +1034,37 @@ test/run: tiers, lint, feature list.
 | bin/release/trust-report: a TESTING.md without the marks is left alone and exits 2 | a TESTING.md without marks rewritten | keep | the runner's own promise; if this breaks, a pass means nothing |
 | bin/release/trust-report: names each replayed bug with its test, and gives each feature its counts before and now | the page losing the list of old bugs or the per-feature counts | new | the runner's own promise; if this breaks, a pass means nothing |
 | bin/release/repeat <n> <files> with REPEAT_RECORD keeps each system's sum, and the trust report shows them side by side | one system's repeat result overwriting the other's | new | the runner's own promise; if this breaks, a pass means nothing |
+| test/run: a looped test that fails names the case it stopped at, in brackets on its FAILED line | a failing case list not saying which case failed | new | the runner's own promise; if this breaks, a pass means nothing |
+| install.sh --check prints PASS for every link after a fresh install | nothing: it is the example in `test/quick/_template.bats`, which `test/run` does not run | new | the file a new feature's tests are copied from; listed so the `after` sum equals the `@test` lines |
 
-before 56, after 58
+before 56, after 60
+
+## pytest functions
+
+The python helpers' tests; `test/run` runs them after the quick tier. None was changed.
+
+| Test | Catches | Verdict | Reason |
+|---|---|---|---|
+| test_week_chart | the week chart drawn wrongly | keep | one rule of the roundup's numbers or colours |
+| test_archive_chart_and_days_required | the archive chart drawn without its days | keep | one rule of the roundup's numbers or colours |
+| test_first_run_one_entry | a first run writing more than one entry | keep | one rule of the roundup's numbers or colours |
+| test_rerun_equals_single_run | a rerun doubling the entry | keep | one rule of the roundup's numbers or colours |
+| test_rerun_drops_own_feature_links_keeps_other | a rerun dropping another machine's feature links | keep | one rule of the roundup's numbers or colours |
+| test_dangling_feature_link_warns_and_drops | a dangling feature link kept | keep | one rule of the roundup's numbers or colours |
+| test_same_hostname_different_person_errors | two people on one hostname merged | keep | one rule of the roundup's numbers or colours |
+| test_two_hostnames_same_person_stay_two | one person's two machines merged | keep | one rule of the roundup's numbers or colours |
+| test_legacy_entry_without_hostname_matched | an old entry without a hostname duplicated | keep | one rule of the roundup's numbers or colours |
+| test_shared_project_keeps_other_machine | a shared project losing the other machine's part | keep | one rule of the roundup's numbers or colours |
+| test_rewrite_lists_authored | the rewrite list missing authored projects | keep | one rule of the roundup's numbers or colours |
+| test_days_shape_sums_and_boundaries | day totals not summing, or wrong at the boundaries | keep | one rule of the roundup's numbers or colours |
+| test_days_two_people_and_shared_session_once | a shared session counted twice across two people | keep | one rule of the roundup's numbers or colours |
+| test_legacy_pool_entry_without_days | an old pool entry without days crashing | keep | one rule of the roundup's numbers or colours |
+| test_person_palettes_separated | two people's colours overlapping | keep | one rule of the roundup's numbers or colours |
+| test_colors_stable_across_runs_and_joining | colours changing between runs or when someone joins | keep | one rule of the roundup's numbers or colours |
+| test_mapped_color_reused_and_new_project_takes_free_accent | a mapped colour not reused, or a new project taking a used one | keep | one rule of the roundup's numbers or colours |
+| test_thirteen_projects_cycle | a crash past twelve projects | keep | one rule of the roundup's numbers or colours |
+| test_cache_reads_cost_less_on_a_model_with_a_cheaper_cache_rate | cache reads priced at the full rate | keep | one rule of the roundup's numbers or colours |
+| test_a_reply_written_to_the_log_twice_while_streaming_is_counted_once | a streamed reply counted twice | keep | one rule of the roundup's numbers or colours |
+| test_the_published_data_does_not_hold_what_you_asked_in_a_session | prompts published in the data | keep | one rule of the roundup's numbers or colours |
+
+21 pytest functions, the same 21 as on 4bbcc43; they are no `@test` lines and are in no sum above.

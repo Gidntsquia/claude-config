@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # For a new feature: copy to test/quick/<feature>.bats (a name starting with `_` is not run) and add the row
-# `<id> | <description>` to test/features.txt. For a feature that has a file, copy a neighbouring @test instead.
+# `<id> | <description>` to test/features.txt. For a feature that has a file, copy a neighbouring test instead.
 #   1. name the test after what the user sees, and tag it with the feature's id;
 #   2. run `test/run` and see it fail before the code exists;
 #   3. write the code, run `test/run` again.
