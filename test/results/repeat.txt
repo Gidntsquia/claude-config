@@ -1,12 +1,12 @@
-# test/run quick --repeat 10 --seed 1795803058, 2026-11-27 02:05 PM ET on Darwin, commit 978e0de
-run 1 seed 1795803058: PASS 733 tests
-run 2 seed 1795803059: PASS 733 tests
-run 3 seed 1795803060: PASS 733 tests
-run 4 seed 1795803061: PASS 733 tests
-run 5 seed 1795803062: PASS 733 tests
-run 6 seed 1795803063: PASS 733 tests
-run 7 seed 1795803064: PASS 733 tests
-run 8 seed 1795803065: PASS 733 tests
-run 9 seed 1795803066: PASS 733 tests
-run 10 seed 1795803067: PASS 733 tests
+# TEST_SEED=1795850274 bin/release/repeat 10, 2026-11-28 03:01 AM ET on Darwin, commit 62a1d61
+run 1 seed 1795850274: PASS 632 tests
+run 2 seed 1795850275: PASS 632 tests
+run 3 seed 1795850276: PASS 632 tests
+run 4 seed 1795850277: PASS 632 tests
+run 5 seed 1795850278: PASS 632 tests
+run 6 seed 1795850279: PASS 632 tests
+run 7 seed 1795850280: PASS 632 tests
+run 8 seed 1795850281: PASS 632 tests
+run 9 seed 1795850282: PASS 632 tests
+run 10 seed 1795850283: PASS 632 tests
 agreed 10 of 10
