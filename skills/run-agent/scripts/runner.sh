@@ -104,14 +104,17 @@ RUN_AGENT_FROM="$3" "${w[@]}" "$bin" "${@:8}"; echo $? > "$4"; exec "$2"' run-ag
   # started <pane>: after tmux took the launch, wait up to 30 s for claude under that pane. Logs the outcome.
   started() {
     local p="$1" where="$2" i rc err found=
+    # A claude that cannot start is a process for a moment first: once seen, it has to be there 2 s later too,
+    # or have ended with 0, before the run counts as fired.
     for i in $(seq 1 30); do
       if [ -f "$state_dir/logs/$id.exit" ]; then
         rc=$(cat "$state_dir/logs/$id.exit"); [ "$rc" = 0 ] && break
         err=$("${TM[@]}" capture-pane -p -J -t "$p" 2>/dev/null | sed '1d' | grep -v '^$' | head -n1)
         log "failed: claude did not start" "${err:-exit $rc}${where:+, $where}"; return 1
       fi
+      [ -n "$found" ] && break
       if python3 "$HERE/proc.py" claude-under "$("${TM[@]}" display -p -t "$p" '#{pane_pid}' 2>/dev/null)"
-      then found=1; break; fi
+      then found=1; sleep 2; continue; fi
       sleep 1
     done
     if [ -z "$found" ] && [ ! -f "$state_dir/logs/$id.exit" ]; then

@@ -4,7 +4,7 @@ Every test, what break it catches, and a verdict: keep, merge, delete or new. `b
 on commit 4bbcc43 (2026-11-27); `after` counts the `@test` lines in the tree now. The `after` numbers sum to
 665, the number of `@test` lines under `test/`. The pytest functions are in the last table and in no sum.
 
-Total: before 784, after 665 (8 deleted; 143 merged into 25; 7 added since, marked new).
+Total: before 784, after 666 (8 deleted; 143 merged into 25; 8 added since, marked new).
 
 - A test is listed once, under the first feature it is tagged with.
 - merge: tests with one setup whose bodies differed only in the input and the expected answer are one test looping
@@ -220,6 +220,7 @@ run-agent starts, schedules, revives and hands off agent runs.
 | a run scheduled from a stripped environment still starts the claude it recorded, with worker limits | a scheduled run starting another claude, or without worker limits, from a bare environment | keep | a scheduled run fires hours later with nobody watching |
 | a claude that fails to start is logged with its error, which stays on screen | a claude that fails to start vanishing without its error | keep | a scheduled run fires hours later with nobody watching |
 | --jobs reports a failed run once | a failed run reported on every --jobs | keep | a scheduled run fires hours later with nobody watching |
+| a claude that is seen running and exits 127 a moment later is logged as failed, never as fired | a claude that died at start logged as fired | new | seen on Ubuntu CI: 2 of 300 runs logged fired for a claude that had exited 127 |
 | --jobs lists a job file from an older version | an older version's job file crashing --jobs | keep | a scheduled run fires hours later with nobody watching |
 | a job file from an older version still fires | an older version's job never firing | keep | a scheduled run fires hours later with nobody watching |
 | four split launches give four new one-pane windows at once and leave your window alone | split launches landing in the user's window, or one after another | keep | the only tests of several launches in one call |
@@ -467,7 +468,7 @@ run-agent starts, schedules, revives and hands off agent runs.
 | /run-agent words: two directories -> error | this typed form parsed into the wrong launch | keep | a form somebody typed, taken from the logs; no other test parses this input |
 | /run-agent words: planner has no default prompt | this typed form parsed into the wrong launch | merge | into “/run-agent words: the prompt is what sits in quotes, straight or curly, with its line breaks; planner has no default prompt”: now its case line “planner opus” |
 
-before 280, after 178
+before 280, after 179
 
 ## usage-api
 

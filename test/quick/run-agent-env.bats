@@ -52,6 +52,16 @@ broken_claude_job() {
   has "$(TM capture-pane -p -t t:0 -S -)" "claude: no such model zork"
 }
 
+# The runner can see the claude process before it has failed: seen on Ubuntu CI, 2 of 300 runs logged `fired`.
+@test "a claude that is seen running and exits 127 a moment later is logged as failed, never as fired" {
+  mkdir -p "$T/bin127"; printf '#!/usr/bin/env bash\necho "claude: no such model zork" >&2\nsleep 0.6\nexit 127\n' > "$T/bin127/claude"; chmod +x "$T/bin127/claude"
+  keys "PATH='$T/bin127:$PATH' '$S' worker '.' --at $(( $(date +%s) + 4 )) --at-text 'in 4s' > '$T/sched127.out' 2>&1"
+  ra_id "$T/sched127.out"
+  logged 45 "  #$ID  f"
+  fhas "$LOG" "  #$ID  failed: claude did not start  .*  (claude: no such model zork)\$"
+  no grep -q -- "  #$ID  fired  " "$LOG"
+}
+
 # old: failures: the next human --jobs prints the failed run with time and reason | failures: printed once, then marked seen
 @test "--jobs reports a failed run once" {
   broken_claude_job
