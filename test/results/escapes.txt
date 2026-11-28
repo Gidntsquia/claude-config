@@ -1,4 +1,4 @@
-# bin/release/redgreen.sh, 2026-11-27 06:09 PM ET on Darwin, commit 8c957cf
+# bin/release/redgreen.sh, 2026-11-28 01:22 AM ET on Darwin, commit 26853e3
 row 1a: 5 FAIL line(s)
 row 1c: 7 FAIL line(s)
 row 1e: 5 FAIL line(s)
